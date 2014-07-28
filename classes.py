@@ -111,7 +111,6 @@ class Resistivity_volume():
             mres = float(self.resistivity_matrix)
             fres = float(self.resistivity_fluid)
 
-            
             factor = float(self.linearity_factor) # how much more likely there is to be a fault if previous cell holds a fault
 
          
@@ -122,12 +121,18 @@ class Resistivity_volume():
                 resz[0,resz0>=self.pz*mres] = mres
                 
                 for i in range(1,self.nz):
-                    nf = len(resz[i,resz[i-1]==fres]) # figure out number of fractures in previous row
-                    nm = self.nx-nf # number of matrix cells in previous row
-                    f = self.nx/(factor*nf+nm) # multiplication factor to apply to matrix probabilities
-                    pmz = f*self.pz # probability of fracture if the above cell is a matrix cell
-                    pfz = factor*pmz # probability of fracture if the above cell is a fracture cell
-                    reszi = np.random.random(size=(self.nx+1))*mres # make a new row
+                    # figure out number of fractures in previous row
+                    nf = len(resz[i,resz[i-1]==fres])
+                    # number of matrix cells in previous row
+                    nm = self.nx-nf 
+                    # multiplication factor to apply to matrix probabilities
+                    f = self.nx/(factor*nf+nm) 
+                    # probability of fracture if the above cell is a matrix cell
+                    pmz = f*self.pz 
+                    # probability of fracture if the above cell is a fracture cell
+                    pfz = factor*pmz 
+                    # make a new row
+                    reszi = np.random.random(size=(self.nx+1))*mres 
                     # if adjacent cell on previous row had a fracture, 
                     # assign matrix cell to this row with probability 1-pfz
                     resz[i,(reszi>=pfz*mres)&(resz[i-1]==fres)] = mres
@@ -218,7 +223,7 @@ class Resistivity_volume():
         self.solve_matrix(prop = prop)
       
       
-    def solve_resistor_network_a(self,messages=True):
+    def solve_resistivity(self,messages=True):
         """
         generate and solve a random resistor network in two directions
         to get anisotropy in resistivity
@@ -250,7 +255,7 @@ class Resistivity_volume():
             print "Anisotropy factor is {}".format(self.anisotropy)
 
 
-    def solve_resistor_network_fluid_a(self,messages=True):
+    def solve_permeability(self,messages=True):
         """
         generate and solve a random resistor network in two directions
         to get anisotropy in resistivity
