@@ -111,10 +111,8 @@ class Resistivity_volume():
             mres = float(self.resistivity_matrix)
             fres = float(self.resistivity_fluid)
 
-            
-            factor = float(self.linearity_factor) # how much more likely there is to be a fault if previous cell holds a fault
-
-         
+            # how much more likely there is to be a fault if previous cell holds a fault
+            factor = float(self.linearity_factor) 
             resz = np.ones((self.nz,self.nx+1))*fres
             resx = np.ones((self.nz+1,self.nx)).T*fres
             if self.pz != 1.:
