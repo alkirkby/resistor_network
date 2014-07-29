@@ -11,10 +11,7 @@ from __future__ import division, print_function
 import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg as linalg
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-import os
-import string
+
 
 
 def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
@@ -36,20 +33,21 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
     ===========================================================================
     """
     # initialise array with resistivity r_fluid
-    resz = np.ones((n[1]+1,n[0]+1))*r_fluid
+    resz = np.ones((n[1],n[0]+1))*r_fluid
     # initialise first row
     resz0 = np.random.random(size=(n[0]+1))*r_matrix
     resz[0,resz0>=p[1]*r_matrix] = r_matrix
+
     
     for i in range(1,n[1]):
         # figure out number of fractures in previous row
         nf = len(resz[i,resz[i-1]==r_fluid])
         # number of matrix cells in previous row
-        nm = n[0]-nf
+        nm = len(resz[i])-nf
         # multiplication factor to apply to matrix probabilities
-        f = n[0]/(linearity_factor*nf+nm) 
+        f = float(len(resz[i]))/float(linearity_factor*nf+nm)
         # probability of fracture if the above cell is a matrix cell
-        pmz = f*n[1]
+        pmz = f*p[1]
         # probability of fracture if the above cell is a fracture cell
         pfz = linearity_factor*pmz
         # make a new row containing values between 0 and r_matrix
@@ -61,9 +59,10 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
         # assign matrix cell to this row with probability 1-pmz
         resz[i,(reszi>=pmz*r_matrix)&(resz[i-1]==r_matrix)] = r_matrix
     # assign nan value to final row
-    resz[-1] = nan
+    resz_final = np.ones((n[1]+1,n[0]+1))*np.nan
+    resz_final[:-1] = resz
 
-    return resz
+    return resz_final
 
 def get_phi(dx,fracture_diameter):
     """
@@ -119,7 +118,7 @@ def get_permeability(res_array,r_fluid,k_matrix,fracture_diameter):
 
     permeability = np.ones_like(res_array)*k_matrix        
     permeability[res_array==r_fluid] = fracture_diameter**2/12.
-    permeability[-1] = np.nan
+    permeability[np.isnan(res_array)] = np.nan
     
     return permeability
 
@@ -265,3 +264,5 @@ def solve_matrix(A,b):
     """
    
     return linalg.spsolve(A,b)
+    
+
