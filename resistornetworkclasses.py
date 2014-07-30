@@ -134,8 +134,10 @@ class Resistivity_volume():
         elif self.res_type == 'array':
             resx = self.resistivity_x
             resz = self.resistivity_z
-            r_matrix = max([np.amax(resx),np.amax(resz)])
-            r_fluid = min([np.amin(resx),np.amin(resz)])
+            r_matrix = max([np.amax(resx[np.isfinite(resx)]),
+                            np.amax(resz[np.isfinite(resz)])])
+            r_fluid = min([np.amin(resx[np.isfinite(resx)]),
+                           np.amin(resz[np.isfinite(resz)])])
         else:
             print "res type {} not supported, please redefine".format(self.res_type)
             return
@@ -146,13 +148,19 @@ class Resistivity_volume():
             self.resistivity[:,:,i] = [resx,resz][i]
         d = [self.dz,self.dx]
         
-        self.resistance = [rnf.get_electrical_resistance(dd,
-                                                         self.fracture_diameter,
-                                                         res,
-                                                         r_matrix,
-                                                         r_fluid)\
+        res2x,res2z = [rnf.get_electrical_resistance(dd,
+                                                     self.fracture_diameter,
+                                                     res,
+                                                     r_matrix,
+                                                     r_fluid)\
                            for dd,res in zip([d,d[::-1]],[resx,resz])]
-         
+
+        self.resistance = np.zeros([self.nx+1,self.nz+1,2])
+       
+        for i in range(2):
+            self.resistance[:,:,i] = [res2x,res2z][i]
+            
+        d = [self.dz,self.dx]         
         self.phi = sum([rnf.get_phi(dd,self.fracture_diameter) for dd in d])
     
 
@@ -172,18 +180,21 @@ class Resistivity_volume():
                                       self.permeability_matrix,
                                       self.fracture_diameter) for res in \
                                       [self.resistivity[:,:,i] for i in [0,1]]]
-
         self.permeability = np.zeros([self.nx+1,self.nz+1,2])
         for i in range(2):
             self.permeability[:,:,i] = [kx,kz][i]
             
             
-        self.hydraulic_resistance = [rnf.get_hydraulic_resistance(dd,k,
-                                           self.permeability_matrix,
-                                           self.fracture_diameter) \
+        hrx,hrz = [rnf.get_hydraulic_resistance(dd,k,
+                                                self.permeability_matrix,
+                                                self.fracture_diameter) \
                                      for dd,k in zip([d,d[::-1]],
                                                      [kx,kz])]
-        
+                                                     
+        self.hydraulic_resistance = np.zeros([self.nx+1,self.nz+1,2])
+        for i in range(2):
+            self.hydraulic_resistance[:,:,i] = [hrx,hrz][i]
+
 
     def solve_resistor_network(self,properties,direction):
         """
@@ -195,17 +206,19 @@ class Resistivity_volume():
         """
         # set kfactor to divide hydraulic conductivities by so that matrix
         # solving is more accurate. 
-        kfactor = 1e1
+        kfactor = 1e8
         
         property_arrays = []
         if 'current' in properties:
             if not hasattr(self,'resistance'):
                 self.initialise_resistivity()
-            property_arrays.append([self.resistance,'current'])
+            property_arrays.append([[self.resistance[:,:,i]\
+                                     for i in [0,1]],'current'])
         if 'fluid' in properties:
             if not hasattr(self,'hydraulic_resistance'):
                 self.initialise_resistivity()
-            property_arrays.append([[v/kfactor for v in self.hydraulic_resistance],'fluid'])        
+            property_arrays.append([[self.hydraulic_resistance[:,:,i]/kfactor\
+                                     for i in [0,1]],'fluid']) 
         
         input_arrays = []
         for prop,pname in property_arrays:
