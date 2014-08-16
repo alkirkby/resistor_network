@@ -101,7 +101,7 @@ def get_electrical_resistance(d,fracture_diameter,resz,r_matrix,r_fluid):
     # convert resistivities to resistances
     # first, resistance in an open node: harmonic mean of resistance in
     # fracture and resistance in surrounding rockmass. 
-    resz[(resz!=r_matrix)&(np.isfinite(resz))] = 1./(phiz/r_fluid + (1.-phiz)/r_matrix)
+    resz[(resz!=r_matrix)&(np.isfinite(resz))] = 1./(phiz/r_fluid)# + (1.-phiz)/r_matrix)
     # second, resistance in a closed node, r = rho*length/width
     resz[resz==r_matrix] = r_matrix*d[1]/d[0]
 
@@ -374,3 +374,50 @@ def get_quiver_UW(parameter,plot_range):
         C[i][C[i]>plot_range[1]] = np.nan    
 
     return U,W,C
+
+
+def get_faultlengths(parameter,d,tolerance=0.05):
+    """
+    gets "fault" lengths for a conductivity/permeability array
+    returns a list of 2 arrays with fault lengths in the x and z directions
+    
+    parameter = array (shape nx,nz,2) containing values in x and z directions
+    values can be anything but highest values are considered faults
+    d = list containing dx,dz values (cell size in x and z direction)
+    tolerance = how close value has to be compared to minimum array value to be
+    considered a fault
+    
+    """
+    parameter[np.isnan(parameter)] = 0.
+    cx,cz = [parameter[:,:,i] for i in [0,1]]
+
+    faultlengths = []
+    
+    fault_value = np.amax(np.isfinite(parameter))
+    
+    for ii,conductivity in enumerate([cx,cz.T]):
+        faultlengths.append([])
+        # turn it into a true/false array
+        faults = np.zeros_like(conductivity)
+        faults[conductivity > (1.-tolerance)*fault_value] = 1.
+        faults = faults.astype(bool)
+        
+        for line in faults:
+            # initialise a new fault at the beginning of each line
+            newfault = True
+            for j in range(len(line)):
+                # check if faulted cell
+                if line[j]:
+                    if newfault:
+                        fl = d[ii]
+                        newfault = False
+                    else:
+                        fl += d[ii]
+                    # check if we are at the end of a fault
+                    if (j == len(line)-1) or (not line[j+1]):      
+                        faultlengths[ii].append(fl)
+                        newfault = True               
+        faultlengths[ii] = np.around(faultlengths[ii],
+                                     decimals=int(np.ceil(-np.log10(d[ii]))))
+
+    return faultlengths

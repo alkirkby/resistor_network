@@ -49,7 +49,7 @@ class Resistivity_volume():
         self.resistivity_fluid = 0.1
         self.permeability_matrix = 1.e-18
         self.fracture_diameter = 1.e-3
-#        self.fluid_viscosity = 1.e-3 #default is for freshwater at 20 degrees 
+        self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.file_x = None
         self.file_z = None
         self.linearity_factor = 1.# 
@@ -231,8 +231,8 @@ class Resistivity_volume():
             
         current = np.zeros([self.nz+2,self.nx+2,2,2])
         flow = np.zeros([self.nz+2,self.nx+2,2,2])
-        resistance_bulk, hydraulic_resistance_bulk = [np.zeros(2)]*2
-        
+        resistance_bulk = np.zeros(2)
+        hydraulic_resistance_bulk = np.zeros(2)
 
         for propx,propz,pname in input_arrays:
             self.matrix = rnf.build_matrix(propx,propz)
@@ -250,28 +250,29 @@ class Resistivity_volume():
                     # dealing with x direction current flow
                     current[1:,:,0,0] = cz.T
                     current[1:-1,1:,1,0] = cx.T
-                    resistance_bulk[0] = np.sum(current[-1,:,0,0])
+                    resistance_bulk[0] = 1./np.sum(current[:,-1,0,0])
                 if 'z' in pname:
                     # dealing with z direction current flow
                     current[1:,1:-1,0,1] = cx                    
                     current[:,1:,1,1] = cz
-                    resistance_bulk[1] = np.sum(current[-1,:,1,1])
+                    resistance_bulk[1] = 1./np.sum(current[-1,:,1,1])
             if 'fluid' in pname:
                 if 'x' in pname:
                     # dealing with x direction current flow
                     flow[1:,:,0,0] = cz.T
                     flow[1:-1,1:,1,0] = cx.T
-                    hydraulic_resistance_bulk[0] = np.sum(flow[-1,:,0,0])
+                    hydraulic_resistance_bulk[0] = 1./np.sum(flow[:,-1,0,0])
                 if 'z' in pname:
                     # dealing with z direction current flow
                     flow[1:,1:-1,0,1] = cx                    
                     flow[:,1:,1,1] = cz                
-                    hydraulic_resistance_bulk[1] = np.sum(flow[-1,:,1,1])
+                    hydraulic_resistance_bulk[1] = 1./np.sum(flow[-1,:,1,1])
         nx,nz,dx,dz = [float(n) for n in self.nx,self.nz,self.dx,self.dz]
         factor = np.array([((nz+1.)*dz)/(dx*nx),((nx+1.)*dx)/(dz*nz)])
 
         self.current = current
-        self.flowrate = flow
+        # need to divide by mu as we have been dealing with the product q*mu
+        self.flowrate = flow/self.mu
         self.resistance_bulk = resistance_bulk
         self.resistivity_bulk = resistance_bulk*factor
         self.hydraulic_resistance_bulk = hydraulic_resistance_bulk
