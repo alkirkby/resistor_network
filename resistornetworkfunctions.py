@@ -62,8 +62,8 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
         # assign matrix cell to this row with probability 1-pmz
         resz[i,(reszi>=pmz*r_matrix)&(resz[i-1]==r_matrix)] = r_matrix
     # assign nan value to final row
-    resz_final = np.ones((n[1]+1,n[0]+1))*np.nan
-    resz_final[:-1] = resz
+    resz_final = np.ones((n[1]+2,n[0]+2))*np.nan
+    resz_final[1:-1,1:] = resz
 
     return resz_final
 
@@ -261,7 +261,8 @@ def build_sums(nfree,n):
     """
     
     b_dense = np.zeros(nfree)
-    b_dense[-(2*n[0] + 1):] = float(n[1])/(float(n[0])+1.)
+    # apply a unit voltage
+    b_dense[-(2*n[0] + 1):] = 1.
     
     return sparse.csr_matrix(b_dense)
 
@@ -308,9 +309,9 @@ def get_direction(property_array):
     property_array =numpy array containing property to be evaluated
     
     """
-    
-    direction = property_array/(np.abs(property_array))
-    direction[np.isnan(direction)] = 1.
+    parray = 1.*property_array
+    parray[parray==0.] = 1.
+    direction = parray/(np.abs(parray))
     
     return direction
 
@@ -342,7 +343,7 @@ def get_quiver_origins(d,plotxz,parameter):
     for i in range(2):
         qplotxz[i] += plotxz[i]
 
-    return qplotxz
+    return [[qplotxz[0],plotxz[0]],[plotxz[1],qplotxz[1]]]
     
 
 def get_quiver_UW(parameter,plot_range):
@@ -366,10 +367,10 @@ def get_quiver_UW(parameter,plot_range):
     C = [np.abs(parameter[:,:,0]),np.abs(parameter[:,:,1])]
 
     
-
+    
     # remove arrows outside of specified plot range
-#    for i in range(2):   
-#        C[i][C[i]<plot_range[0]] = np.nan
-#        C[i][C[i]>plot_range[1]] = np.nan    
+    for i in range(2):
+        C[i][C[i]<plot_range[0]] = np.nan
+        C[i][C[i]>plot_range[1]] = np.nan    
 
     return U,W,C

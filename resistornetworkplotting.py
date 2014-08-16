@@ -25,15 +25,15 @@ class Plot_network():
     def __init__(self, Resistivity_volume, **input_parameters):
         
         self.Resistivity_volume = Resistivity_volume
-        self.cmap = dict(fluid='jet', current='jet',
+        self.cmap = dict(fluid='gray_r', current='gray_r',
                          permeability='gray',resistance='gray')
-        self.clim = dict(fluid=[5.,95.], current=[1.,99.],
-#                         permeability=[0.,100.],resistance=[0.,100.],
-                         limit_type = 'percent')
-        self.plot_range = dict(fluid=[0,100], current=[0,100],
-                               permeability = [0,100], resistance = [0,100])
+        self.clim_percent = dict(fluid=[5.,95.], current=[1.,99.],
+                                 permeability=[0.,100.],resistance=[0.,100.])
+        self.clim = {}
+        self.plot_range = dict(fluid=[], current=[],
+                               permeability = [], resistance = [])
         self.plot_arrowheads = False
-        self.arrow_dict = {'widthscale':0.2}
+        self.arrow_dict = {'widthscale':0.1}
         self.parameters = 'all'
         self.plot_tf = True
     
@@ -136,7 +136,6 @@ class Plot_network():
                 X,Z = rnf.get_quiver_origins([RV.dx,RV.dz],
                                                  plotxz,
                                                  value)
-                print self.plot_range[key]
                 U,W,C = rnf.get_quiver_UW(value,self.plot_range[key])
 
                 self.plot_xzuwc[key].append([X,Z,U,W,C])
@@ -166,35 +165,48 @@ class Plot_network():
             sx,sy = 2,2
         elif self.n_subplots <= 6:
             sx,sy = 2,3
-        
+
+        # initialise xy limits for plot and clim
+        clim = {}
+        n = 0
         for key in self.parameters:
             for X,Z,U,W,C in self.plot_xzuwc[key]:
-                print U,W,C
-                
-#                if key in self.clim.keys():
-#                    clim = True
-#                    if self.clim['limit_type'] == 'percent':
-#                        UW = np.hstack([cc.flatten() for cc in C])
-#                        print(UW)
-#    #                    print UW,self.clim[key]
-#                        clim = np.percentile(UW,self.clim[key][0],
-#                                             UW,self.clim[key][1])
-#                    else:
-#                        clim = self.clim[key]
-#                    
-#                else:
-#                    clim = False
+                if n == 0:
+                    xlim = [np.amin(np.array(X)),np.amax(np.array(X))]
+                    ylim = [np.amin(np.array(Z)),np.amax(np.array(Z))]
+                else:
+                    xlim = [min(np.amin(np.array(X)),xlim[0]),max(np.amax(np.array(X)),xlim[1])]
+                    ylim = [min(np.amin(np.array(Z)),ylim[0]),max(np.amax(np.array(Z)),ylim[1])]
+                UW = np.hstack([cc.flatten() for cc in C])
+                if key in clim.keys():
+                    clim[key] = (min(np.percentile(UW,self.clim_percent[key][0]),clim[key][0]),
+                                 max(np.percentile(UW,self.clim_percent[key][1]),clim[key][1]))
+                else:
+                    clim[key] = (np.percentile(UW,self.clim_percent[key][0]),
+                                 np.percentile(UW,self.clim_percent[key][1]))
+                n += 1
 
+        for key in self.parameters:
+            for X,Z,U,W,C in self.plot_xzuwc[key]:
                 ax = plt.subplot(sx,sy,sp)
-                for i in range(2):
-                    plt.quiver(X,Z,U[i],W[i],C[i],
-                               scale=RV.dx*(RV.nx+2),
+                # set order of plotting
+                if np.average(C[0][np.isfinite(C[0])]) > \
+                np.average(C[1][np.isfinite(C[1])]):
+                    ii = [1,0]
+                else:
+                    ii = [0,1]
+                if key == 'resistance':
+                    ii = ii[::-1]
+                for i in ii:
+                    plt.quiver(X[i],Z[i],U[i],W[i],C[i],
+                               scale=xlim[1]-xlim[0],
                                width=self.arrow_dict['widthscale']/w,
                                cmap=self.cmap[key],
                                headwidth=hw,
                                headlength=hl,
                                headaxislength=hal)
-#                if clim:
-#                    plt.clim(clim)
+                plt.clim(clim[key][0],clim[key][1])
+                plt.xlim(xlim[0],xlim[1])
+                plt.ylim(ylim[0],ylim[1])
                 ax.set_aspect('equal')
                 sp += 1
