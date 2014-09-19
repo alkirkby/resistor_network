@@ -9,12 +9,7 @@ Modelling random resistor networks using python.
 """
 
 import numpy as np
-import scipy.sparse as sparse
-import scipy.sparse.linalg as linalg
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-import os
-import string
 import resistornetworkfunctions as rnf 
 
 class Plot_network():
@@ -27,15 +22,24 @@ class Plot_network():
         self.Resistivity_volume = Resistivity_volume
         self.cmap = dict(fluid='gray_r', current='gray_r',
                          permeability='gray',resistance='gray')
-        self.clim_percent = dict(fluid=[5.,95.], current=[1.,99.],
+        self.clabels = dict(resistance = 'Resistance, $\Omega$',
+                            permeability = 'Permeability, $m^2$',
+                            current='Current, $Amps$',
+                            fluid='Fluid flow rate, $m^2/s$')
+        self.clim_percent = dict(fluid=[0.,90.], current=[0.,90.],
                                  permeability=[0.,100.],resistance=[0.,100.])
         self.clim = {}
+        self.cbar_dict = dict(orientation='horizontal',fraction=0.04,
+                              no_cticks = 2)
         self.plot_range = dict(fluid=[], current=[],
                                permeability = [], resistance = [])
         self.plot_arrowheads = False
         self.arrow_dict = {'widthscale':0.1}
         self.parameters = 'all'
         self.plot_tf = True
+        self.figsize = (12,8)
+        self.hspace = 0.3
+        self.wspace = 0.2
     
         update_dict = {}
 
@@ -110,13 +114,13 @@ class Plot_network():
         parameter_arrays = {}    
         for p in self.parameters:
             if p == 'fluid':
-                parameter_arrays['fluid'] = [RV.flowrate[:,:,:,i] for i in [0,1]]
+                parameter_arrays['fluid'] = [RV.flowrate[:,:,:,i][::-1] for i in [0,1]]
             elif p == 'current':
-                parameter_arrays['current'] = [RV.current[:,:,:,i] for i in [0,1]]              
+                parameter_arrays['current'] = [RV.current[:,:,:,i][::-1] for i in [0,1]]              
             elif p == 'resistance':
-                parameter_arrays[p] = [RV.resistance]
+                parameter_arrays[p] = [RV.resistance[::-1]]
             elif p == 'permeability':
-                parameter_arrays[p] = [RV.permeability]
+                parameter_arrays[p] = [RV.permeability[::-1]]
             
         self.parameter_arrays = parameter_arrays
         
@@ -136,7 +140,9 @@ class Plot_network():
                 X,Z = rnf.get_quiver_origins([RV.dx,RV.dz],
                                                  plotxz,
                                                  value)
-                U,W,C = rnf.get_quiver_UW(value,self.plot_range[key])
+                try: pr = self.plot_range[key]
+                except: pr = None
+                U,W,C = rnf.get_quiver_UW(value,plot_range=pr)
 
                 self.plot_xzuwc[key].append([X,Z,U,W,C])
                 n_subplots += 1
@@ -172,41 +178,72 @@ class Plot_network():
         for key in self.parameters:
             for X,Z,U,W,C in self.plot_xzuwc[key]:
                 if n == 0:
-                    xlim = [np.amin(np.array(X)),np.amax(np.array(X))]
-                    ylim = [np.amin(np.array(Z)),np.amax(np.array(Z))]
+                    xlim = [np.amin(np.array(X)),np.amax(np.array(X))+RV.dx]
+                    ylim = [np.amin(np.array(Z))-RV.dz,np.amax(np.array(Z))]
                 else:
-                    xlim = [min(np.amin(np.array(X)),xlim[0]),max(np.amax(np.array(X)),xlim[1])]
-                    ylim = [min(np.amin(np.array(Z)),ylim[0]),max(np.amax(np.array(Z)),ylim[1])]
-                UW = np.hstack([cc.flatten() for cc in C])
-                if key in clim.keys():
-                    clim[key] = (min(np.percentile(UW,self.clim_percent[key][0]),clim[key][0]),
-                                 max(np.percentile(UW,self.clim_percent[key][1]),clim[key][1]))
+                    xlim = [min(np.amin(np.array(X)),xlim[0]),max(np.amax(np.array(X))+RV.dx,xlim[1])]
+                    ylim = [min(np.amin(np.array(Z))-RV.dz,ylim[0]),max(np.amax(np.array(Z)),ylim[1])]
+                UW = np.hstack([cc[np.isfinite(cc)].flatten() for cc in C])
+                if key == 'resistance':
+                    fr = RV.resistance[np.isfinite(RV.resistance)]
+                    clim[key] = (np.amin(fr),np.amax(fr))
+                elif key == 'permeability':
+                    clim[key] = [RV.fracture_diameter**2/12,1.1*RV.fracture_diameter**2/12]
                 else:
-                    clim[key] = (np.percentile(UW,self.clim_percent[key][0]),
-                                 np.percentile(UW,self.clim_percent[key][1]))
+                    if key in clim.keys():
+                        clim[key] = (min(np.percentile(UW,self.clim_percent[key][0]),clim[key][0]),
+                                     max(np.percentile(UW,self.clim_percent[key][1]),clim[key][1]))
+                    else:
+                        clim[key] = (np.percentile(UW,self.clim_percent[key][0]),
+                                     np.percentile(UW,self.clim_percent[key][1]))
                 n += 1
 
+        fig = plt.figure(figsize=self.figsize)
+        fig.patch.set_alpha(0.)
         for key in self.parameters:
             for X,Z,U,W,C in self.plot_xzuwc[key]:
+                
                 ax = plt.subplot(sx,sy,sp)
+                
                 # set order of plotting
                 if np.average(C[0][np.isfinite(C[0])]) > \
                 np.average(C[1][np.isfinite(C[1])]):
                     ii = [1,0]
                 else:
                     ii = [0,1]
-                if key == 'resistance':
-                    ii = ii[::-1]
+#                if key == 'resistance':
+#                    ii = ii[::-1]
                 for i in ii:
+#                    print C[i]
+                    if i == 1: scale = RV.nz + 2
+                    else: scale = RV.nx + 2
                     plt.quiver(X[i],Z[i],U[i],W[i],C[i],
-                               scale=xlim[1]-xlim[0],
+                               scale=scale,
                                width=self.arrow_dict['widthscale']/w,
                                cmap=self.cmap[key],
                                headwidth=hw,
                                headlength=hl,
                                headaxislength=hal)
-                plt.clim(clim[key][0],clim[key][1])
+                
+                    plt.clim(clim[key][0],clim[key][1])
                 plt.xlim(xlim[0],xlim[1])
                 plt.ylim(ylim[0],ylim[1])
+                plt.xlabel('Distance, m')
+                plt.ylabel('Distance, m')
+
+                cbar = plt.colorbar(fraction=self.cbar_dict['fraction'],
+                                    orientation=self.cbar_dict['orientation'],
+                                    pad=0.2)
+                cticks = np.linspace(clim[key][0],clim[key][1],self.cbar_dict['no_cticks'])
+
+                cbar.set_ticks(cticks)
+                if key in ['permeability']:#,'resistance']:
+                    cticks = np.linspace(RV.fracture_diameter**2/12,
+                                         RV.permeability_matrix,
+                                         self.cbar_dict['no_cticks'])
+                cbar.set_ticklabels(['%.1e'%t for t in cticks])
+                cbar.set_label(self.clabels[key])
                 ax.set_aspect('equal')
                 sp += 1
+        plt.subplots_adjust(wspace=self.wspace,hspace=self.hspace)
+        self.clim = clim

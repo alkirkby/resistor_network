@@ -292,8 +292,8 @@ def get_meshlocations(d,n):
     """
 
     
-    plotx = np.linspace(-d[0],d[0]*(n[0]+1),n[0]+2)
-    plotz = np.linspace(-d[1],d[1]*(n[1]+1),n[1]+2)
+    plotx = np.linspace(-d[0],d[0]*n[0],n[0]+2)
+    plotz = np.linspace(0.,d[1]*(n[1]+1),n[1]+2)
     
     return np.meshgrid(plotx,plotz)
 
@@ -337,7 +337,7 @@ def get_quiver_origins(d,plotxz,parameter):
     # if x arrows point left (negative), shift starting location right by dx
     qplotxz[0][get_direction(parameter[:,:,0]) < 0.] += d[0]
     # if z arrows point down (positive), shift starting location up by dz
-    qplotxz[1][get_direction(parameter[:,:,1]) > 0.] += d[1]       
+    qplotxz[1][-get_direction(parameter[:,:,1]) > 0.] -= d[1]       
     
     # add plotxz to qplotxz to give absolute starting locations for arrows
     for i in range(2):
@@ -346,7 +346,7 @@ def get_quiver_origins(d,plotxz,parameter):
     return [[qplotxz[0],plotxz[0]],[plotxz[1],qplotxz[1]]]
     
 
-def get_quiver_UW(parameter,plot_range):
+def get_quiver_UW(parameter,plot_range=None):
     """
     take an array containing inputs/outputs and prepare it for input into
     a quiver plot with separate horizontal and vertical components.
@@ -363,15 +363,17 @@ def get_quiver_UW(parameter,plot_range):
     # get U, W and C. All length 2 lists containing plot data for horizontal 
     # and vertical arrows respectively
     U = [get_direction(parameter[:,:,0]),np.zeros_like(parameter[:,:,1])]
-    W = [np.zeros_like(parameter[:,:,0]),get_direction(parameter[:,:,1])]
+    W = [np.zeros_like(parameter[:,:,0]),-get_direction(parameter[:,:,1])]
     C = [np.abs(parameter[:,:,0]),np.abs(parameter[:,:,1])]
-
+    
     
     
     # remove arrows outside of specified plot range
+    
     for i in range(2):
-        C[i][C[i]<plot_range[0]] = np.nan
-        C[i][C[i]>plot_range[1]] = np.nan    
+        if plot_range is not None:
+            C[i][C[i]<plot_range[0]] = np.nan
+            C[i][C[i]>plot_range[1]] = np.nan
 
     return U,W,C
 
