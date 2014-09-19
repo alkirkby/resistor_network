@@ -101,9 +101,9 @@ def get_electrical_resistance(d,fracture_diameter,resz,r_matrix,r_fluid):
     # convert resistivities to resistances
     # first, resistance in an open node: harmonic mean of resistance in
     # fracture and resistance in surrounding rockmass. 
-    resz[(resz!=r_matrix)&(np.isfinite(resz))] = 1./(phiz/r_fluid)# + (1.-phiz)/r_matrix)
+    resz[(resz!=r_matrix)&(np.isfinite(resz))] = d[1]/((phiz/r_fluid) + (1.-phiz)/r_matrix)
     # second, resistance in a closed node, r = rho*length/width
-    resz[resz==r_matrix] = r_matrix*d[1]/d[0]
+    resz[resz==r_matrix] = d[1]*r_matrix*d[1]/d[0]
 
     return resz
 
@@ -423,3 +423,7 @@ def get_faultlengths(parameter,d,tolerance=0.05):
                                      decimals=int(np.ceil(-np.log10(d[ii]))))
 
     return faultlengths
+
+def build_matrix3d(property_array):
+    
+    
