@@ -137,16 +137,8 @@ class Resistivity_volume():
             for i in range(2):
                 self.resistivity[:,:,i] = [resx,resz][i]
             
-            
-#        elif self.res_type == 'file':
-#            try:
-#                resx = np.loadtxt(os.path.join(self.wd,self.file_x))
-#                resz = np.loadtxt(os.path.join(self.wd,self.file_z))
-#                r_matrix = max([np.amax(resx),np.amax(resz)])
-#                r_fluid = min([np.amin(resx),np.amin(resz)])
-#            except IOError:
-#                print "Cannot find resistivity file"
         elif self.res_type == 'array':
+            
             r_matrix = np.amax(self.resistivity[np.isfinite(self.resistivity)])
             r_fluid = np.amin(self.resistivity[np.isfinite(self.resistivity)])
             resx = self.resistivity[:,:,0]
@@ -159,12 +151,10 @@ class Resistivity_volume():
         d = [self.dz,self.dx]
         res2x,res2z = [rnf.get_electrical_resistance(dd,
                                                      self.fracture_diameter,
-                                                     res,
+                                                     res*1.,
                                                      r_matrix,
                                                      r_fluid) \
                                                      for dd,res in zip([d,d[::-1]],[resx,resz])]
-#        if not hasattr(self,'resistivity'):
-#            self.initialise_resistivity()
 
         self.resistance = np.zeros([self.nz+2,self.nx+2,2])
        
@@ -173,7 +163,8 @@ class Resistivity_volume():
             
         d = [self.dz,self.dx]         
         self.phi = sum([rnf.get_phi(dd,self.fracture_diameter) for dd in d])
-    
+        self.resistivity_matrix = r_matrix
+        self.resistivity_fluid = r_fluid
 
     def initialise_permeability(self):
         """
@@ -242,27 +233,31 @@ class Resistivity_volume():
                 input_arrays.append([pz.T,px.T,pname+'x'])
             if 'z' in direction:
                 input_arrays.append([px,pz,pname+'z'])
-            
-        
-        
-        
-        
+   
         nx,nz,dx,dz = [float(n) for n in self.nx,self.nz,self.dx,self.dz]
         factor = np.array([((nz+1.)*dz)/(dx*nx),((nx+1.)*dx)/(dz*nz)])
         current = np.zeros([self.nz+2,self.nx+2,2,2])
         flow = np.zeros([self.nz+2,self.nx+2,2,2])
+
+        if 'current' in pname:
+            resistance_bulk = np.zeros(2)
+        if 'fluid' in pname:    
+            hydraulic_resistance_bulk = np.zeros(2)
+
         for propx,propz,pname in input_arrays:
-            print pname
+#            print pname
             matrix = rnf.build_matrix(propx,propz)
-            b = rnf.build_sums(np.shape(matrix)[0],[self.nx,self.nz])
+            nx,nz = np.shape(propx)[1],np.shape(propz)[0]
+            b = rnf.build_sums(np.shape(matrix)[0],[nx,nz])
             c = rnf.solve_matrix(matrix,b)
 #            if pname == 'fluid':
 #                c = c/kfactor
             nx,nz = len(propx[0]),len(propz)
             cx = c[:nx*(nz+1)].reshape(nz+1,nx)
             cz = c[nx*(nz+1):].reshape(nz+2,nx+1)
+#            print c
             if 'current' in pname:
-                resistance_bulk = np.zeros(2)
+                
                 
                 if 'x' in pname:
                     # dealing with x direction current flow
@@ -275,11 +270,12 @@ class Resistivity_volume():
                     current[:,1:,1,1] = cz
                     resistance_bulk[1] = 1./np.sum(current[-1,:,1,1])
                 
-                self.resistance_bulk = resistance_bulk
-                self.resistivity_bulk = resistance_bulk*factor
+                self.resistance_bulk = resistance_bulk*1.
+                self.resistivity_bulk = resistance_bulk*factor*1.
+                self.current = 1.*current
             if 'fluid' in pname:
                 
-                hydraulic_resistance_bulk = np.zeros(2)
+                
                 if 'x' in pname:
                     # dealing with x direction current flow
                     flow[1:,:,0,0] = cz.T
@@ -291,10 +287,10 @@ class Resistivity_volume():
                     flow[:,1:,1,1] = cz                
                     hydraulic_resistance_bulk[1] = 1./np.sum(flow[-1,:,1,1])
                 # need to divide by mu as we have been dealing with the product q*mu
-        self.flowrate = 1.*flow/self.mu
-        self.hydraulic_resistance_bulk = hydraulic_resistance_bulk
-        self.permeability_bulk = 1./(hydraulic_resistance_bulk*factor)
-        self.current = 1.*current
+                self.flowrate = 1.*flow/self.mu
+                self.hydraulic_resistance_bulk = 1.*hydraulic_resistance_bulk
+                self.permeability_bulk = 1./(hydraulic_resistance_bulk*factor)
+        
 
 class Run_suite():
     """
