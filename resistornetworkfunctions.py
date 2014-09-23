@@ -281,7 +281,6 @@ def solve_matrix(A,b):
 ===================Functions relating to plotting==============================
 """
 
-
 def get_meshlocations(d,n):
     """
     get locations of nodes for plotting
@@ -338,7 +337,6 @@ def get_quiver_origins(d,plotxz,parameter):
     qplotxz[0][get_direction(parameter[:,:,0]) < 0.] += d[0]
     # if z arrows point down (positive), shift starting location up by dz
     qplotxz[1][-get_direction(parameter[:,:,1]) > 0.] -= d[1]       
-    
     # add plotxz to qplotxz to give absolute starting locations for arrows
     for i in range(2):
         qplotxz[i] += plotxz[i]
@@ -424,6 +422,53 @@ def get_faultlengths(parameter,d,tolerance=0.05):
 
     return faultlengths
 
-def build_matrix3d(property_array):
+
+def buildmatrix3d_kirchhoff(nx,ny,nz):
+    """
+    calculate numbers to populate matrix and their row and column, relating
+    to kirchhoff's law for electrical current and equivalent for fluid flow
+    (i.e., sum of total current in and out of each node is zero)
+    
+    ==============================inputs=======================================
+    nx,ny,nz = number of cells in the x (horizontal), y (into the plane)
+               and z (vertical) directions
+    ===========================================================================
+    """
+
+    nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
+    nn = (nx+1)*(ny+1)*(nz+1)
     
     
+    #   a. x connectors
+    data1a = np.hstack([-np.ones(nfx),np.ones(nfx)])
+    rows1as = np.hstack([np.arange(nx)]*(ny+1)*(nz+1)) \
+            + np.hstack([np.ones(nx)*(nx+1)*i for i in range((ny+1)*(nz+1))])
+    rows1a = np.hstack([rows1as,rows1as + 1])
+    cols1a = np.hstack([np.arange(nfx)]*2)
+    
+    #   b. y connectors
+    data1b = np.hstack([-np.ones(nfy),np.ones(nfy)])
+    rows1bs = np.hstack([np.arange(ny*(nx+1))]*(nz+1)) \
+            + np.hstack([np.ones(ny*(nx+1))*(nx+1)*(ny+1)*i for i in range(nz+1)])
+    rows1b = np.hstack([rows1bs,rows1bs + nx + 1])
+    cols1b = np.hstack([np.arange(nfy)]*2)+nfx
+    
+    #   c. z connectors
+    data1c = np.hstack([np.ones(nn),-np.ones(nn)])
+    cols1cs = np.arange(nn) + nfx + nfy
+    cols1c = np.hstack([cols1cs,cols1cs + (nx+1)*(ny+1)])
+    rows1c = np.hstack([np.arange(nn)]*2)    
+    
+    return np.hstack([data1a,data1b,data1c]),np.hstack([rows1a,rows1b,rows1c]),\
+           np.hstack([cols1a,cols1b,cols1c])
+           
+def buildmatrix3d_potential(resistivity):
+    """
+    calculate numbers to populate matrix and their row and column, relating
+    to conservation of potential and equivalent for fluid flow
+    (i.e., potential is conservative in each elementary cell)
+    
+    ==============================inputs=======================================
+    resistivity = array with dimensions (nz+1,ny+1,nx+1,3)
+    ===========================================================================
+    """
