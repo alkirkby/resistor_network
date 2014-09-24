@@ -42,7 +42,7 @@ class Resistivity_volume():
     def __init__(self, **input_parameters):
         self.wd = '.' # working directory
         self.nx = 10
-#        self.ny = 1
+        self.ny = 10
         self.nz = 10
         self.res_type = 'ones'
         self.resistivity_matrix = 1000
@@ -108,13 +108,11 @@ class Resistivity_volume():
         r_fluid = float(self.resistivity_fluid)
                                                                                                                                                                                     
         if self.res_type == 'ones':
-            resx = np.zeros([self.nz+2,self.nx+2])*np.nan
-            resx[1:,1:-1] = 1.
-            resz = np.zeros([self.nz+2,self.nx+2])*np.nan
-            resz[1:-1,1:] = 1.
-            self.resistivity = np.zeros([self.nz+2,self.nx+2,2])
-            for i in range(2):
-                self.resistivity[:,:,i] = [resx,resz][i]
+
+            self.resistivity = np.ones([self.nz+2,self.nz+2,self.nx+2,2])*np.nan
+            self.resistivity[1:,1:,1:-1,0] = 1.
+            self.resistivity[1:,1:-1,1:,1] = 1.
+            self.resistivity[1:-1,1:,1:,2] = 1.
 
         elif self.res_type == "random":
 

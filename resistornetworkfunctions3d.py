@@ -17,15 +17,17 @@ import scipy.sparse.linalg as linalg
 """
 
 
-def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
-    """
-    returns a numpy array containing resistivity values for the direction pz
-    note, to calculate other directions can use this function, just need to 
-    transpose later.
+def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor,
+                              resz0=None):
+    """ 
+    
+    returns a numpy array containing resistivity values for the z direction
+    to calculate other directions, use this function and transpose the
+    resulting array appropriately.
     
     =================================inputs====================================
-    n = list containing number of cells in x and z directions [nx,nz]
-    p = list containing probability of connection in x and z directions [px,pz]
+    n = list containing number of cells in z, y and x directions [nz,ny,nx]
+    p = probability of connection in z direction
     r_matrix, r_fluid = resistivity of matrix and fluid
     linearity_factor =  factor to adjust probabilities according to value in 
                         previous row to make linear structures
@@ -36,39 +38,48 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor):
     ===========================================================================
     """
     # initialise array with resistivity r_fluid
-    resz = np.ones((n[1],n[0]+1))*r_fluid
+    n = np.array(n)
+    resz = np.ones([n[0],n[1]+1,n[2]+1])*r_fluid
     # initialise first row
-    resz0 = np.random.random(size=(n[0]+1))*r_matrix
-    resz[0,resz0>=p[1]*r_matrix] = r_matrix
+    if resz0 is None:
+        resz0 = np.random.random(size=(n[2]+1))
+        resz[0,0,resz0>=p] = r_matrix
+        for i in range(1,n[1]):
+            
 
     
-    for i in range(1,n[1]):
+    for i in range(1,n[0]):
         # figure out number of fractures in previous row
-        nf = len(resz[i,resz[i-1]==r_fluid])
+        nf = np.size(resz[i,resz[i-1]==r_fluid])
         # number of matrix cells in previous row
-        nm = len(resz[i])-nf
-        # multiplication factor to apply to matrix probabilities
-        f = float(len(resz[i]))/float(linearity_factor*nf+nm)
+        nm = np.size(resz[i])-nf
+        # multiplication factor to apply to probability if above cell is matrix
+        f = float(np.size(resz[i]))/float(linearity_factor*nf+nm)
         # probability of fracture if the above cell is a matrix cell
-        pmz = f*p[1]
+        pmz = f*p
         # probability of fracture if the above cell is a fracture cell
         pfz = linearity_factor*pmz
-        # make a new row containing values between 0 and r_matrix
-        reszi = np.random.random(size=(n[0]+1))*r_matrix 
+        # make a new row containing values between 0 and 1
+        reszi = np.random.random(size=([n[1]+1,n[2]+1])) 
         # if adjacent cell on previous row had a fracture, 
         # assign matrix cell to this row with probability 1-pfz
-        resz[i,(reszi>=pfz*r_matrix)&(resz[i-1]==r_fluid)] = r_matrix
+        resz[i,(reszi>=pfz)&(resz[i-1]==r_fluid)] = r_matrix
         # if adjacent cell on previous row had no fracture, 
         # assign matrix cell to this row with probability 1-pmz
-        resz[i,(reszi>=pmz*r_matrix)&(resz[i-1]==r_matrix)] = r_matrix
-    # assign nan value to final row
-    resz_final = np.ones((n[1]+2,n[0]+2))*np.nan
-    resz_final[1:-1,1:] = resz
+        resz[i,(reszi>=pmz)&(resz[i-1]==r_matrix)] = r_matrix
+    # build a new matrix that has nan values at ends (so that size is
+    # compatible with current array)
+    resz_final = np.ones(n+2)*np.nan
+    resz_final[1:-1,1:,1:] = resz
 
     return resz_final
 
-def get_phi(dx,fracture_diameter):
+
+
+def get_phi(dx,dy,fracture_diameter):
     """
+
+    
     returns fracture porosity resulting from fractures in z direction
     
     =================================inputs====================================
@@ -79,11 +90,12 @@ def get_phi(dx,fracture_diameter):
     
     # use fracture diameter and cellsize dx and dz to define fracture
     # volume percent in z directions
-    return fracture_diameter/dx
+    return fracture_diameter**2/(dx*dy)
     
 
 def get_electrical_resistance(d,fracture_diameter,resz,r_matrix,r_fluid):
     """
+    
     returns a numpy array containing resistance values for z direction
     works for x as well, just need to swap the order of d
     
@@ -110,6 +122,9 @@ def get_electrical_resistance(d,fracture_diameter,resz,r_matrix,r_fluid):
 
 def get_permeability(res_array,r_fluid,k_matrix,fracture_diameter):
     """
+
+
+
     calculate permeability based on a resistivity array
     
     =================================inputs====================================
@@ -475,13 +490,13 @@ def buildmatrix3d_potential(resistivity):
     ===========================================================================
     """
 
-    nz,ny,nx = [int(i-1) for i in np.shape(resistivity)[:3]]
+    nz,ny,nx = [int(i-2) for i in np.shape(resistivity)[:3]]
     nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
     nn = (nx+1)*(ny+1)*(nz+1)
     
     resx = resistivity[1:,1:,1:-1,0]
     resy = resistivity[1:,1:-1,1:,1]
-    resz = resistivity[1:-1,1:,1:,2]    
+    resz = resistivity[1:-1,1:,1:,2] 
     
     #    a. x connectors
     ncxz = nx*(ny+1)*nz # number of cells in the xz plane
@@ -529,7 +544,7 @@ def buildmatrix3d_normalisation(resistivity):
     ===========================================================================
     """
     
-    nz,ny,nx = [int(i-1) for i in np.shape(resistivity)[:3]]
+    nz,ny,nx = [int(i-2) for i in np.shape(resistivity)[:3]]
     nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
     nfree = nfx + nfy + (nx+1)*(ny+1)*(nz+2)
     nn = (nx+1)*(ny+1)*(nz+1)
