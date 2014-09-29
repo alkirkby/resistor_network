@@ -17,17 +17,16 @@ import scipy.sparse.linalg as linalg
 """
 
 
-def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor,
-                              resz0=None):
+def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax,
+                              decayfactor=5.):
     """ 
     
-    returns a numpy array containing resistivity values for the z direction
-    to calculate other directions, use this function and transpose the
-    resulting array appropriately.
+    Initialising faults from a pool - random location, orientation (i.e. in the 
+    xz, xy or zy plane), length and width. Translate these onto an array.
     
     =================================inputs====================================
-    n = list containing number of cells in z, y and x directions [nz,ny,nx]
-    p = probability of connection in z direction
+    n = list containing number of cells in x, y and z directions [nx,ny,nz]
+    p = probability of connection in yz, xz and xy directions [pyz,pxz,pxy]
     r_matrix, r_fluid = resistivity of matrix and fluid
     linearity_factor =  factor to adjust probabilities according to value in 
                         previous row to make linear structures
@@ -37,38 +36,39 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,linearity_factor,
                         normalised so that overall probability in each row = pz
     ===========================================================================
     """
-    # initialise array with resistivity r_fluid
-    n = np.array(n)
-    resz = np.ones([n[0],n[1]+1,n[2]+1])*r_fluid
-    # initialise first row
-    if resz0 is None:
-        resz0 = np.random.random(size=(n[2]+1))
-        resz[0,0,resz0>=p] = r_matrix
-        for i in range(1,n[1]):
-            
 
+    ptot = np.average(p)
+    pnorm = np.array(p)/np.sum(p)
+    res = np.ones(n[::-1]+[3])*10
+    nf = 0
     
-    for i in range(1,n[0]):
-        # figure out number of fractures in previous row
-        nf = np.size(resz[i,resz[i-1]==r_fluid])
-        # number of matrix cells in previous row
-        nm = np.size(resz[i])-nf
-        # multiplication factor to apply to probability if above cell is matrix
-        f = float(np.size(resz[i]))/float(linearity_factor*nf+nm)
-        # probability of fracture if the above cell is a matrix cell
-        pmz = f*p
-        # probability of fracture if the above cell is a fracture cell
-        pfz = linearity_factor*pmz
-        # make a new row containing values between 0 and 1
-        reszi = np.random.random(size=([n[1]+1,n[2]+1])) 
-        # if adjacent cell on previous row had a fracture, 
-        # assign matrix cell to this row with probability 1-pfz
-        resz[i,(reszi>=pfz)&(resz[i-1]==r_fluid)] = r_matrix
-        # if adjacent cell on previous row had no fracture, 
-        # assign matrix cell to this row with probability 1-pmz
-        resz[i,(reszi>=pmz)&(resz[i-1]==r_matrix)] = r_matrix
-    # build a new matrix that has nan values at ends (so that size is
-    # compatible with current array)
+    while float(np.size(res[res==r_fluid]))/float(np.size(res)) < ptot:
+        # pick a random location for the fault x,y,z
+        centre = [np.random.randint(0,nn) for nn in n]
+        # pick random x,y,z extents for the fault
+        d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
+        d[d<1.] = 1.
+        # pick orientation for the fault according to relative probability p
+        fo = np.random.choice(np.array([0,1,2]),p=pnorm)
+        # reset width (normal to plane of fault)
+        # when assigned to array this translates to 1 cell width
+        d[fo] = 0.5
+        # define locations of edges of fault
+        mm = np.array([[np.ceil(centre[0]-d[0]),np.ceil(centre[0]+d[0])],
+                       [np.ceil(centre[1]-d[1]),np.ceil(centre[1]+d[1])],
+                       [np.ceil(centre[2]-d[2]),np.ceil(centre[2]+d[2])]])
+        # remove any negative numbers
+        mm[mm < 0] = 0
+        # assign fault to resistivity array
+        for i in range(3):
+            if i != fo:
+                fvals = np.zeros(3)
+                fvals[-(fo+i)] = 1.
+                res[mm[2,0]:mm[2,1]+fvals[2],mm[1,0]:mm[1,1]+fvals[1],mm[0,0]:mm[0,1]+fvals[0],i] = r_fluid
+                
+        nf += 1
+            
+        
     resz_final = np.ones(n+2)*np.nan
     resz_final[1:-1,1:,1:] = resz
 
