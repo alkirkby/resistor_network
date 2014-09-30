@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import os
-import resistornetworkfunctions as rnf
+import resistornetworkfunctions3d as rnf
 
 class Resistivity_volume():
     """
@@ -53,12 +53,15 @@ class Resistivity_volume():
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.file_x = None
         self.file_z = None
-        self.linearity_factor = 1.# 
+        self.faultlength_max = None
+        self.faultlength_decay = 5.
                             
         self.px = 0.5
+        self.py = 0.5
         self.pz = 0.5
         
         self.dx = 1.
+        self.dy = 1.
         self.dz = 1.
         
         update_dict = {}
@@ -116,53 +119,31 @@ class Resistivity_volume():
 
         elif self.res_type == "random":
 
-
-            # how much more likely there is to be a fault if previous cell holds a fault
-            linearity_factor = float(self.linearity_factor)
-            
-            # create z resistivity
-            resz = rnf.assign_random_resistivity([self.nx,self.nz],
-                                                 [self.px,self.pz],
-                                                 r_matrix,r_fluid,
-                                                 linearity_factor)
-            # create x resistivity
-            resx = rnf.assign_random_resistivity([self.nz,self.nx],
-                                                 [self.pz,self.px],
-                                                 r_matrix,r_fluid,
-                                                 linearity_factor).T                                                     
-            self.resistivity = np.zeros([self.nz+2,self.nx+2,2])*np.nan
-            
-            for i in range(2):
-                self.resistivity[:,:,i] = [resx,resz][i]
+            self.resistivity = rnf.assign_random_resistivity([self.nx,self.ny,self.nz],
+                                                             [self.px,self.py,self.pz],
+                                                             self.resistivity_matrix,
+                                                             self.resistivity_fluid,
+                                                             faultlengthmax=self.faultlength_max,
+                                                             decayfactor = self.faultlength_decay)
             
         elif self.res_type == 'array':
-            
-            r_matrix = np.amax(self.resistivity[np.isfinite(self.resistivity)])
-            r_fluid = np.amin(self.resistivity[np.isfinite(self.resistivity)])
-            resx = self.resistivity[:,:,0]
-            resz = self.resistivity[:,:,1]
-       
+            # resistivity fed in as a variable in initialisation so don't need
+            # to create it
+            self.resistivity_matrix = np.amax(self.resistivity[np.isfinite(self.resistivity)])
+            self.resistivity_fluid = np.amin(self.resistivity[np.isfinite(self.resistivity)])
+      
         else:
             print "res type {} not supported, please redefine".format(self.res_type)
             return
-
-        d = [self.dz,self.dx]
-        res2x,res2z = [rnf.get_electrical_resistance(dd,
-                                                     self.fracture_diameter,
-                                                     res*1.,
-                                                     r_matrix,
-                                                     r_fluid) \
-                                                     for dd,res in zip([d,d[::-1]],[resx,resz])]
-
-        self.resistance = np.zeros([self.nz+2,self.nx+2,2])
-       
-        for i in range(2):
-            self.resistance[:,:,i] = [res2x,res2z][i]
             
-        d = [self.dz,self.dx]         
-        self.phi = sum([rnf.get_phi(dd,self.fracture_diameter) for dd in d])
+        d = [self.dx,self.dy,self.dz]
+        self.resistance = rnf.get_electrical_resistance(self.resistivity,
+                                                        d,
+                                                        self.fracture_diameter)
+        self.phi = sum(rnf.get_phi(d,self.fracture_diameter))
         self.resistivity_matrix = r_matrix
         self.resistivity_fluid = r_fluid
+
 
     def initialise_permeability(self):
         """
@@ -173,27 +154,15 @@ class Resistivity_volume():
         if not hasattr(self,'resistivity'):
             self.initialise_resistivity()
         
-        d = [self.dz,self.dx]
+        d = [self.dz,self.dy,self.dx]
         
-        kx,kz = [rnf.get_permeability(res,
-                                      self.resistivity_fluid,
-                                      self.permeability_matrix,
-                                      self.fracture_diameter) for res in \
-                                      [self.resistivity[:,:,i] for i in [0,1]]]
-        self.permeability = np.zeros([self.nz+2,self.nx+2,2])*np.nan
-        for i in range(2):
-            self.permeability[:,:,i] = [kx,kz][i]
-            
-            
-        hrx,hrz = [rnf.get_hydraulic_resistance(dd,k,
-                                                self.permeability_matrix,
-                                                self.fracture_diameter) \
-                                     for dd,k in zip([d,d[::-1]],
-                                                     [kx,kz])]
-                                                     
-        self.hydraulic_resistance = np.zeros([self.nz+2,self.nx+2,2])*np.nan
-        for i in range(2):
-            self.hydraulic_resistance[:,:,i] = [hrx,hrz][i]
+        self.permeability = rnf.get_permeability(self.resistivity,
+                                                 self.permeability_matrix,
+                                                 self.fracture_diameter)
+        self.hydraulic_resistance = \
+        rnf.get_hydraulic_resistance(d,
+                                     self.permeability,
+                                     self.fracture_diameter)
 
 
     def solve_resistor_network(self,properties,direction):

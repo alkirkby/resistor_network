@@ -17,7 +17,7 @@ import scipy.sparse.linalg as linalg
 """
 
 
-def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax,
+def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
                               decayfactor=5.):
     """ 
     
@@ -28,28 +28,33 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax,
     n = list containing number of cells in x, y and z directions [nx,ny,nz]
     p = probability of connection in yz, xz and xy directions [pyz,pxz,pxy]
     r_matrix, r_fluid = resistivity of matrix and fluid
-    linearity_factor =  factor to adjust probabilities according to value in 
-                        previous row to make linear structures
-                        e.g. if linearity_factor == 2: a given cell is twice as 
-                        likely to be connected if the corresponding cell in the 
-                        previous row is connected. Probabilities are 
-                        normalised so that overall probability in each row = pz
+    faultlengthmax =  maximum fault length for network
+    decayfactor = defines the shape of the fault length distribution. 
+                  Fault length follows a decaying distribution so that longer
+                  faults are more probable than shorter faults:
+                  fl = faultlengthmax*e^(-ax) where x ranges from 0 to 1 and
+                  a is the decay factor
     ===========================================================================
     """
-
-    ptot = np.average(p)
+    
+    n = np.array(n)
+    ptot = np.sum(p)/3.
     pnorm = np.array(p)/np.sum(p)
-    res = np.ones(n[::-1]+[3])*10
-    nf = 0
+    res = np.ones(list(n[::-1]+1.)+[3])*r_matrix
+    
+    if faultlengthmax is None:
+        faultlengthmax = float(max(n))
+    faults = []
     
     while float(np.size(res[res==r_fluid]))/float(np.size(res)) < ptot:
         # pick a random location for the fault x,y,z
         centre = [np.random.randint(0,nn) for nn in n]
         # pick random x,y,z extents for the fault
         d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
+        # no faults smaller than one cell
         d[d<1.] = 1.
         # pick orientation for the fault according to relative probability p
-        fo = np.random.choice(np.array([0,1,2]),p=pnorm)
+        fo = np.random.choice(np.arange(3),p=pnorm)
         # reset width (normal to plane of fault)
         # when assigned to array this translates to 1 cell width
         d[fo] = 0.5
@@ -59,68 +64,105 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax,
                        [np.ceil(centre[2]-d[2]),np.ceil(centre[2]+d[2])]])
         # remove any negative numbers
         mm[mm < 0] = 0
+        for m in range(len(mm)):
+            if mm[m,1] > n[m]:
+                mm[m,1] = n[m]
         # assign fault to resistivity array
         for i in range(3):
             if i != fo:
                 fvals = np.zeros(3)
                 fvals[-(fo+i)] = 1.
                 res[mm[2,0]:mm[2,1]+fvals[2],mm[1,0]:mm[1,1]+fvals[1],mm[0,0]:mm[0,1]+fvals[0],i] = r_fluid
-                
-        nf += 1
-            
+
+        u,v_ = [mm[i] for i in range(3) if i != fo]
+        v = np.array([[v_[0]]*2,[v_[1]]*2])
+        faultuvw = [np.array([u,u[::-1]]),v]
+        faultuvw.insert(fo,np.array([[mm[fo,0]]*2]*2))
+        faults.append(faultuvw)
         
-    resz_final = np.ones(n+2)*np.nan
-    resz_final[1:-1,1:,1:] = resz
+    res[:,:,-1,0] = np.nan
+    res[:,-1,:,1] = np.nan
+    res[-1,:,:,2] = np.nan
+    res_final = np.ones(list(n[::-1]+2)+[3])*np.nan
+    res_final[1:,1:,1:] = res
 
-    return resz_final
+    return res_final,np.array(faults)
 
+def get_unique_values(inarray,log=False):
+    
+    
+    inarray= 1.*inarray
+    if log:
+        inarray = np.log10(inarray)
+    
+    r = 6
+    while len(np.unique(inarray[np.isfinite(inarray)])) > 2:
+        inarray = np.around(inarray,decimals=r)
+        r -= 1
 
+    if log:
+        inarray = 10**inarray
 
-def get_phi(dx,dy,fracture_diameter):
+    return np.unique(inarray[np.isfinite(inarray)])
+
+def get_phi(d,fracture_diameter):
     """
 
     
-    returns fracture porosity resulting from fractures in z direction
+    returns fracture porosity
     
     =================================inputs====================================
-    dx = cell size in direction orthogonal to that being calculated
+    res = resistivity arry containing x,y,z resistivities.
+          shape [nz+2,ny+2,nx+2,3]
+    d = cell size in the x,y,z directions [dx,dy,dz]
+    
     fracture_diameter = diameter of fracture in model, float
     ===========================================================================
     """
+
+    d = np.array(d)
+    a = np.array([d[1]*d[2],d[0]*d[2],d[0]*d[1]])
     
-    # use fracture diameter and cellsize dx and dz to define fracture
-    # volume percent in z directions
-    return fracture_diameter**2/(dx*dy)
+    return (np.pi/4.)*fracture_diameter**2/a
     
 
-def get_electrical_resistance(d,fracture_diameter,resz,r_matrix,r_fluid):
+def get_electrical_resistance(res,d,fracture_diameter):
     """
     
-    returns a numpy array containing resistance values for z direction
-    works for x as well, just need to swap the order of d
+    returns a numpy array containing resistance values 
     
     =================================inputs====================================
-    d = list containing cell size (length of connector) in x and z directions [dx,dz]
-    where z is the direction 
+    d = list containing cell size (length of connector) in x,y and z directions 
+    [dx,dy,dz]
     
     phiz = porosity from fractures in z direction
-    res_array = array containing resistivity values
+    res = resistivity arry containing x,y,z resistivities.
+          shape [nz+2,ny+2,nx+2,3]
     r_matrix, r_fluid = resistivity of matrix and fluid
     ===========================================================================
     """
     
-    phiz = get_phi(d[0],fracture_diameter)
-    # convert resistivities to resistances
-    # first, resistance in an open node: harmonic mean of resistance in
-    # fracture and resistance in surrounding rockmass. 
-    resz[(resz!=r_matrix)&(np.isfinite(resz))] = d[1]/((phiz/r_fluid) + (1.-phiz)/r_matrix)
-    # second, resistance in a closed node, r = rho*length/width
-    resz[resz==r_matrix] = d[1]*r_matrix*d[1]/d[0]
+    phi = get_phi(d,fracture_diameter)
 
-    return resz
+    res = 1.*res
+    r_fluid,r_matrix = get_unique_values(res)
+    print(np.shape(res))
+    print(r_matrix,r_fluid,phi)
+    for i in range(3):
+        # area of the cell
+        acell = np.product([d[ii] for ii in range(3) if ii != i])
+        # convert resistivities to resistances
+        # first, resistance in an open node: harmonic mean of resistance in
+        # fracture and resistance in surrounding rockmass. 
+        res[:,:,:,i][(res[:,:,:,i]==r_fluid)&(np.isfinite(res[:,:,:,i]))] = \
+        d[i]/(acell*((phi[i]/r_fluid) + (1.-phi[i])/r_matrix))
+        # second, resistance in a closed node, r = rho*length/width
+        res[:,:,:,i][res[:,:,:,i]==r_matrix] = d[i]*r_matrix/acell
+
+    return res
 
 
-def get_permeability(res_array,r_fluid,k_matrix,fracture_diameter):
+def get_permeability(res,k_matrix,fracture_diameter):
     """
 
 
@@ -135,14 +177,16 @@ def get_permeability(res_array,r_fluid,k_matrix,fracture_diameter):
     ===========================================================================    
     """
 
-    permeability = np.ones_like(res_array)*k_matrix        
-    permeability[res_array==r_fluid] = fracture_diameter**2/12.
-    permeability[np.isnan(res_array)] = np.nan
+    r_fluid = get_unique_values(res)[0]
+    
+    permeability = np.ones_like(res)*k_matrix        
+    permeability[res==r_fluid] = fracture_diameter**2/32.
+    permeability[np.isnan(res)] = np.nan
     
     return permeability
 
 
-def get_hydraulic_resistance(d,k_array,k_matrix,fracture_diameter):
+def get_hydraulic_resistance(d,k_array,fracture_diameter):
     """
     calculate hydraulic resistance based on a hydraulic permeability array
     
@@ -155,112 +199,19 @@ def get_hydraulic_resistance(d,k_array,k_matrix,fracture_diameter):
     ===========================================================================
     
     """
-
-    hresistance = (1./k_array)*(d[1]/d[0])
-    hresistance[(k_array != k_matrix)&(np.isfinite(k_array))]\
-    = 12.*d[1]/(fracture_diameter**3) 
+    k_fluid = get_unique_values(k_array)[1]
+    print(k_fluid)
+    hresistance = np.ones_like(k_array)
+    for i in range(3):
+        # area of the cell
+        acell = np.product([d[ii] for ii in range(3) if ii != i])
+        hresistance[:,:,:,i] = (1./k_array[:,:,:,i])*(d[i]/acell)
+        hresistance[:,:,:,i][(k_array[:,:,:,i] == k_fluid)&(np.isfinite(k_array[:,:,:,i]))]\
+        = 128.*d[i]/(np.pi*fracture_diameter**4)
 
     return hresistance
 
   
-def build_matrix(propertyx,propertyz):
-    """
-    build a matrix to solve for current or permeability
-    
-    """
-    
-    nx,nz = len(propertyx[0]),len(propertyz)
-
-    # 1. construct part of matrix dealing with voltages (sum zero in each cell)
-    #    a. construct x parts of loop
-    #       define top part of loop - positive (positive right)
-    d1v = propertyx[:-1].flatten()
-    #       define bottom part of loop - negative (positive right)
-    d2v = -propertyx[1:].flatten()
-    #       construct matrix using above diagonals        
-    xblock_v = sparse.diags([d1v,d2v],[0,nx],shape=(nx*nz,nx*(nz+1)))
-    
-    #    b. construct z parts of loop
-    blocks = []
-  
-    for j in range(nz):
-    #       construct dia1 - summing z voltage drops on lhs of loop, negative (positive down)
-        dia1 = -propertyz[j,:nx]
-    #       construct dia2 - summing z voltage drops on rhs of loop, positive (positive down)
-        dia2 = propertyz[j,1:]
-    #       construct diagonal matrix containing the above diagonals
-        blocks.append(sparse.diags([dia1,dia2],[0,1],shape=(nx,nx+1)))
-    #       construct matrix using above blocks
-    yblock_v = sparse.block_diag(blocks)
-
-    #    c. construct parts of matrix dealing with top and bottom z currents (zero voltage)
-    yblock2_v = sparse.coo_matrix((nx*nz,nx+1))
-
-    #    d. combine parts together to make voltage part of matrix
-    m_voltage = sparse.coo_matrix(sparse.bmat([[xblock_v,yblock2_v,yblock_v,yblock2_v]]))
-
-    
-    # 2. construct part of matrix dealing with currents (sum zero in each node)
-    #    need to skip a node in the middle of the matrix
-    #    a. part dealing with x currents
-    #       top and bottom parts of matrix
-    
-    onx = np.ones(nx)
-    onx2 = np.ones(nx/2)
-
-    xblock1 = sparse.diags([-onx,onx],offsets=[0,-1],shape=(nx+1,nx))
-    
-    #       middle part of matrix - one node is skipped in the middle so different pattern
-    xblock2_s1 = sparse.diags([onx2,-onx2[:-1]],offsets=[0,1])
-    xblock2_s2 = sparse.diags([-onx2,onx2[:-1]],offsets=[0,-1])
-    #xblock2 = sparse.block_diag([xblock2_s1,xblock2_s2])
-
-    #       build matrix from xblock1 and xblock2
-    xblock = sparse.block_diag([xblock1]*int(nz/2)+[xblock2_s2]+[xblock2_s1]+[xblock1]*int(nz/2))
-    
-    #    b. part dealing with y currents
-    #       block above skipped node (same as below)
-
-    yblock1 = sparse.diags([np.ones(((nz/2)*(nx+1)+nx/2)),-np.ones(((nz/2)*(nx+1)+nx/2))],
-                            offsets=[0,nx+1],
-                            shape = (((nz/2)*(nx+1)+nx/2),((nz/2)*(nx+1)+nx/2)+nx+1))
-    #       empty block to fill in the gap                  
-    yblock2 = sparse.coo_matrix(((nz/2)*(nx+1)+nx/2,(nz/2)*(nx+1)+nx/2+1))
-    
-    #    c. combine the blocks together
-    yblock = sparse.bmat([[sparse.bmat([[yblock1,yblock2]])],[sparse.bmat([[yblock2,yblock1]])]])
-    
-    #    d. combine x and y blocks together
-    m_current = sparse.hstack([xblock,yblock])
-    
-    # 3. current in = current out
-    m_cicu = np.hstack([np.zeros(nx*(nz+1)),np.ones(nx+1),np.zeros((nx+1)*nz),-np.ones(nx+1)])
-    
-    # 4. normalisation
-    norm1a = sparse.coo_matrix((nx+1,(nz+1)*nx+nx+1))
-    norm1b_sub = []
-    for i in range(nz):
-        norm1b_sub.append(sparse.diags(propertyz[i],0))
-    norm1b = sparse.hstack(norm1b_sub)
-    norm1c = sparse.coo_matrix((nx+1,nx+1))
-    norm1 = sparse.hstack([norm1a,norm1b,norm1c])
-    
-    norm2a = sparse.diags(propertyx[-1],nx*nz,shape=(nx,nx*(nz+1)))
-    norm2b_sub = []
-    for i in range(nz):
-        norm2b_sub.append(sparse.diags(propertyz[i,:nx],0,shape=(nx,nx+1)))
-    norm2b = sparse.hstack(norm2b_sub)    
-    
-    norm2c = sparse.coo_matrix((nx,nx+1))
-    norm2 = sparse.hstack([norm2a,norm2c,norm2b,norm2c])
-    
-    m_norm = sparse.vstack([norm1,norm2])
-    
-    # 5. combine all matrices together.
-    m = sparse.csr_matrix(sparse.vstack([m_voltage,m_current,m_cicu,m_norm]))
-
-    return m
-
 
 
 def build_sums(nfree,n):
@@ -290,7 +241,208 @@ def solve_matrix(A,b):
     """
    
     return linalg.spsolve(A,b)
+
+def get_nfree(n):
+    nx,ny,nz = n
+    return [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1),(nx+1)*(ny+1)*(nz+2)]
     
+def get_nnodes(n):
+    nx,ny,nz = n
+    return (nx+1)*(ny+1)*(nz+1)
+
+def get_ncells(n):
+    nx,ny,nz = n
+    ncxz = nx*(ny+1)*nz # number of cells in the xz plane
+    ncyz = (nx+1)*ny*nz # number of cells in the yz plane
+    return [ncxz,ncyz] # number of cells
+    
+def buildmatrix3d_kirchhoff(n):
+    """
+    calculate numbers to populate matrix and their row and column, relating
+    to kirchhoff's law for electrical current and equivalent for fluid flow
+    (i.e., sum of total current in and out of each node is zero)
+    
+    ==============================inputs=======================================
+    n = number of cells in the x (horizontal), y (into the plane)
+        and z (vertical) directions [nx,ny,nz]
+    ===========================================================================
+    """
+    nx,ny,nz = n
+    nfx,nfy,nfz = get_nfree(n)
+    nn = get_nnodes(n)
+    
+    
+    #   a. x connectors
+    data1a = np.hstack([-np.ones(nfx),np.ones(nfx)])
+    rows1as = np.hstack([np.arange(nx)]*(ny+1)*(nz+1)) \
+            + np.hstack([np.ones(nx)*(nx+1)*i for i in range((ny+1)*(nz+1))])
+    rows1a = np.hstack([rows1as,rows1as + 1])
+    cols1a = np.hstack([np.arange(nfx)]*2)
+    
+    #   b. y connectors
+    data1b = np.hstack([-np.ones(nfy),np.ones(nfy)])
+    rows1bs = np.hstack([np.arange(ny*(nx+1))]*(nz+1)) \
+            + np.hstack([np.ones(ny*(nx+1))*(nx+1)*(ny+1)*i for i in range(nz+1)])
+    rows1b = np.hstack([rows1bs,rows1bs + nx + 1])
+    cols1b = np.hstack([np.arange(nfy)]*2)+nfx
+    
+    #   c. z connectors
+    data1c = np.hstack([np.ones(nn),-np.ones(nn)])
+    cols1cs = np.arange(nn) + nfx + nfy
+    cols1c = np.hstack([cols1cs,cols1cs + (nx+1)*(ny+1)])
+    rows1c = np.hstack([np.arange(nn)]*2)    
+    
+    return np.hstack([data1a,data1b,data1c]),np.hstack([rows1a,rows1b,rows1c]),\
+           np.hstack([cols1a,cols1b,cols1c])
+      
+      
+def buildmatrix3d_potential(resistance):
+    """
+    calculate numbers to populate matrix and their row and column, relating
+    to conservation of potential and equivalent for fluid flow
+    (i.e., potential is conservative in each elementary cell)
+    
+    ==============================inputs=======================================
+    resistivity = array containing resistivities in the x,y,z directions
+     
+    ===========================================================================
+    """
+
+    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
+    n = [nz,ny,nx]
+    nfx,nfy,nfz = get_nfree(n)
+    nn = get_nnodes(n)
+    ncxz,ncyz = get_ncells(n)
+    nc = ncxz + ncyz # number of cells
+    
+    resx = resistance[1:,1:,1:-1,0]
+    resy = resistance[1:,1:-1,1:,1]
+    resz = resistance[1:-1,1:,1:,2] 
+    
+    #    a. x connectors
+    data2a = np.hstack([np.ones(ncxz)*resx.flatten()[:ncxz], 
+                        np.ones(ncxz)*(-resx.flatten()[nx*(ny+1):])])
+    rows2a = np.hstack([np.arange(ncxz)+nn]*2)
+    cols2a = np.hstack([np.arange(ncxz), np.arange(ncxz) + nx*(ny+1)])
+    
+    #    b. y connectors
+    data2b = np.hstack([np.ones(ncyz)*resy.flatten()[:ncyz], 
+                        np.ones(ncyz)*(-resy.flatten()[(nx+1)*ny:])])
+    rows2b = np.hstack([np.arange(ncyz) + nn + ncxz]*2)
+    cols2b = np.hstack([np.arange(ncyz) + nx*(ny+1)*(nz+1),
+                        np.arange(ncyz) + nx*(ny+1)*(nz+1) + ny*(nx+1)])
+    
+    #    c. z connectors
+    data2c = np.hstack([np.ones(nc)*np.hstack([-resz[:,:,:-1].flatten(),-resz[:,:-1,:].flatten()]),
+                        np.ones(nc)*np.hstack([resz[:,:,1:].flatten(),resz[:,1:,:].flatten()])])
+                        
+    rows2c = np.hstack([np.arange(nc) + nn]*2)#nfx + nfy + (nx+1)*(ny+1)]*2)
+    cols2c1 = np.hstack([np.arange(nx)]*(ny+1)*nz) \
+            + np.hstack([np.ones(nx)*(nx+1)*i for i in range((ny+1)*nz)]) \
+            + nfx + nfy + (nx+1)*(ny+1)
+    cols2c2 = np.hstack([np.arange((nx+1)*ny)]*nz) \
+            + np.hstack([np.ones((nx+1)*ny)*(nx+1)*(ny+1)*i for i in range(nz)]) \
+            + nfx + nfy + (nx+1)*(ny+1)
+    cols2c = np.hstack([cols2c1,cols2c2,cols2c1+1,cols2c2+nx+1])
+    
+    return np.hstack([data2a,data2b,data2c]),np.hstack([rows2a,rows2b,rows2c]),\
+           np.hstack([cols2a,cols2b,cols2c])
+    
+    
+def buildmatrix3d_normalisation(resistance):
+    """
+    calculate numbers to populate matrix and their row and column, relating
+    to normalisation across the network (i.e., total voltage drop across
+    entry and exit nodes), also add one row that forces currents flowing
+    into the network to equal currents exiting the network
+    
+    ==============================inputs=======================================
+    resistivity = array containing resistivities in the x,y,z directions as for
+    buildmatrix3d_potential
+    ===========================================================================
+    """
+    
+    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
+    n = [nx,ny,nz]
+    nfx,nfy,nfz = get_nfree(n)
+    nfree = sum([nfx,nfy,nfz])
+    nn = get_nnodes(n)
+  
+    resx = resistance[1:,1:,1:-1,0]
+    resy = resistance[1:,1:-1,1:,1]
+    resz = resistance[1:-1,1:,1:,2]    
+
+    ncxz,ncyz = get_ncells([nx,ny,nz])
+    nc = ncxz + ncyz # number of cells
+ 
+    #    a. x connectors
+    data3a = np.ones(nx*(ny+1))*resx[-1].flatten()
+    rows3a = np.arange(nx*(ny+1)) + nn + nc + (nx+1)*(ny+1)
+    cols3a = np.arange(nx*(ny+1)) + ncxz
+    
+    #    b. y connectors
+    data3b = np.ones((nx+1)*ny)*resy[-1].flatten()
+    rows3b = np.arange((nx+1)*ny) + nn + nc + (2*nx+1)*(ny+1)
+    cols3b = np.arange((nx+1)*ny) + nfx + (nx+1)*ny*nz
+    
+    #    c. z connectors
+    data3c1 = np.ones((nx+1)*(ny+1)*nz)*resz.flatten()
+    rows3c1 = np.hstack([np.arange((nx+1)*(ny+1))]*nz) + nn + nc
+    cols3c1 = np.hstack([np.arange((nx+1)*(ny+1))]*nz) \
+            + np.hstack([np.ones((nx+1)*(ny+1))*(nx+1)*(ny+1)*i for i in range(nz)]) \
+            + nfx + nfy + (nx+1)*(ny+1)
+    
+    data3c2 = np.ones(ncxz)*resz[:,:,:-1].flatten()
+    cols3c2 = np.hstack([np.arange(nx)]*(ny+1)*nz) \
+            + np.hstack([np.ones(nx)*(nx+1)*i for i in range(ny+1)*nz]) \
+            + np.hstack([np.ones(nx*(ny+1))*(nx+1)*(ny+1)*i for i in range(nz)]) \
+            + nfx + nfy + (nx+1)*(ny+1)
+            
+    rows3c2 = np.hstack([np.arange(nx*(ny+1))]*nz) \
+            + nn + nc + (nx+1)*(ny+1)
+    
+    data3c3 = np.ones((nx+1)*ny*nz)*resz[:,:-1,:].flatten()
+    rows3c3 = np.hstack([np.arange((nx+1)*ny)]*nz) \
+            + nn + nc + (2*nx+1)*(ny+1)     
+    cols3c3 = np.hstack([np.arange((nx+1)*ny)]*nz) \
+            + np.hstack([np.ones((nx+1)*ny)*(nx+1)*(ny+1)*i for i in range(nz)]) \
+            + nfx + nfy + (nx+1)*(ny+1)
+    
+    data3c = np.hstack([data3c1,data3c2,data3c3])
+    rows3c = np.hstack([rows3c1,rows3c2,rows3c3])
+    cols3c = np.hstack([cols3c1,cols3c2,cols3c3]) 
+ 
+    # 4. Current in = current out
+    data4 = np.hstack([np.ones((nx+1)*(ny+1)),-np.ones((nx+1)*(ny+1))])
+    rows4 = np.ones((nx+1)*(ny+1)*2)*(nfree)
+    cols4 = np.hstack([np.arange((nx+1)*(ny+1)) + nfx + nfy,
+                       np.arange((nx+1)*(ny+1)) + nfx + nfy + (nx+1)*(ny+1)*(nz+1)])
+                       
+    return np.hstack([data3a,data3b,data3c,data4]),\
+           np.hstack([rows3a,rows3b,rows3c,rows4]),\
+           np.hstack([cols3a,cols3b,cols3c,cols4])  
+
+def build_matrix3d(resistance):
+    """
+    """
+    nx,ny,nz = np.array(np.shape(resistance)[:-1][::-1])
+    n = [nx,ny,nz]
+    nn = get_nnodes(n)
+    nc = sum(get_ncells(n))
+    nfree = sum(get_nfree(n))
+    data1,rows1,cols1 = buildmatrix3d_kirchhoff([nx,ny,nz])
+    data2,rows2,cols2 = buildmatrix3d_potential(resistance)
+    data3,rows3,cols3 = buildmatrix3d_normalisation(resistance)
+    
+    data,rows,cols = np.hstack([data1,data2,data3]),\
+                     np.hstack([rows1,rows2,rows3]),\
+                     np.hstack([cols1,cols2,cols3])
+    m = sparse.coo_matrix((data,(rows,cols)), shape=(nfree+1,nfree))
+    mc = sparse.bmat([[m.tocsr()[:int(nn/2)]],[m.tocsr()[int(nn/2)+1:]]]).tocsr()
+    b = np.zeros(nfree)
+    b[nn+nc-1:-1] = 1.
+    
+    return mc,b
 
 """
 ===================Functions relating to plotting==============================
@@ -438,168 +590,3 @@ def get_faultlengths(parameter,d,tolerance=0.05):
     return faultlengths
 
 
-def buildmatrix3d_kirchhoff(nx,ny,nz):
-    """
-    calculate numbers to populate matrix and their row and column, relating
-    to kirchhoff's law for electrical current and equivalent for fluid flow
-    (i.e., sum of total current in and out of each node is zero)
-    
-    ==============================inputs=======================================
-    nx,ny,nz = number of cells in the x (horizontal), y (into the plane)
-               and z (vertical) directions
-    ===========================================================================
-    """
-
-    nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
-    nn = (nx+1)*(ny+1)*(nz+1)
-    
-    
-    #   a. x connectors
-    data1a = np.hstack([-np.ones(nfx),np.ones(nfx)])
-    rows1as = np.hstack([np.arange(nx)]*(ny+1)*(nz+1)) \
-            + np.hstack([np.ones(nx)*(nx+1)*i for i in range((ny+1)*(nz+1))])
-    rows1a = np.hstack([rows1as,rows1as + 1])
-    cols1a = np.hstack([np.arange(nfx)]*2)
-    
-    #   b. y connectors
-    data1b = np.hstack([-np.ones(nfy),np.ones(nfy)])
-    rows1bs = np.hstack([np.arange(ny*(nx+1))]*(nz+1)) \
-            + np.hstack([np.ones(ny*(nx+1))*(nx+1)*(ny+1)*i for i in range(nz+1)])
-    rows1b = np.hstack([rows1bs,rows1bs + nx + 1])
-    cols1b = np.hstack([np.arange(nfy)]*2)+nfx
-    
-    #   c. z connectors
-    data1c = np.hstack([np.ones(nn),-np.ones(nn)])
-    cols1cs = np.arange(nn) + nfx + nfy
-    cols1c = np.hstack([cols1cs,cols1cs + (nx+1)*(ny+1)])
-    rows1c = np.hstack([np.arange(nn)]*2)    
-    
-    return np.hstack([data1a,data1b,data1c]),np.hstack([rows1a,rows1b,rows1c]),\
-           np.hstack([cols1a,cols1b,cols1c])
-      
-      
-def buildmatrix3d_potential(resistivity):
-    """
-    calculate numbers to populate matrix and their row and column, relating
-    to conservation of potential and equivalent for fluid flow
-    (i.e., potential is conservative in each elementary cell)
-    
-    ==============================inputs=======================================
-    resistivity = array containing resistivities in the x,y,z directions
-     
-    ===========================================================================
-    """
-
-    nz,ny,nx = [int(i-2) for i in np.shape(resistivity)[:3]]
-    nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
-    nn = (nx+1)*(ny+1)*(nz+1)
-    
-    resx = resistivity[1:,1:,1:-1,0]
-    resy = resistivity[1:,1:-1,1:,1]
-    resz = resistivity[1:-1,1:,1:,2] 
-    
-    #    a. x connectors
-    ncxz = nx*(ny+1)*nz # number of cells in the xz plane
-    data2a = np.hstack([np.ones(ncxz)*resx.flatten()[:ncxz], 
-                        np.ones(ncxz)*(-resx.flatten()[nx*(ny+1):])])
-    rows2a = np.hstack([np.arange(ncxz)+nn]*2)
-    cols2a = np.hstack([np.arange(ncxz), np.arange(ncxz) + nx*(ny+1)])
-    
-    #    b. y connectors
-    ncyz = (nx+1)*ny*nz
-    nc = ncxz + ncyz # number of cells
-    data2b = np.hstack([np.ones(ncyz)*resy.flatten()[:ncyz], 
-                        np.ones(ncyz)*(-resy.flatten()[(nx+1)*ny:])])
-    rows2b = np.hstack([np.arange(ncyz) + nn + ncxz]*2)
-    cols2b = np.hstack([np.arange(ncyz) + nx*(ny+1)*(nz+1),
-                        np.arange(ncyz) + nx*(ny+1)*(nz+1) + ny*(nx+1)])
-    
-    #    c. z connectors
-    data2c = np.hstack([np.ones(nc)*np.hstack([-resz[:,:,:-1].flatten(),-resz[:,:-1,:].flatten()]),
-                        np.ones(nc)*np.hstack([resz[:,:,1:].flatten(),resz[:,1:,:].flatten()])])
-                        
-    rows2c = np.hstack([np.arange(nc) + nn]*2)#nfx + nfy + (nx+1)*(ny+1)]*2)
-    cols2c1 = np.hstack([np.arange(nx)]*(ny+1)*nz) \
-            + np.hstack([np.ones(nx)*(nx+1)*i for i in range((ny+1)*nz)]) \
-            + nfx + nfy + (nx+1)*(ny+1)
-    cols2c2 = np.hstack([np.arange((nx+1)*ny)]*nz) \
-            + np.hstack([np.ones((nx+1)*ny)*(nx+1)*(ny+1)*i for i in range(nz)]) \
-            + nfx + nfy + (nx+1)*(ny+1)
-    cols2c = np.hstack([cols2c1,cols2c2,cols2c1+1,cols2c2+nx+1])
-    
-    return np.hstack([data2a,data2b,data2c]),np.hstack([rows2a,rows2b,rows2c]),\
-           np.hstack([cols2a,cols2b,cols2c])
-    
-    
-def buildmatrix3d_normalisation(resistivity):
-    """
-    calculate numbers to populate matrix and their row and column, relating
-    to normalisation across the network (i.e., total voltage drop across
-    entry and exit nodes), also add one row that forces currents flowing
-    into the network to equal currents exiting the network
-    
-    ==============================inputs=======================================
-    resistivity = array containing resistivities in the x,y,z directions as for
-    buildmatrix3d_potential
-    ===========================================================================
-    """
-    
-    nz,ny,nx = [int(i-2) for i in np.shape(resistivity)[:3]]
-    nfx,nfy = [nx*(ny+1)*(nz+1),ny*(nx+1)*(nz+1)]
-    nfree = nfx + nfy + (nx+1)*(ny+1)*(nz+2)
-    nn = (nx+1)*(ny+1)*(nz+1)
-  
-    resx = resistivity[1:,1:,1:-1,0]
-    resy = resistivity[1:,1:-1,1:,1]
-    resz = resistivity[1:-1,1:,1:,2]    
-
-    ncxz = nx*(ny+1)*nz # number of cells in the xz plane
-    ncyz = (nx+1)*ny*nz # number of cells in the yz plane
-    nc = ncxz + ncyz # number of cells
- 
-    #    a. x connectors
-    data3a = np.ones(nx*(ny+1))*resx[-1].flatten()
-    rows3a = np.arange(nx*(ny+1)) + nn + nc + (nx+1)*(ny+1)
-    cols3a = np.arange(nx*(ny+1)) + ncxz
-    
-    #    b. y connectors
-    data3b = np.ones((nx+1)*ny)*resy[-1].flatten()
-    rows3b = np.arange((nx+1)*ny) + nn + nc + (2*nx+1)*(ny+1)
-    cols3b = np.arange((nx+1)*ny) + nfx + (nx+1)*ny*nz
-    
-    #    c. z connectors
-    data3c1 = np.ones((nx+1)*(ny+1)*nz)*resz.flatten()
-    rows3c1 = np.hstack([np.arange((nx+1)*(ny+1))]*nz) + nn + nc
-    cols3c1 = np.hstack([np.arange((nx+1)*(ny+1))]*nz) \
-            + np.hstack([np.ones((nx+1)*(ny+1))*(nx+1)*(ny+1)*i for i in range(nz)]) \
-            + nfx + nfy + (nx+1)*(ny+1)
-    
-    data3c2 = np.ones(ncxz)*resz[:,:,:-1].flatten()
-    cols3c2 = np.hstack([np.arange(nx)]*(ny+1)*nz) \
-            + np.hstack([np.ones(nx)*(nx+1)*i for i in range(ny+1)*nz]) \
-            + np.hstack([np.ones(nx*(ny+1))*(nx+1)*(ny+1)*i for i in range(nz)]) \
-            + nfx + nfy + (nx+1)*(ny+1)
-            
-    rows3c2 = np.hstack([np.arange(nx*(ny+1))]*nz) \
-            + nn + nc + (nx+1)*(ny+1)
-    
-    data3c3 = np.ones((nx+1)*ny*nz)*resz[:,:-1,:].flatten()
-    rows3c3 = np.hstack([np.arange((nx+1)*ny)]*nz) \
-            + nn + nc + (2*nx+1)*(ny+1)     
-    cols3c3 = np.hstack([np.arange((nx+1)*ny)]*nz) \
-            + np.hstack([np.ones((nx+1)*ny)*(nx+1)*(ny+1)*i for i in range(nz)]) \
-            + nfx + nfy + (nx+1)*(ny+1)
-    
-    data3c = np.hstack([data3c1,data3c2,data3c3])
-    rows3c = np.hstack([rows3c1,rows3c2,rows3c3])
-    cols3c = np.hstack([cols3c1,cols3c2,cols3c3]) 
- 
-    # 4. Current in = current out
-    data4 = np.hstack([np.ones((nx+1)*(ny+1)),-np.ones((nx+1)*(ny+1))])
-    rows4 = np.ones((nx+1)*(ny+1)*2)*(nfree)
-    cols4 = np.hstack([np.arange((nx+1)*(ny+1)) + nfx + nfy,
-                       np.arange((nx+1)*(ny+1)) + nfx + nfy + (nx+1)*(ny+1)*(nz+1)])
-                       
-    return np.hstack([data3a,data3b,data3c,data4]),\
-           np.hstack([rows3a,rows3b,rows3c,rows4]),\
-           np.hstack([cols3a,cols3b,cols3c,cols4])  
