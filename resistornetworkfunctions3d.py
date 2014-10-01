@@ -271,7 +271,6 @@ def buildmatrix3d_kirchhoff(n):
     nfx,nfy,nfz = get_nfree(n)
     nn = get_nnodes(n)
     
-    
     #   a. x connectors
     data1a = np.hstack([-np.ones(nfx),np.ones(nfx)])
     rows1as = np.hstack([np.arange(nx)]*(ny+1)*(nz+1)) \
@@ -308,26 +307,28 @@ def buildmatrix3d_potential(resistance):
     ===========================================================================
     """
 
-    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
-    n = [nz,ny,nx]
+    nz,ny,nx = [int(i-1) for i in np.shape(resistance)[:3]]
+    n = [nx,ny,nz]
     nfx,nfy,nfz = get_nfree(n)
     nn = get_nnodes(n)
     ncxz,ncyz = get_ncells(n)
     nc = ncxz + ncyz # number of cells
-    
-    resx = resistance[1:,1:,1:-1,0]
-    resy = resistance[1:,1:-1,1:,1]
-    resz = resistance[1:-1,1:,1:,2] 
-    
+    print(ncxz,ncyz)
+    print(nx,ny,nz)
+
+    resx = resistance[:,:,:-1,0]
+    resy = resistance[:,:-1,:,1]
+    resz = resistance[:-1,:,:,2] 
+    print(np.shape(resy))
     #    a. x connectors
     data2a = np.hstack([np.ones(ncxz)*resx.flatten()[:ncxz], 
-                        np.ones(ncxz)*(-resx.flatten()[nx*(ny+1):])])
+                        np.ones(ncxz)*(-resx.flatten()[-ncxz:])])
     rows2a = np.hstack([np.arange(ncxz)+nn]*2)
     cols2a = np.hstack([np.arange(ncxz), np.arange(ncxz) + nx*(ny+1)])
     
     #    b. y connectors
     data2b = np.hstack([np.ones(ncyz)*resy.flatten()[:ncyz], 
-                        np.ones(ncyz)*(-resy.flatten()[(nx+1)*ny:])])
+                        np.ones(ncyz)*(-resy.flatten()[-ncyz:])])
     rows2b = np.hstack([np.arange(ncyz) + nn + ncxz]*2)
     cols2b = np.hstack([np.arange(ncyz) + nx*(ny+1)*(nz+1),
                         np.arange(ncyz) + nx*(ny+1)*(nz+1) + ny*(nx+1)])
@@ -362,15 +363,15 @@ def buildmatrix3d_normalisation(resistance):
     ===========================================================================
     """
     
-    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
+    nz,ny,nx = [int(i-1) for i in np.shape(resistance)[:3]]
     n = [nx,ny,nz]
     nfx,nfy,nfz = get_nfree(n)
     nfree = sum([nfx,nfy,nfz])
     nn = get_nnodes(n)
   
-    resx = resistance[1:,1:,1:-1,0]
-    resy = resistance[1:,1:-1,1:,1]
-    resz = resistance[1:-1,1:,1:,2]    
+    resx = resistance[:,:,:-1,0]
+    resy = resistance[:,:-1,:,1]
+    resz = resistance[:-1,:,:,2]    
 
     ncxz,ncyz = get_ncells([nx,ny,nz])
     nc = ncxz + ncyz # number of cells
@@ -425,7 +426,7 @@ def buildmatrix3d_normalisation(resistance):
 def build_matrix3d(resistance):
     """
     """
-    nx,ny,nz = np.array(np.shape(resistance)[:-1][::-1])
+    nx,ny,nz = np.array(np.shape(resistance)[:-1][::-1])-1
     n = [nx,ny,nz]
     nn = get_nnodes(n)
     nc = sum(get_ncells(n))
