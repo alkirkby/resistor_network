@@ -40,8 +40,8 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
     n = np.array(n)
     ptot = np.sum(p)/3.
     pnorm = np.array(p)/np.sum(p)
-    res = np.ones(list(n[::-1]+1.)+[3])*r_matrix
-    
+    res = np.ones(list(n[::-1]+1)+[3])*r_matrix
+
     if faultlengthmax is None:
         faultlengthmax = float(max(n))
     faults = []
@@ -126,7 +126,7 @@ def get_phi(d,fracture_diameter):
     return (np.pi/4.)*fracture_diameter**2/a
     
 
-def get_electrical_resistance(res,d,fracture_diameter):
+def get_electrical_resistance(res,r_matrix,r_fluid,d,fracture_diameter):
     """
     
     returns a numpy array containing resistance values 
@@ -145,9 +145,7 @@ def get_electrical_resistance(res,d,fracture_diameter):
     phi = get_phi(d,fracture_diameter)
 
     res = 1.*res
-    r_fluid,r_matrix = get_unique_values(res)
-    print(np.shape(res))
-    print(r_matrix,r_fluid,phi)
+
     for i in range(3):
         # area of the cell
         acell = np.product([d[ii] for ii in range(3) if ii != i])
@@ -186,7 +184,7 @@ def get_permeability(res,k_matrix,fracture_diameter):
     return permeability
 
 
-def get_hydraulic_resistance(d,k_array,fracture_diameter):
+def get_hydraulic_resistance(k,k_matrix,d,fracture_diameter,mu=1e-3):
     """
     calculate hydraulic resistance based on a hydraulic permeability array
     
@@ -199,15 +197,13 @@ def get_hydraulic_resistance(d,k_array,fracture_diameter):
     ===========================================================================
     
     """
-    k_fluid = get_unique_values(k_array)[1]
-    print(k_fluid)
-    hresistance = np.ones_like(k_array)
+    hresistance = np.ones_like(k)
     for i in range(3):
         # area of the cell
         acell = np.product([d[ii] for ii in range(3) if ii != i])
-        hresistance[:,:,:,i] = (1./k_array[:,:,:,i])*(d[i]/acell)
-        hresistance[:,:,:,i][(k_array[:,:,:,i] == k_fluid)&(np.isfinite(k_array[:,:,:,i]))]\
-        = 128.*d[i]/(np.pi*fracture_diameter**4)
+        hresistance[:,:,:,i] = (1./k[:,:,:,i])*(d[i]/acell)
+        hresistance[:,:,:,i][(k[:,:,:,i] != k_matrix)&(np.isfinite(k[:,:,:,i]))]\
+        = mu*128.*d[i]/(np.pi*fracture_diameter**4)
 
     return hresistance
 
@@ -307,19 +303,17 @@ def buildmatrix3d_potential(resistance):
     ===========================================================================
     """
 
-    nz,ny,nx = [int(i-1) for i in np.shape(resistance)[:3]]
+    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
     n = [nx,ny,nz]
     nfx,nfy,nfz = get_nfree(n)
     nn = get_nnodes(n)
     ncxz,ncyz = get_ncells(n)
     nc = ncxz + ncyz # number of cells
-    print(ncxz,ncyz)
-    print(nx,ny,nz)
 
-    resx = resistance[:,:,:-1,0]
-    resy = resistance[:,:-1,:,1]
-    resz = resistance[:-1,:,:,2] 
-    print(np.shape(resy))
+    resx = resistance[1:,1:,1:-1,0]
+    resy = resistance[1:,1:-1,1:,1]
+    resz = resistance[1:-1,1:,1:,2]    
+
     #    a. x connectors
     data2a = np.hstack([np.ones(ncxz)*resx.flatten()[:ncxz], 
                         np.ones(ncxz)*(-resx.flatten()[-ncxz:])])
@@ -363,16 +357,16 @@ def buildmatrix3d_normalisation(resistance):
     ===========================================================================
     """
     
-    nz,ny,nx = [int(i-1) for i in np.shape(resistance)[:3]]
+    nz,ny,nx = [int(i-2) for i in np.shape(resistance)[:3]]
     n = [nx,ny,nz]
     nfx,nfy,nfz = get_nfree(n)
     nfree = sum([nfx,nfy,nfz])
     nn = get_nnodes(n)
   
-    resx = resistance[:,:,:-1,0]
-    resy = resistance[:,:-1,:,1]
-    resz = resistance[:-1,:,:,2]    
-
+    resx = resistance[1:,1:,1:-1,0]
+    resy = resistance[1:,1:-1,1:,1]
+    resz = resistance[1:-1,1:,1:,2]    
+    
     ncxz,ncyz = get_ncells([nx,ny,nz])
     nc = ncxz + ncyz # number of cells
  
@@ -426,7 +420,7 @@ def buildmatrix3d_normalisation(resistance):
 def build_matrix3d(resistance):
     """
     """
-    nx,ny,nz = np.array(np.shape(resistance)[:-1][::-1])-1
+    nx,ny,nz = np.array(np.shape(resistance)[:-1][::-1])-2
     n = [nx,ny,nz]
     nn = get_nnodes(n)
     nc = sum(get_ncells(n))

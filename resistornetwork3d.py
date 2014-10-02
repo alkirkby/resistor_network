@@ -111,38 +111,36 @@ class Resistivity_volume():
         r_fluid = float(self.resistivity_fluid)
                                                                                                                                                                                     
         if self.res_type == 'ones':
-
-            self.resistivity = np.ones([self.nz+2,self.nz+2,self.nx+2,2])*np.nan
+            self.resistivity = np.ones([self.nz+2,self.ny+2,self.nx+2,3])*np.nan
             self.resistivity[1:,1:,1:-1,0] = 1.
             self.resistivity[1:,1:-1,1:,1] = 1.
             self.resistivity[1:-1,1:,1:,2] = 1.
 
         elif self.res_type == "random":
-
-            self.resistivity = rnf.assign_random_resistivity([self.nx,self.ny,self.nz],
-                                                             [self.px,self.py,self.pz],
-                                                             self.resistivity_matrix,
-                                                             self.resistivity_fluid,
-                                                             faultlengthmax=self.faultlength_max,
-                                                             decayfactor = self.faultlength_decay)
+            self.resistivity,self.faults = \
+            rnf.assign_random_resistivity([self.nx,self.ny,self.nz],
+                                          [self.px,self.py,self.pz],
+                                           self.resistivity_matrix,
+                                           self.resistivity_fluid,
+                                           faultlengthmax=self.faultlength_max,
+                                           decayfactor = self.faultlength_decay)
             
         elif self.res_type == 'array':
             # resistivity fed in as a variable in initialisation so don't need
             # to create it
             self.resistivity_matrix = np.amax(self.resistivity[np.isfinite(self.resistivity)])
             self.resistivity_fluid = np.amin(self.resistivity[np.isfinite(self.resistivity)])
-      
         else:
             print "res type {} not supported, please redefine".format(self.res_type)
             return
             
         d = [self.dx,self.dy,self.dz]
         self.resistance = rnf.get_electrical_resistance(self.resistivity,
+                                                        self.resistivity_matrix,
+                                                        self.resistivity_fluid,
                                                         d,
                                                         self.fracture_diameter)
         self.phi = sum(rnf.get_phi(d,self.fracture_diameter))
-        self.resistivity_matrix = r_matrix
-        self.resistivity_fluid = r_fluid
 
 
     def initialise_permeability(self):
@@ -160,103 +158,138 @@ class Resistivity_volume():
                                                  self.permeability_matrix,
                                                  self.fracture_diameter)
         self.hydraulic_resistance = \
-        rnf.get_hydraulic_resistance(d,
-                                     self.permeability,
-                                     self.fracture_diameter)
+        rnf.get_hydraulic_resistance(self.permeability,
+                                     self.permeability_matrix,
+                                     d,
+                                     self.fracture_diameter,
+                                     mu = self.mu)
 
 
     def solve_resistor_network(self,properties,direction):
         """
         generate and solve a random resistor network
         properties = string or list containing properties to solve for,
-        'current','fluid' or 'current_fluid'
-        direction = string containing directions, 'x','z' or 'xz'
-        'x' solves x and z currents for flow in the x (horizontal) direction
-        'z' solves x and z currents for flow in the z direction
+        'current','fluid' or a combination e.g. 'currentfluid'
+        direction = string containing directions, 'x','y','z' or a combination
+        e.g. 'xz','xyz'
+        'x' solves x y and z currents for flow in the x (horizontal) direction
+        'y' solves x y and z currents for flow in the y direction (into page)
+        'z' solves x y and z currents for flow in the z (vertical) direction
+        
+        resulting current/fluid flow array:
+             resx resy resz
+               |   |   |
+               v   v   v
+            [[xx, xy, xz], <-- flow modelled in x direction
+             [yx, yy, yz], <-- flow y
+             [zx, zy, zz]] <-- flow z
+        
         """
         # set kfactor to divide hydraulic conductivities by so that matrix
         # solving is more accurate. 
 #        kfactor = 1e10
         
-        property_arrays = []
+        property_arrays = {}
         if 'current' in properties:
             if not hasattr(self,'resistance'):
                 self.initialise_resistivity()
-            property_arrays.append([[self.resistance[:,:,i]\
-                                     for i in [0,1]],'current'])
+            property_arrays['current'] = self.resistance
         if 'fluid' in properties:
             if not hasattr(self,'hydraulic_resistance'):
                 self.initialise_permeability()
-            property_arrays.append([[self.hydraulic_resistance[:,:,i]\
-                                     for i in [0,1]],'fluid']) 
+            property_arrays['fluid'] = self.hydraulic_resistance 
         
-        input_arrays = []
-        for prop,pname in property_arrays:
-            px,pz = prop
-            px = px[1:,1:-1]
-            pz = pz[1:-1,1:]
-#            print px,pz
-            if 'x' in direction:
-                input_arrays.append([pz.T,px.T,pname+'x'])
-            if 'z' in direction:
-                input_arrays.append([px,pz,pname+'z'])
    
-        nx,nz,dx,dz = [float(n) for n in self.nx,self.nz,self.dx,self.dz]
-        factor = np.array([((nz+1.)*dz)/(dx*nx),((nx+1.)*dx)/(dz*nz)])
-        current = np.zeros([self.nz+2,self.nx+2,2,2])
-        flow = np.zeros([self.nz+2,self.nx+2,2,2])
+        dx,dy,dz = [float(n) for n in self.dx,self.dy,self.dz]      
 
-        if 'current' in pname:
-            resistance_bulk = np.zeros(2)
-        if 'fluid' in pname:    
-            hydraulic_resistance_bulk = np.zeros(2)
+        for pname in property_arrays.keys():
+            nz,ny,nx = np.array(np.shape(property_arrays[pname]))[:-1] - 2
+            nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+            oa = np.zeros([nz+2,ny+2,nx+2,3,3])
+            
+            if 'z' in direction:
+                prop = property_arrays[pname]
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,1:-1,2,0] = c[:nfx].reshape(nz+1,ny+1,nx)
+                oa[1:,1:-1,1:,2,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1)
+                oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)
 
-        for propx,propz,pname in input_arrays:
-#            print pname
-            matrix = rnf.build_matrix(propx,propz)
-            nx,nz = np.shape(propx)[1],np.shape(propz)[0]
-            b = rnf.build_sums(np.shape(matrix)[0],[nx,nz])
-            c = rnf.solve_matrix(matrix,b)
-#            if pname == 'fluid':
-#                c = c/kfactor
-            nx,nz = len(propx[0]),len(propz)
-            cx = c[:nx*(nz+1)].reshape(nz+1,nx)
-            cz = c[nx*(nz+1):].reshape(nz+2,nx+1)
-#            print c
+            if 'y' in direction:
+                prop = property_arrays[pname].transpose(1,0,2,3)           
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,1:-1,1,0] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(1,0,2)
+#                print nz+1,ny+2,nx+1,len(c[-nfz:])
+                oa[1:,:,1:,1,1] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(1,0,2)
+                oa[1:-1,1:,1:,1,2] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(1,0,2)  
+            
+            if 'x' in direction:
+                prop = property_arrays[pname].transpose(2,1,0,3)
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,:,0,0] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(2,1,0)
+                oa[1:,1:-1,1:,0,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(2,1,0)
+                oa[1:-1,1:,1:,0,2] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(2,1,0)                
+            print oa[:,-1,:]
+            probleem here
+            flow = np.array([np.sum(oa[:,:,-1,2,2]),
+                             np.sum(oa[:,-1,:,2,2]),
+                             np.sum(oa[-1,:,:,2,2])])
+            factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
+                               dz*dx*(nx+1)*(nz+1)/(dy*ny),
+                               dy*dx*(nx+1)*(ny+1)/(dz*nz)])
+            print flow,factor
             if 'current' in pname:
-                
-                
-                if 'x' in pname:
-                    # dealing with x direction current flow
-                    current[1:,:,0,0] = cz.T
-                    current[1:-1,1:,1,0] = cx.T
-                    resistance_bulk[0] = 1./np.sum(current[:,-1,0,0])
-                if 'z' in pname:
-                    # dealing with z direction current flow
-                    current[1:,1:-1,0,1] = cx                    
-                    current[:,1:,1,1] = cz
-                    resistance_bulk[1] = 1./np.sum(current[-1,:,1,1])
-                
-                self.resistance_bulk = resistance_bulk*1.
-                self.resistivity_bulk = resistance_bulk*factor*1.
-                self.current = 1.*current
+                self.current = 1.*oa
+                self.resistivity_bulk = factor/flow
+                self.resistance_bulk = 1./flow
             if 'fluid' in pname:
-                
-                
-                if 'x' in pname:
-                    # dealing with x direction current flow
-                    flow[1:,:,0,0] = cz.T
-                    flow[1:-1,1:,1,0] = cx.T
-                    hydraulic_resistance_bulk[0] = 1./np.sum(flow[:,-1,0,0])
-                if 'z' in pname:
-                    # dealing with z direction current flow
-                    flow[1:,1:-1,0,1] = cx                    
-                    flow[:,1:,1,1] = cz                
-                    hydraulic_resistance_bulk[1] = 1./np.sum(flow[-1,:,1,1])
-                # need to divide by mu as we have been dealing with the product q*mu
-                self.flowrate = 1.*flow/self.mu
-                self.hydraulic_resistance_bulk = 1.*hydraulic_resistance_bulk
-                self.permeability_bulk = 1./(hydraulic_resistance_bulk*factor)
+                self.flowrate = 1.*oa
+                self.permeability_bulk = flow*self.mu/factor
+                self.hydraulic_resistance_bulk = 1./flow
+            
+            
+#            if 'current' in pname:
+#                
+#                
+#                if 'x' in pname:
+#                    # dealing with x direction current flow
+#                    current[1:,:,0,0] = cz.T
+#                    current[1:-1,1:,1,0] = cx.T
+#                    resistance_bulk[0] = 1./np.sum(current[:,-1,0,0])
+#                if 'z' in pname:
+#                    # dealing with z direction current flow
+#                    current[1:,1:-1,0,1] = cx                    
+#                    current[:,1:,1,1] = cz
+#                    resistance_bulk[1] = 1./np.sum(current[-1,:,1,1])
+#                
+#                self.resistance_bulk = resistance_bulk*1.
+#                self.resistivity_bulk = resistance_bulk*factor*1.
+#                self.current = 1.*current
+#            if 'fluid' in pname:
+#                
+#                
+#                if 'x' in pname:
+#                    # dealing with x direction current flow
+#                    flow[1:,:,0,0] = cz.T
+#                    flow[1:-1,1:,1,0] = cx.T
+#                    hydraulic_resistance_bulk[0] = 1./np.sum(flow[:,-1,0,0])
+#                if 'z' in pname:
+#                    # dealing with z direction current flow
+#                    flow[1:,1:-1,0,1] = cx                    
+#                    flow[:,1:,1,1] = cz                
+#                    hydraulic_resistance_bulk[1] = 1./np.sum(flow[-1,:,1,1])
+#                # need to divide by mu as we have been dealing with the product q*mu
+#                self.flowrate = 1.*flow/self.mu
+#                self.hydraulic_resistance_bulk = 1.*hydraulic_resistance_bulk
+#                self.permeability_bulk = 1./(hydraulic_resistance_bulk*factor)
         
 
 class Run_suite():
