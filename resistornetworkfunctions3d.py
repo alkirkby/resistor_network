@@ -85,7 +85,7 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
     res[-1,:,:,2] = np.nan
     res_final = np.ones(list(n[::-1]+2)+[3])*np.nan
     res_final[1:,1:,1:] = res
-
+    
     return res_final,np.array(faults)
 
 def get_unique_values(inarray,log=False):
@@ -143,7 +143,6 @@ def get_electrical_resistance(res,r_matrix,r_fluid,d,fracture_diameter):
     """
     
     phi = get_phi(d,fracture_diameter)
-
     res = 1.*res
 
     for i in range(3):
