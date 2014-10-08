@@ -55,7 +55,6 @@ class Resistivity_volume():
         self.dy = 1.
         self.dz = 1.
         self.res_type = 'ones'
-        self.res_file
         self.resistivity_matrix = 1000
         self.resistivity_fluid = 0.1
         self.resistivity = None
