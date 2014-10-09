@@ -247,12 +247,12 @@ class Resistivity_volume():
                            dy*dx*(nx+1)*(ny+1)/(dz*nz)])
 
 
-            if 'current' in pname:
-                self.current = 1.*oa
-                self.resistance_bulk = 1./flow
-                self.resistivity_bulk = factor*self.resistance_bulk
+        if 'current' in pname:
+            self.current = 1.*oa
+            self.resistance_bulk = 1./flow
+            self.resistivity_bulk = factor*self.resistance_bulk
 
-            if 'fluid' in pname:
-                self.flowrate = 1.*oa
-                self.permeability_bulk = flow*self.mu/factor
-                self.hydraulic_resistance_bulk = 1./flow
+        if 'fluid' in pname:
+            self.flowrate = 1.*oa
+            self.permeability_bulk = flow*self.mu/factor
+            self.hydraulic_resistance_bulk = 1./flow
