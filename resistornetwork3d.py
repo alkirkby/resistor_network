@@ -240,6 +240,7 @@ class Resistivity_volume():
             flow = np.array([np.sum(oa[:,:,-1,0,0]),
                              np.sum(oa[:,-1,:,1,1]),
                              np.sum(oa[-1,:,:,2,2])])
+            res
             
             factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
                                dz*dx*(nx+1)*(nz+1)/(dy*ny),
@@ -247,8 +248,9 @@ class Resistivity_volume():
 
             if 'current' in pname:
                 self.current = 1.*oa
-                self.resistivity_bulk = factor/flow
                 self.resistance_bulk = 1./flow
+                self.resistivity_bulk = factor*self.resistance_bulk
+                
             if 'fluid' in pname:
                 self.flowrate = 1.*oa
                 self.permeability_bulk = flow*self.mu/factor
