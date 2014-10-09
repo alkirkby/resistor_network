@@ -237,20 +237,21 @@ class Resistivity_volume():
             oa[1:,1:-1,1:,2,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1)
             oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)  
         
-            flow = np.array([np.sum(oa[:,:,-1,0,0]),
-                             np.sum(oa[:,-1,:,1,1]),
-                             np.sum(oa[-1,:,:,2,2])])
-            res
-            
-            factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
-                               dz*dx*(nx+1)*(nz+1)/(dy*ny),
-                               dy*dx*(nx+1)*(ny+1)/(dz*nz)])
+
+        flow = np.array([np.sum(oa[:,:,-1,0,0]),
+                         np.sum(oa[:,-1,:,1,1]),
+                         np.sum(oa[-1,:,:,2,2])])
+         
+        factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
+                           dz*dx*(nx+1)*(nz+1)/(dy*ny),
+                           dy*dx*(nx+1)*(ny+1)/(dz*nz)])
+
 
             if 'current' in pname:
                 self.current = 1.*oa
                 self.resistance_bulk = 1./flow
                 self.resistivity_bulk = factor*self.resistance_bulk
-                
+
             if 'fluid' in pname:
                 self.flowrate = 1.*oa
                 self.permeability_bulk = flow*self.mu/factor

@@ -40,7 +40,7 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
     n = np.array(n)
     ptot = np.sum(p)/3.
     pnorm = np.array(p)/np.sum(p)
-    res = np.ones(list(n[::-1]+1)+[3])*r_matrix
+    res = np.ones([n[2]+1,n[1]+1,n[0]+1,3])*r_matrix
 
     if faultlengthmax is None:
         faultlengthmax = float(max(n))
