@@ -159,7 +159,7 @@ def get_electrical_resistance(res,r_matrix,r_fluid,d,fracture_diameter):
     return res
 
 
-def get_permeability(res,k_matrix,fracture_diameter):
+def get_permeability(res,r_fluid,k_matrix,fracture_diameter):
     """
 
 
@@ -173,9 +173,7 @@ def get_permeability(res,k_matrix,fracture_diameter):
     fracture_diameter = fracture diameter
     ===========================================================================    
     """
-
-    r_fluid = get_unique_values(res)[0]
-    
+#    print(r_fluid,res)
     permeability = np.ones_like(res)*k_matrix        
     permeability[res==r_fluid] = fracture_diameter**2/32.
     permeability[np.isnan(res)] = np.nan
@@ -200,7 +198,7 @@ def get_hydraulic_resistance(k,k_matrix,d,fracture_diameter,mu=1e-3):
     for i in range(3):
         # area of the cell
         acell = np.product([d[ii] for ii in range(3) if ii != i])
-        hresistance[:,:,:,i] = (1./k[:,:,:,i])*(d[i]/acell)
+        hresistance[:,:,:,i] = (mu/k[:,:,:,i])*(d[i]/acell)
         hresistance[:,:,:,i][(k[:,:,:,i] != k_matrix)&(np.isfinite(k[:,:,:,i]))]\
         = mu*128.*d[i]/(np.pi*fracture_diameter**4)
 

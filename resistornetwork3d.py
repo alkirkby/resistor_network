@@ -93,7 +93,7 @@ class Resistivity_volume():
                 print "Please provide resistivity array or specify a different res_type"
                 return
             else:
-                self.nz,self.ny,self.nx = [int(i) for i in np.shape(self.resistivity)]
+                self.nz,self.ny,self.nx = [int(i) for i in np.shape(self.resistivity)][:-1]
 
         self.initialise_resistivity()
         self.initialise_permeability()
@@ -124,8 +124,11 @@ class Resistivity_volume():
         elif self.res_type == 'array':
             # resistivity fed in as a variable in initialisation so don't need
             # to create it
-            self.resistivity_matrix = np.amax(self.resistivity[np.isfinite(self.resistivity)])
-            self.resistivity_fluid = np.amin(self.resistivity[np.isfinite(self.resistivity)])
+            rm = np.amax(self.resistivity[np.isfinite(self.resistivity)])
+            rf = np.amin(self.resistivity[np.isfinite(self.resistivity)])
+            if rm != rf:
+                self.resistivity_fluid = rf
+                self.resistivity_matrix = rm
         else:
             print "res type {} not supported, please redefine".format(self.res_type)
             return
@@ -149,8 +152,9 @@ class Resistivity_volume():
             self.initialise_resistivity()
         
         d = [self.dz,self.dy,self.dx]
-        
+
         self.permeability = rnf.get_permeability(self.resistivity,
+                                                 self.resistivity_fluid,
                                                  self.permeability_matrix,
                                                  self.fracture_diameter)
         self.hydraulic_resistance = \
@@ -254,5 +258,6 @@ class Resistivity_volume():
 
         if 'fluid' in pname:
             self.flowrate = 1.*oa
-            self.permeability_bulk = flow*self.mu/factor
             self.hydraulic_resistance_bulk = 1./flow
+            self.permeability_bulk = self.mu/(self.hydraulic_resistance_bulk*factor)
+            
