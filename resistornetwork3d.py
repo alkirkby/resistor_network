@@ -151,7 +151,6 @@ class Resistivity_volume():
         if not hasattr(self,'resistivity'):
             self.initialise_resistivity()
         
-        d = [self.dz,self.dy,self.dx]
 
         self.permeability = rnf.get_permeability(self.resistivity,
                                                  self.resistivity_fluid,
@@ -160,7 +159,7 @@ class Resistivity_volume():
         self.hydraulic_resistance = \
         rnf.get_hydraulic_resistance(self.permeability,
                                      self.permeability_matrix,
-                                     d,
+                                     [self.dx,self.dy,self.dz],
                                      self.fracture_diameter,
                                      mu = self.mu)
 
@@ -207,57 +206,56 @@ class Resistivity_volume():
             nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
             oa = np.zeros([nz+2,ny+2,nx+2,3,3])#*np.nan
 
-        if 'x' in direction:
-            prop = 1.*property_arrays[pname].transpose(2,1,0,3)
-            prop = prop[:,:,:,::-1]
-            matrix,b = rnf.build_matrix3d(prop)
-            c = rnf.solve_matrix(matrix,b)
-            nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
-            nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
-            oa[1:,1:,:,0,0] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(2,1,0)
-            oa[1:,1:-1,1:,0,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(2,1,0)
-            oa[1:-1,1:,1:,0,2] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(2,1,0)               
-        
-        if 'y' in direction:
-            # transpose array as y direction is now locally the z direction
-            prop = 1.*property_arrays[pname].transpose(1,0,2,3)
-            # need to swap position of z and y values in the arrays
-            prop[:,:,:,1:] = prop[:,:,:,1:][:,:,:,::-1]
-            matrix,b = rnf.build_matrix3d(prop)
-            c = rnf.solve_matrix(matrix,b)
-            nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
-            nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
-            oa[1:,1:,1:-1,1,0] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(1,0,2)
-            oa[1:,:,1:,1,1] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(1,0,2)
-            oa[1:-1,1:,1:,1,2] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(1,0,2)  
-        
-        if 'z' in direction:
-            prop = 1.*property_arrays[pname]
-            matrix,b = rnf.build_matrix3d(prop)
-            c = rnf.solve_matrix(matrix,b)
-            nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
-            nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
-            oa[1:,1:,1:-1,2,0] = c[:nfx].reshape(nz+1,ny+1,nx)
-            oa[1:,1:-1,1:,2,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1)
-            oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)  
-        
+            if 'x' in direction:
+                prop = 1.*property_arrays[pname].transpose(2,1,0,3)
+                prop = prop[:,:,:,::-1]
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,:,0,0] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(2,1,0)
+                oa[1:,1:-1,1:,0,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(2,1,0)
+                oa[1:-1,1:,1:,0,2] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(2,1,0)               
+            
+            if 'y' in direction:
+                # transpose array as y direction is now locally the z direction
+                prop = 1.*property_arrays[pname].transpose(1,0,2,3)
+                # need to swap position of z and y values in the arrays
+                prop[:,:,:,1:] = prop[:,:,:,1:][:,:,:,::-1]
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,1:-1,1,0] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(1,0,2)
+                oa[1:,:,1:,1,1] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(1,0,2)
+                oa[1:-1,1:,1:,1,2] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(1,0,2)  
+            
+            if 'z' in direction:
+                prop = 1.*property_arrays[pname]
+                matrix,b = rnf.build_matrix3d(prop)
+                c = rnf.solve_matrix(matrix,b)
+                nz,ny,nx = np.array(np.shape(prop))[:-1] - 2
+                nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
+                oa[1:,1:,1:-1,2,0] = c[:nfx].reshape(nz+1,ny+1,nx)
+                oa[1:,1:-1,1:,2,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1)
+                oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)  
+            
 
-        flow = np.array([np.sum(oa[:,:,-1,0,0]),
-                         np.sum(oa[:,-1,:,1,1]),
-                         np.sum(oa[-1,:,:,2,2])])
-         
-        factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
-                           dz*dx*(nx+1)*(nz+1)/(dy*ny),
-                           dy*dx*(nx+1)*(ny+1)/(dz*nz)])
+            flow = np.array([np.sum(oa[:,:,-1,0,0]),
+                             np.sum(oa[:,-1,:,1,1]),
+                             np.sum(oa[-1,:,:,2,2])])
+             
+            factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
+                               dz*dx*(nx+1)*(nz+1)/(dy*ny),
+                               dy*dx*(nx+1)*(ny+1)/(dz*nz)])
 
-
-        if 'current' in pname:
-            self.current = 1.*oa
-            self.resistance_bulk = 1./flow
-            self.resistivity_bulk = factor*self.resistance_bulk
-
-        if 'fluid' in pname:
-            self.flowrate = 1.*oa
-            self.hydraulic_resistance_bulk = 1./flow
-            self.permeability_bulk = self.mu/(self.hydraulic_resistance_bulk*factor)
+            if 'current' in pname:
+                self.current = 1.*oa
+                self.resistance_bulk = 1./flow
+                self.resistivity_bulk = factor*self.resistance_bulk
+    
+            if 'fluid' in pname:
+                self.flowrate = 1.*oa
+                self.hydraulic_resistance_bulk = 1./flow
+                self.permeability_bulk = self.mu/(self.hydraulic_resistance_bulk*factor)
             
