@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import os
 import resistornetworkfunctions3d as rnf
+import sys
 
 class Resistivity_volume():
     """
@@ -280,7 +281,7 @@ class RandomResistorSuite():
         self.faultlength_max = None
         self.faultlength_decay = 5. 
         self.outfile = 'resistoroutputs.dat'                        
-
+        self.arguments = sys.argv
         
         update_dict = {}
         #correcting dictionary for upper case keys
@@ -374,7 +375,7 @@ class RandomResistorSuite():
         parser.add_argument('-o','--outfile',
                             help='output file name')
 
-        args = parser.parse_args()
+        args = parser.parse_args(self.arguments)
         
         if hasattr(args,'probabilityfile'):
             try:
@@ -504,3 +505,7 @@ class RandomResistorSuite():
                        comments='',
                        header = header)#,
                        #fmt=['%4.2f','%4.2f','%4i','%2i','%5.3f','%5.3f'])
+                       
+                       
+if __name__ == "__main__":
+    RandomResistorSuite()
