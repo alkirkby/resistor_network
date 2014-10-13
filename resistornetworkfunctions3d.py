@@ -628,7 +628,7 @@ def get_faultlengths(parameter,d,tolerance=0.05):
 """
 
 
-def divide_inputs(self,work_to_do,size):
+def divide_inputs(work_to_do,size):
     """
     divide list of inputs into chunks to send to each processor
     
