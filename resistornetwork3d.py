@@ -401,7 +401,7 @@ class RandomResistorSuite():
         """        
 
         list_of_inputs = []
-        parameter_list = [v for v in dir(self) if i[0] != '_']
+        parameter_list = [v for v in dir(self) if v[0] != '_']
 
         for r in range(self.repeats):
             for pc in self.pconnection:
