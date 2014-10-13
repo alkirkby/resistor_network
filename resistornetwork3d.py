@@ -306,10 +306,8 @@ class RandomResistorSuite():
                 continue 
 
         if len(self.arguments) > 0:
-            cmd = self.read_arguments()
-            update_dict.update(cmd)
-        
-        self.parameter_dict = update_dict
+            self.read_arguments()
+
         
         self.setup_and_run_suite()
 
@@ -386,7 +384,6 @@ class RandomResistorSuite():
             except IOError:
                 print "Can't read probability file"
         
-        cmdinput_dict = {}
         for at in args.get_kwargs():
             if at[0] in ['pconnection','pembedded_fault','pembedded_matrix']:
                 # make sure number of values is divisible by 3
@@ -396,9 +393,6 @@ class RandomResistorSuite():
                 at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
                 
             setattr(self,at[0],at[1])
-            cmdinput_dict[at[0]] = at[1]
-            
-        return cmdinput_dict
 
 
     def initialise_inputs(self):
@@ -407,25 +401,20 @@ class RandomResistorSuite():
         """        
 
         list_of_inputs = []
-        print self.repeats
-        print self.pconnection
-        print self.pembedded_fault
-        print self.pembedded_matrix 
+        parameter_list = [v for v in dir(self) if i[0] != '_']
+
         for r in range(self.repeats):
             for pc in self.pconnection:
                 for pef in self.pembedded_fault:
                     for pem in self.pembedded_matrix:
-                        print "initialising input dict",
                         input_dict = {} 
-                        print input_dict,
-                        for key in self.parameter_dict.keys():
+                        for key in parameter_list:
                             if key not in ['pconnection','pembedded_fault',
                                            'pembedded_matrix','repeats']:
-                                input_dict[key] = self.parameter_dict[key]
+                                input_dict[key] = getattr(self,key)
                         input_dict['pconnection'] = pc
                         input_dict['pembedded_fault'] = pef
                         input_dict['pembedded_matrix'] = pem
-                        print input_dict
                         list_of_inputs.append(input_dict)
         
         return list_of_inputs
@@ -443,10 +432,9 @@ class RandomResistorSuite():
         currents = np.zeros(len(list_of_inputs))
         anisotropy = np.zeros(len(list_of_inputs))
         r_objects = []
-        print list_of_inputs
+
         r = 0
         for input_dict in list_of_inputs:
-            print input_dict
             # initialise random resistor network
             R = Resistivity_volume(**input_dict)
             # solve the network
@@ -483,10 +471,8 @@ class RandomResistorSuite():
         inputs_sent = comm.scatter(inputs,root=0)
         r_objects = self.run(inputs_sent)
         #for ro in r_objects:
-        print "running, rank = ",rank 
         outputs_gathered = comm.gather(r_objects,root=0)
          
-        print outputs_gathered
         if rank == 0:
             results = np.vstack([ro.resistivity_bulk for ro in outputs_gathered])
                 
