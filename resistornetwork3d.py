@@ -20,9 +20,11 @@ class Resistivity_volume():
     
     Class to contain volumes to be modelled as a random resistor network.
     wd = working directory
-    nx,ny,nz = number of nodes in the x,y and z direction, default is 10
-    px,py,pz = probabilities of connection in the x,y and z directions
-    dx,dy,dz = size of cells in x,y and z directions
+    ncells = number of nodes in the x,y and z direction, default is 10
+    pconnection = probabilities of connection in the x,y and z directions
+    pembedded_fault
+    pembedded_matrix
+    cellsize = size of cells in x,y and z directions
     res_type =  string describing how to calculate the resistivity structure;
                 options are "ones" (default; fully connected network), 
                             "random" (random network with some high resistivity bonds
@@ -45,17 +47,13 @@ class Resistivity_volume():
     
     def __init__(self, **input_parameters):
         self.wd = '.' # working directory
-        self.nx = 10
-        self.ny = 10
-        self.nz = 10
-        self.px = 0.5
-        self.py = 0.5
-        self.pz = 0.5
-        self.dx = 1.
-        self.dy = 1.
-        self.dz = 1.
+        self.ncells = [10,10,10]
+        self.cellsize = np.array([1.,1.,1.])
+        self.pconnection = np.array([0.5,0.5,0.5])
+        self.pembedded_fault = np.array([1.,1.,1.])
+        self.pembedded_matrix = np.array([0.,0.,0.])
         self.res_type = 'ones'
-        self.resistivity_matrix = 1000
+        self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
         self.resistivity = None
         self.permeability_matrix = 1.e-18
@@ -73,7 +71,6 @@ class Resistivity_volume():
                 input_parameters_nocase[key.lower()] = input_parameters[key]
 
         update_dict.update(input_parameters_nocase)
-
         for key in update_dict:
             try:
                 value = getattr(self,key)
@@ -132,14 +129,13 @@ class Resistivity_volume():
         else:
             print "res type {} not supported, please redefine".format(self.res_type)
             return
-            
-        d = [self.dx,self.dy,self.dz]
+
         self.resistance = rnf.get_electrical_resistance(self.resistivity,
                                                         self.resistivity_matrix,
                                                         self.resistivity_fluid,
-                                                        d,
+                                                        self.cellsize,
                                                         self.fracture_diameter)
-        self.phi = sum(rnf.get_phi(d,self.fracture_diameter))
+        self.phi = sum(rnf.get_phi(self.cellsize,self.fracture_diameter))
 
 
     def initialise_permeability(self):
@@ -199,11 +195,10 @@ class Resistivity_volume():
             property_arrays['fluid'] = self.hydraulic_resistance 
         
    
-        dx,dy,dz = [float(n) for n in self.dx,self.dy,self.dz]      
+        dx,dy,dz = [float(n) for n in self.cellsize]      
 
         for pname in property_arrays.keys():
             nz,ny,nx = np.array(np.shape(property_arrays[pname]))[:-1] - 2
-            nfx,nfy,nfz = rnf.get_nfree([nx,ny,nz])
             oa = np.zeros([nz+2,ny+2,nx+2,3,3])#*np.nan
 
             if 'x' in direction:
@@ -259,3 +254,253 @@ class Resistivity_volume():
                 self.hydraulic_resistance_bulk = 1./flow
                 self.permeability_bulk = self.mu/(self.hydraulic_resistance_bulk*factor)
             
+
+class RandomResistorSuite():
+    """
+    organise and run a suite of resistivity/fluid flow runs and save results
+    to a text file
+    
+    Author: Alison Kirkby
+    """
+    def __init__(self, **input_parameters):
+        self.wd = '.' # working directory
+        self.ncells = [10,10,10]
+        self.cellsize = np.array([1.,1.,1.])
+        self.pconnection = np.array([[0.5,0.5,0.5]])
+        self.pembedded_fault = np.array([[1.,1.,1.]])
+        self.pembedded_matrix = np.array([[0.,0.,0.]])
+        self.res_type = 'random'
+        self.repeats = 1
+        self.resistivity_matrix = 1000.
+        self.resistivity_fluid = 0.1
+        self.resistivity = None
+        self.permeability_matrix = 1.e-18
+        self.fracture_diameter = 1.e-3
+        self.mu = 1.e-3 #default is for freshwater at 20 degrees 
+        self.faultlength_max = None
+        self.faultlength_decay = 5. 
+        self.outfile = 'resistoroutputs.dat'                        
+
+        
+        update_dict = {}
+        #correcting dictionary for upper case keys
+        input_parameters_nocase = {}
+        for key in input_parameters.keys():
+            if hasattr(self,key):
+                input_parameters_nocase[key.lower()] = input_parameters[key]
+
+        update_dict.update(input_parameters_nocase)
+        for key in update_dict:
+            try:
+                value = getattr(self,key)
+                if type(value) == str:
+                    try:
+                        value = float(update_dict[key])
+                    except:
+                        value = update_dict[key]
+                else:
+                    value = update_dict[key]
+                setattr(self,key,value)
+            except:
+                continue 
+    
+        if len(self.arguments) > 0:
+            cmd = self.read_arguments()
+            update_dict.update(cmd)
+        
+        self.parameter_dict = update_dict
+
+
+    def read_arguments(self):
+        """
+        takes list of command line arguments obtained by passing in sys.argv
+        reads these and updates attributes accordingly
+        """
+        
+        import argparse
+                
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-n','--ncells',
+                            help = 'number of cells x,y and z direction',
+                            nargs = 3,
+                            type = int)
+        parser.add_argument('-p','--pconnection',
+                            help = 'probability of connection in x y and z direction',
+                            nargs = '*',
+                            type = float)
+        parser.add_argument('-pef','--pembedded_fault',
+                            help = 'probability of embedment in a connected '\
+                            'cell in x y and z direction',
+                            nargs = '*',
+                            type = float)
+        parser.add_argument('-pem','--pembedded_matrix',
+                            help = 'probability of embedment in an unconnected'\
+                            ' cell in x y and z direction',
+                            nargs = '*',
+                            type = float)
+        parser.add_argument('-pf','--probabilityfile',
+                            help = 'space delimited text file containing '\
+                            'probabilities (space delimited, order as follows'\
+                            ': px py pz pefx pefy pefz pemx pemy pemz), '\
+                            'alternative to command line entry, overwrites'\
+                            'command line inputs')
+        parser.add_argument('-r','--repeats',
+                            help='number of repeats at each probability value',
+                            type=int,
+                            default=self.n_repeats)
+        parser.add_argument('-rm','--resistivity_matrix',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-rf','--resistivity_fluid',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-km','--permeability_matrix',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-fd','--fracture_diameter',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-mu',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-flm','--faultlength_max',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-fld','--faultlength_decay',
+                            nargs=1,
+                            type=float)
+        parser.add_argument('-wd',
+                            help='working directory')
+        parser.add_argument('-o','--outfile',
+                            help='output file name')
+
+        args = parser.parse_args()
+        
+        if hasattr(args,'probabilityfile'):
+            try:
+                pvals = np.loadtxt(args.probabilityfile)
+                setattr('pconnection',pvals[:,:3])
+                setattr('pembedded_fault',pvals[:,3:6])
+                setattr('pembedded_matrix',pvals[:,6:9])
+            except IOError:
+                print "Can't read probability file"
+        
+        cmdinput_dict = {}
+        for at in args.get_kwargs():
+            if at[0] in ['pconnection','pembedded_fault','pembedded_matrix']:
+                # make sure number of values is divisible by 3
+                while np.size(at[1])%3 != 0:
+                    at[1].append(at[1][-1])
+                # reshape
+                at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
+                
+            setattr(self,at[0],at[1])
+            cmdinput_dict[at[0]] = at[1]
+            
+        return cmdinput_dict
+
+
+    def initialise_inputs(self):
+        """
+        make a list of run parameters
+        """        
+
+        list_of_inputs = []
+        
+        for r in range(self.repeats):
+            for pc in self.pconnection:
+                for pef in self.pembedded_fault:
+                    for pem in self.pembedded_matrix:
+                        input_dict = {} 
+                        for key in self.parameter_dict.keys():
+                            if key not in ['pconnection','pembedded_fault',
+                                           'pembedded_matrix','repeats']:
+                                input_dict[key] = self.parameter_dict[key]
+                            input_dict['pconnection'] = pc
+                            input_dict['pembedded_fault'] = pef
+                            input_dict['pembedded_matrix'] = pem
+                        list_of_inputs.append(input_dict)
+        
+        return list_of_inputs
+
+
+
+        
+        
+    def run(self,list_of_inputs):
+        """
+        generate and run a random resistor network
+        takes a list of inputs, each row in the list has the following values:
+        [px,pz,linearity_factor,repeat number]
+        """
+        currents = np.zeros(len(list_of_inputs))
+        anisotropy = np.zeros(len(list_of_inputs))
+        r_objects = []
+
+        r = 0
+        for input_dict in list_of_inputs:
+            # initialise random resistor network
+            R = Resistivity_volume(**input_dict)
+            # solve the network
+            R.solve_resistor_network(self.solve_properties,self.solve_directions)
+            # append result to list of r objects
+            r_objects.append(R)
+            # append the total current in the bottom layer to a temp array
+            currents[r] = np.sum(R.current_z[-1])
+            anisotropy[r] = R.anisotropy
+            r += 1
+        return r_objects
+        
+        
+    def setup_and_run_suite(self):
+        """
+        set up and run a suite of runs in parallel using mpi4py
+        """
+        
+        from mpi4py import MPI
+        
+        comm = MPI.COMM_WORLD
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        name = MPI.Get_processor_name()
+        print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
+    
+        if rank == 0:
+            list_of_inputs = self.initialise_inputs()
+            inputs = rnf.divide_inputs(list_of_inputs,size)
+        else:
+            list_of_inputs = None
+            inputs = None
+    
+        inputs_sent = comm.scatter(inputs,root=0)
+        r_objects = self.run(inputs_sent)
+        #for ro in r_objects:
+        
+        outputs_gathered = comm.gather(r_objects,root=0)
+
+        #print outputs_gathered
+        if rank == 0:
+            results = np.vstack([ro.resistivity_bulk for ro in outputs_gathered])
+                
+            # save results to text file
+            # first define header
+            header  = '# resistor network models - results\n'
+            header += '# resistivity_matrix (ohm-m) {}\n'.format(self.resistivity_matrix)
+            header += '# resistivity_fluid (ohm-m) {}\n'.format(self.resistivity_fluid)
+            header += '# ncells {} {} {}\n'.format(self.ncells[0],
+                                                   self.ncells[1],
+                                                   self.ncells[2])
+            header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
+                                                              self.cellsize[1],
+                                                              self.cellsize[2])
+            header += '# dz (metres) {}\n'.format(self.dz)
+#            header += ' '.join(['px','pz','lf','r','cz','anisotropy'])
+            fn = os.path.join(self.wd,self.output_bn+'.dat')
+            i = 1
+            while os.path.exists(fn):
+                fn = os.path.join(self.wd,self.output_bn+'%03i.dat'%i)
+                i += 1
+            np.savetxt(os.path.join(self.wd,self.output_bn),np.array(results),
+                       comments='',
+                       header = header)#,
+                       #fmt=['%4.2f','%4.2f','%4i','%2i','%5.3f','%5.3f'])
