@@ -112,8 +112,8 @@ class Resistivity_volume():
 
         elif self.res_type == "random":
             self.resistivity,self.faults = \
-            rnf.assign_random_resistivity([self.nx,self.ny,self.nz],
-                                          [self.px,self.py,self.pz],
+            rnf.assign_random_resistivity(self.ncells,
+                                          self.pconnection,
                                            self.resistivity_matrix,
                                            self.resistivity_fluid,
                                            faultlengthmax=self.faultlength_max,
