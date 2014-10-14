@@ -409,8 +409,16 @@ class RandomResistorSuite():
                     for pem in self.pembedded_matrix:
                         input_dict = {} 
                         for key in parameter_list:
-                            if key not in ['pconnection','pembedded_fault',
-                                           'pembedded_matrix','repeats']:
+                            if key in ['fracture_diameter',
+                                       'permeability_matrix',
+                                       'resistivity_matrix',
+                                       'resistivity_fluid',
+                                       'wd',
+                                       'res_type',
+                                       'mu',
+                                       'outfile',
+                                       'faultlength_decay',
+                                       'ncells']:
                                 input_dict[key] = getattr(self,key)
                         input_dict['pconnection'] = pc
                         input_dict['pembedded_fault'] = pef
