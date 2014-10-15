@@ -376,9 +376,9 @@ class RandomResistorSuite():
                             help='working directory')
         parser.add_argument('-o','--outfile',
                             help='output file name')
-        parser.add_argument('solve_properties',
+        parser.add_argument('-sp','--solve_properties',
                             help='which property to solve, current, fluid or currentfluid')
-        parser.add_argument('solve_direction',
+        parser.add_argument('-sd','--solve_direction',
                             help='which direction to solve, x, y, z or a combination')
 
         args = parser.parse_args(self.arguments)
