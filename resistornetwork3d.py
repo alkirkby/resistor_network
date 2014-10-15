@@ -400,7 +400,6 @@ class RandomResistorSuite():
                         at[1].append(at[1][-1])
                     # reshape
                     at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
-                
                 setattr(self,at[0],at[1])
 
 
@@ -427,7 +426,8 @@ class RandomResistorSuite():
                                        'mu',
                                        'outfile',
                                        'faultlength_decay',
-                                       'ncells']:
+                                       'ncells',
+                                       'cellsize']:
                                 input_dict[key] = getattr(self,key)
                         input_dict['pconnection'] = pc
                         input_dict['pembedded_fault'] = pef
@@ -496,6 +496,8 @@ class RandomResistorSuite():
                 wd = bn.format('')
                 i += 1
             os.mkdir(wd)
+            wd2 = os.path.join(wd,'arrays')
+            os.mkdir(wd2)
 
 
             # flatten list, outputs currently a list of lists
@@ -506,7 +508,7 @@ class RandomResistorSuite():
                     og2.append(ro)
                     for prop in ['resistivity','permeability',
                                  'current','flowrate']:
-                        np.save(os.path.join(wd,'{}{}'.format(prop,i)),
+                        np.save(os.path.join(wd2,'{}{}'.format(prop,i)),
                                 getattr(ro,prop)
                                 )
                     i += 1
