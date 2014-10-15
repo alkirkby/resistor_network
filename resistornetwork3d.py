@@ -328,6 +328,10 @@ class RandomResistorSuite():
                             help = 'number of cells x,y and z direction',
                             nargs = 3,
                             type = int)
+        parser.add_argument('-c','--cellsize',
+                            help = 'number of cells x,y and z direction',
+                            nargs = 3,
+                            type = int)
         parser.add_argument('-p','--pconnection',
                             help = 'probability of connection in x y and z direction',
                             nargs = '*',
