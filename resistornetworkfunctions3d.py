@@ -633,11 +633,11 @@ def divide_inputs(work_to_do,size):
     divide list of inputs into chunks to send to each processor
     
     """
-    print(work_to_do,size)  
+    #print(work_to_do,size)  
     chunks = [[] for _ in range(size)]
-    print(chunks)
+    #print(chunks)
     for i,d in enumerate(work_to_do):
-        print(i,d)
+     #   print(i,d)
         chunks[i%size].append(d)
 
     return chunks

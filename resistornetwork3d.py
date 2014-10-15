@@ -156,7 +156,7 @@ class Resistivity_volume():
         self.hydraulic_resistance = \
         rnf.get_hydraulic_resistance(self.permeability,
                                      self.permeability_matrix,
-                                     [self.dx,self.dy,self.dz],
+                                     self.cellsize,
                                      self.fracture_diameter,
                                      mu = self.mu)
 
@@ -282,7 +282,10 @@ class RandomResistorSuite():
         self.faultlength_decay = 5. 
         self.outfile = 'resistoroutputs.dat'                        
         self.arguments = sys.argv[1:]
-        
+	self.solve_properties = 'currentfluid'
+        self.solve_directions = 'xyz'       
+
+ 
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
@@ -374,8 +377,10 @@ class RandomResistorSuite():
                             help='output file name')
 
         args = parser.parse_args(self.arguments)
-        
-        if hasattr(args,'probabilityfile'):
+        #print args._get_kwargs()
+        #print sys.argv        
+
+        if (hasattr(args,'probabilityfile') and (args.probabilityfile is not None)):
             try:
                 pvals = np.loadtxt(args.probabilityfile)
                 setattr('pconnection',pvals[:,:3])
@@ -384,15 +389,16 @@ class RandomResistorSuite():
             except IOError:
                 print "Can't read probability file"
         
-        for at in args.get_kwargs():
-            if at[0] in ['pconnection','pembedded_fault','pembedded_matrix']:
-                # make sure number of values is divisible by 3
-                while np.size(at[1])%3 != 0:
-                    at[1].append(at[1][-1])
-                # reshape
-                at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
+        for at in args._get_kwargs():
+            if at[1] is not None:
+                if (at[0] in ['pconnection','pembedded_fault','pembedded_matrix']):
+                    # make sure number of values is divisible by 3
+                    while np.size(at[1])%3 != 0:
+                        at[1].append(at[1][-1])
+                    # reshape
+                    at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
                 
-            setattr(self,at[0],at[1])
+                setattr(self,at[0],at[1])
 
 
     def initialise_inputs(self):
@@ -448,10 +454,12 @@ class RandomResistorSuite():
             # solve the network
             R.solve_resistor_network(self.solve_properties,self.solve_directions)
             # append result to list of r objects
+            print self.solve_properties,self.solve_directions
             r_objects.append(R)
             # append the total current in the bottom layer to a temp array
-            currents[r] = np.sum(R.current_z[-1])
-            anisotropy[r] = R.anisotropy
+            #currents[r] = np.sum(R.current[-1])
+            #anisotropy[r] = R.anisotropy
+            
             r += 1
         return r_objects
         
@@ -482,7 +490,13 @@ class RandomResistorSuite():
         outputs_gathered = comm.gather(r_objects,root=0)
          
         if rank == 0:
-            results = np.vstack([ro.resistivity_bulk for ro in outputs_gathered])
+            print outputs_gathered
+            # flatten list, outputs currently a list of lists
+            og2 = []
+            for group in outputs_gathered:
+                for o in group:
+                    og2.append(o)
+            results = np.vstack([ro.resistivity_bulk for ro in og2])
                 
             # save results to text file
             # first define header
@@ -495,14 +509,14 @@ class RandomResistorSuite():
             header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
                                                               self.cellsize[1],
                                                               self.cellsize[2])
-            header += '# dz (metres) {}\n'.format(self.dz)
 #            header += ' '.join(['px','pz','lf','r','cz','anisotropy'])
-            fn = os.path.join(self.wd,self.output_bn+'.dat')
+            fn = os.path.join(self.wd,self.outfile+'.dat')
             i = 1
             while os.path.exists(fn):
-                fn = os.path.join(self.wd,self.output_bn+'%03i.dat'%i)
+                fn = os.path.join(self.wd,self.outfile_bn+'%03i.dat'%i)
                 i += 1
-            np.savetxt(os.path.join(self.wd,self.output_bn),np.array(results),
+            print fn
+            np.savetxt(os.path.join(self.wd,self.outfile),np.array(results),
                        comments='',
                        header = header)#,
                        #fmt=['%4.2f','%4.2f','%4i','%2i','%5.3f','%5.3f'])
