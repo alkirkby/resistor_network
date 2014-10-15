@@ -494,9 +494,10 @@ class RandomResistorSuite():
             
             i = 1
             while os.path.exists(wd):
-                wd = os.path.join(self.wd,self.outfile+'{}%03i'%i)
+                bn = os.path.join(self.wd,self.outfile+'{}%03i'%i)
+                wd = bn.format('')
                 i += 1
-            os.mkdir(wd.format(''))
+            os.mkdir(wd)
 
 
             # flatten list, outputs currently a list of lists
@@ -532,9 +533,9 @@ class RandomResistorSuite():
                                                               self.cellsize[1],
                                                               self.cellsize[2])
             header += ' '.join(['# px','py','pz','propertyx','propertyy','propertyz'])
-            fn = os.path.basename(wd)
+
             for rr in results.keys():
-                np.savetxt(os.path.join(wd,fn.format(rr)+'.dat'),np.array(results[rr]),
+                np.savetxt(os.path.join(wd,rr+'.dat'),np.array(results[rr]),
                            comments='',
                            header = header,
                            fmt=['%4.2f','%4.2f','%4.2f',
