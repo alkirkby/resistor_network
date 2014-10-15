@@ -445,11 +445,9 @@ class RandomResistorSuite():
     def run(self,list_of_inputs):
         """
         generate and run a random resistor network
-        takes a list of inputs, each row in the list has the following values:
-        [px,pz,linearity_factor,repeat number]
+        takes a dictionary of inputs to be used to create a resistivity object
         """
-        currents = np.zeros(len(list_of_inputs))
-        anisotropy = np.zeros(len(list_of_inputs))
+        
         r_objects = []
 
         r = 0
@@ -459,11 +457,7 @@ class RandomResistorSuite():
             # solve the network
             R.solve_resistor_network(self.solve_properties,self.solve_directions)
             # append result to list of r objects
-            print self.solve_properties,self.solve_directions
             r_objects.append(R)
-            # append the total current in the bottom layer to a temp array
-            #currents[r] = np.sum(R.current[-1])
-            #anisotropy[r] = R.anisotropy
             
             r += 1
         return r_objects
@@ -516,7 +510,7 @@ class RandomResistorSuite():
                         np.save(os.path.join(wd,'{}{}'.format(prop,i)),
                                 getattr(ro,prop)
                                 )
-                        i += 1
+                    i += 1
                     
             results = {}
             for prop in ['resistivity_bulk','permeability_bulk']:
