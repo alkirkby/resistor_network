@@ -280,9 +280,9 @@ class RandomResistorSuite():
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.faultlength_max = None
         self.faultlength_decay = 5. 
-        self.outfile = 'resistoroutputs.dat'                        
+        self.outfile = 'resistoroutputs'                        
         self.arguments = sys.argv[1:]
-	self.solve_properties = 'currentfluid'
+        self.solve_properties = 'currentfluid'
         self.solve_directions = 'xyz'       
 
  
@@ -321,6 +321,7 @@ class RandomResistorSuite():
         """
         
         import argparse
+        
                 
         parser = argparse.ArgumentParser()
         parser.add_argument('-n','--ncells',
@@ -375,6 +376,10 @@ class RandomResistorSuite():
                             help='working directory')
         parser.add_argument('-o','--outfile',
                             help='output file name')
+        parser.add_argument('solve_properties',
+                            help='which property to solve, current, fluid or currentfluid')
+        parser.add_argument('solve_direction',
+                            help='which direction to solve, x, y, z or a combination')
 
         args = parser.parse_args(self.arguments)
         #print args._get_kwargs()
@@ -490,36 +495,55 @@ class RandomResistorSuite():
         outputs_gathered = comm.gather(r_objects,root=0)
          
         if rank == 0:
-            print outputs_gathered
+
+            wd = os.path.join(self.wd,self.outfile)
+            
+            i = 1
+            while os.path.exists(wd):
+                wd = os.path.join(self.wd,self.outfile+'%03i'%i)
+                i += 1
+            os.mkdir(wd)
+
+
             # flatten list, outputs currently a list of lists
             og2 = []
+            i = 0
             for group in outputs_gathered:
-                for o in group:
-                    og2.append(o)
-            results = np.vstack([ro.resistivity_bulk for ro in og2])
-                
+                for ro in group:
+                    og2.append(ro)
+                    for prop in ['resistivity','permeability',
+                                 'current','flowrate']:
+                        np.save('{}{}_'.format(prop,i)+'.dat',
+                                getattr(ro,prop)
+                                )
+                        i += 1
+                    
+            results = np.vstack([np.vstack([ro.pconnection,
+                                            ro.resistivity_bulk,
+                                            ro.permeability_bulk]) for ro in og2])
+            
             # save results to text file
             # first define header
             header  = '# resistor network models - results\n'
             header += '# resistivity_matrix (ohm-m) {}\n'.format(self.resistivity_matrix)
             header += '# resistivity_fluid (ohm-m) {}\n'.format(self.resistivity_fluid)
+            header += '# permeability_matrix (m^2) {}\n'.format(self.permeability_matrix)
+            header += '# fracture diameter (m) {}\n'.format(self.fracture_diameter)
+            header += '# fluid viscosity {}\n'.format(self.mu)
             header += '# ncells {} {} {}\n'.format(self.ncells[0],
                                                    self.ncells[1],
                                                    self.ncells[2])
             header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
                                                               self.cellsize[1],
                                                               self.cellsize[2])
-#            header += ' '.join(['px','pz','lf','r','cz','anisotropy'])
-            fn = os.path.join(self.wd,self.outfile+'.dat')
-            i = 1
-            while os.path.exists(fn):
-                fn = os.path.join(self.wd,self.outfile_bn+'%03i.dat'%i)
-                i += 1
-            print fn
-            np.savetxt(os.path.join(self.wd,self.outfile),np.array(results),
+            header += ' '.join(['# px','py','pz','resx','resy','resz','kx','ky','kz'])
+            fn = os.path.basename(wd)
+            np.savetxt(os.path.join(wd,fn+'.dat'),np.array(results),
                        comments='',
-                       header = header)#,
-                       #fmt=['%4.2f','%4.2f','%4i','%2i','%5.3f','%5.3f'])
+                       header = header,
+                       fmt=['%4.2f','%4.2f','%4.2f',
+                            '%6.3e','%6.3e','%6.3e',
+                            '%6.3e','%6.3e','%6.3e'])
                        
                        
 if __name__ == "__main__":
