@@ -356,25 +356,18 @@ class RandomResistorSuite():
                             help='number of repeats at each probability value',
                             type=int)
         parser.add_argument('-rm','--resistivity_matrix',
-                            nargs=1,
                             type=float)
         parser.add_argument('-rf','--resistivity_fluid',
-                            nargs=1,
                             type=float)
         parser.add_argument('-km','--permeability_matrix',
-                            nargs=1,
                             type=float)
         parser.add_argument('-fd','--fracture_diameter',
-                            nargs=1,
                             type=float)
         parser.add_argument('-mu',
-                            nargs=1,
                             type=float)
         parser.add_argument('-flm','--faultlength_max',
-                            nargs=1,
                             type=float)
         parser.add_argument('-fld','--faultlength_decay',
-                            nargs=1,
                             type=float)
         parser.add_argument('-wd',
                             help='working directory')
