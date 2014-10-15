@@ -280,7 +280,7 @@ class RandomResistorSuite():
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.faultlength_max = None
         self.faultlength_decay = 5. 
-        self.outfile = 'resistoroutputs'                        
+        self.outfile = 'outputs'                        
         self.arguments = sys.argv[1:]
         self.solve_properties = 'currentfluid'
         self.solve_directions = 'xyz'       
@@ -500,9 +500,9 @@ class RandomResistorSuite():
             
             i = 1
             while os.path.exists(wd):
-                wd = os.path.join(self.wd,self.outfile+'%03i'%i)
+                wd = os.path.join(self.wd,self.outfile+'{}%03i'%i)
                 i += 1
-            os.mkdir(wd)
+            os.mkdir(wd.format(''))
 
 
             # flatten list, outputs currently a list of lists
@@ -513,15 +513,16 @@ class RandomResistorSuite():
                     og2.append(ro)
                     for prop in ['resistivity','permeability',
                                  'current','flowrate']:
-                        np.save('{}{}_'.format(prop,i)+'.dat',
+                        np.save(os.path.join(wd,'{}{}'.format(prop,i)),
                                 getattr(ro,prop)
                                 )
                         i += 1
                     
-            results = np.vstack([np.vstack([ro.pconnection,
-                                            ro.resistivity_bulk,
-                                            ro.permeability_bulk]) for ro in og2])
-            
+            results = {}
+            for prop in ['resistivity_bulk','permeability_bulk']:
+                if hasattr(ro,prop):
+                    results[prop] = np.vstack([np.hstack([ro.pconnection,
+                                                          getattr(ro,prop)]) for ro in og2])
             # save results to text file
             # first define header
             header  = '# resistor network models - results\n'
@@ -536,14 +537,14 @@ class RandomResistorSuite():
             header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
                                                               self.cellsize[1],
                                                               self.cellsize[2])
-            header += ' '.join(['# px','py','pz','resx','resy','resz','kx','ky','kz'])
+            header += ' '.join(['# px','py','pz','propertyx','propertyy','propertyz'])
             fn = os.path.basename(wd)
-            np.savetxt(os.path.join(wd,fn+'.dat'),np.array(results),
-                       comments='',
-                       header = header,
-                       fmt=['%4.2f','%4.2f','%4.2f',
-                            '%6.3e','%6.3e','%6.3e',
-                            '%6.3e','%6.3e','%6.3e'])
+            for rr in results.keys():
+                np.savetxt(os.path.join(wd,fn.format(rr)+'.dat'),np.array(results[rr]),
+                           comments='',
+                           header = header,
+                           fmt=['%4.2f','%4.2f','%4.2f',
+                                '%6.3e','%6.3e','%6.3e'])
                        
                        
 if __name__ == "__main__":
