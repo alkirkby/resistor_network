@@ -173,7 +173,6 @@ def get_permeability(res,r_fluid,k_matrix,fracture_diameter):
     fracture_diameter = fracture diameter
     ===========================================================================    
     """
-#    print(r_fluid,res)
     permeability = np.ones_like(res)*k_matrix        
     permeability[res==r_fluid] = fracture_diameter**2/32.
     permeability[np.isnan(res)] = np.nan
@@ -633,11 +632,8 @@ def divide_inputs(work_to_do,size):
     divide list of inputs into chunks to send to each processor
     
     """
-    #print(work_to_do,size)  
     chunks = [[] for _ in range(size)]
-    #print(chunks)
     for i,d in enumerate(work_to_do):
-     #   print(i,d)
         chunks[i%size].append(d)
 
     return chunks

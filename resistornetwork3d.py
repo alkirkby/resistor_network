@@ -14,6 +14,7 @@ from matplotlib.colors import LogNorm
 import os
 import resistornetworkfunctions3d as rnf
 import sys
+import time
 
 class Resistivity_volume():
     """
@@ -265,7 +266,7 @@ class RandomResistorSuite():
     Author: Alison Kirkby
     """
     def __init__(self, **input_parameters):
-        self.wd = '.' # working directory
+        self.wd = 'outputs' # working directory
         self.ncells = [10,10,10]
         self.cellsize = np.array([1.,1.,1.])
         self.pconnection = np.array([[0.5,0.5,0.5]])
@@ -380,8 +381,6 @@ class RandomResistorSuite():
                             help='which direction to solve, x, y, z or a combination')
 
         args = parser.parse_args(self.arguments)
-        #print args._get_kwargs()
-        #print sys.argv        
 
         if (hasattr(args,'probabilityfile') and (args.probabilityfile is not None)):
             try:
@@ -440,7 +439,7 @@ class RandomResistorSuite():
 
         
         
-    def run(self,list_of_inputs):
+    def run(self,list_of_inputs,rank,wd):
         """
         generate and run a random resistor network
         takes a dictionary of inputs to be used to create a resistivity object
@@ -451,12 +450,17 @@ class RandomResistorSuite():
         r = 0
         for input_dict in list_of_inputs:
             # initialise random resistor network
-            R = Resistivity_volume(**input_dict)
+            ro = Resistivity_volume(**input_dict)
             # solve the network
-            R.solve_resistor_network(self.solve_properties,self.solve_directions)
+            ro.solve_resistor_network(self.solve_properties,self.solve_directions)
             # append result to list of r objects
-            r_objects.append(R)
-            
+            r_objects.append(ro)
+            print "run {} completed".format(r)
+            for prop in ['resistivity','permeability',
+                         'current','flowrate']:
+                np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                        getattr(ro,prop)
+                        )
             r += 1
         return r_objects
         
@@ -480,38 +484,34 @@ class RandomResistorSuite():
         else:
             list_of_inputs = None
             inputs = None
-    
+
+        if rank == 0:
+            if not os.path.exists(self.wd):
+                os.mkdir(self.wd)
+            self.wd = os.path.abspath(self.wd)
+
+        wd2 = os.path.join(self.wd,'arrays')
+
+        if rank == 0:
+            if not os.path.exists(wd2):
+                os.mkdir(wd2)
+        else:
+            # wait for wd2 to be created
+            while not os.path.exists(wd2):
+                time.sleep(1)
+                print '.',
+
         inputs_sent = comm.scatter(inputs,root=0)
-        r_objects = self.run(inputs_sent)
-        #for ro in r_objects:
+        r_objects = self.run(inputs_sent,rank,wd2)
         outputs_gathered = comm.gather(r_objects,root=0)
          
         if rank == 0:
 
-            wd = os.path.join(self.wd,self.outfile)
-            
-            i = 1
-            while os.path.exists(wd):
-                bn = os.path.join(self.wd,self.outfile+'{}%03i'%i)
-                wd = bn.format('')
-                i += 1
-            os.mkdir(wd)
-            wd2 = os.path.join(wd,'arrays')
-            os.mkdir(wd2)
-
-
             # flatten list, outputs currently a list of lists
             og2 = []
-            i = 0
             for group in outputs_gathered:
                 for ro in group:
                     og2.append(ro)
-                    for prop in ['resistivity','permeability',
-                                 'current','flowrate']:
-                        np.save(os.path.join(wd2,'{}{}'.format(prop,i)),
-                                getattr(ro,prop)
-                                )
-                    i += 1
                     
             results = {}
             for prop in ['resistivity_bulk','permeability_bulk']:
@@ -537,7 +537,7 @@ class RandomResistorSuite():
             header += ' '.join(['# px','py','pz','propertyx','propertyy','propertyz'])
 
             for rr in results.keys():
-                np.savetxt(os.path.join(wd,rr+'.dat'),np.array(results[rr]),
+                np.savetxt(os.path.join(self.wd,rr+'.dat'),np.array(results[rr]),
                            comments='',
                            header = header,
                            fmt=['%4.2f','%4.2f','%4.2f',
