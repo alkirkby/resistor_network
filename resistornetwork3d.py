@@ -95,7 +95,6 @@ class Resistivity_volume():
                 self.nz,self.ny,self.nx = [int(i) for i in np.shape(self.resistivity)][:-1]
 
         self.initialise_resistivity()
-        print "fracture_diameter, cellsize = ",self.fracture_diameter, self.cellsize
         self.initialise_permeability()
 
 
