@@ -22,8 +22,10 @@ class Resistivity_volume():
     
     Class to contain volumes to be modelled as a random resistor network.
     wd = working directory
-    ncells = number of nodes in the x,y and z direction, default is 10
-    pconnection = probabilities of connection in the x,y and z directions
+    ncells = list containing number of nodes in the x,y and z direction, 
+             default is [10,10,10]
+    pconnection = probabilities of connection in the x,y and z directions,
+                  default is [0.5,0.5,0.5]
     pembedded_fault
     pembedded_matrix
     cellsize = size of cells in x,y and z directions
@@ -106,10 +108,11 @@ class Resistivity_volume():
         """
                                                                                                                                                                                     
         if self.res_type == 'ones':
-            self.resistivity = np.ones([self.nz+2,self.ny+2,self.nx+2,3])*np.nan
-            self.resistivity[1:,1:,1:-1,0] = 1.
-            self.resistivity[1:,1:-1,1:,1] = 1.
-            self.resistivity[1:-1,1:,1:,2] = 1.
+            nx,ny,nz = self.ncells
+            self.resistivity = np.ones([nz+2,ny+2,nx+2,3])*np.nan
+            self.resistivity[1:,1:,1:-1,0] = self.resistivity_fluid
+            self.resistivity[1:,1:-1,1:,1] = self.resistivity_fluid
+            self.resistivity[1:-1,1:,1:,2] = self.resistivity_fluid
 
         elif self.res_type == "random":
             self.resistivity,self.faults = \
@@ -188,12 +191,12 @@ class Resistivity_volume():
         
         property_arrays = {}
         if 'current' in properties:
-            if not hasattr(self,'resistance'):
-                self.initialise_resistivity()
+#            if not hasattr(self,'resistance'):
+#                self.initialise_resistivity()
             property_arrays['current'] = self.resistance
         if 'fluid' in properties:
-            if not hasattr(self,'hydraulic_resistance'):
-                self.initialise_permeability()
+#            if not hasattr(self,'hydraulic_resistance'):
+#                self.initialise_permeability()
             property_arrays['fluid'] = self.hydraulic_resistance 
         
    

@@ -16,9 +16,98 @@ import scipy.sparse.linalg as linalg
 ===================Functions relating to class definition======================
 """
 
+def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
+    """ 
+    
+    Initialising faults from a pool - random location, orientation (i.e. in the 
+    xz, xy or zy plane), length and width. Translate these onto an array.
+    returns an array with values of 1 indicating faults, and a list of fault 
+    locations.
+    
+    =================================inputs====================================
+    n = list containing number of cells in x, y and z directions [nx,ny,nz]
+    p = probability of connection in yz, xz and xy directions [pyz,pxz,pxy]
+    faultlengthmax =  maximum fault length for network
+    decayfactor = defines the shape of the fault length distribution. 
+                  Fault length follows a decaying distribution so that longer
+                  faults are more probable than shorter faults:
+                  fl = faultlengthmax*e^(-ax) where x ranges from 0 to 1 and
+                  a is the decay factor
+    ===========================================================================
+    """
+    
+    n = np.array(n)
+    ptot = np.sum(p)/3.
+    pnorm = np.array(p)/np.sum(p)
+    # initialise an array of zeros
+    fault_array = np.zeros([n[2]+1,n[1]+1,n[0]+1,3])
 
-def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
-                              decayfactor=5.):
+    if faultlengthmax is None:
+        faultlengthmax = float(max(n))
+    faults = []
+    
+    while float(np.size(fault_array[fault_array==1.]))/float(np.size(fault_array)) < ptot:
+        # pick a random location for the fault x,y,z
+        centre = [np.random.randint(0,nn) for nn in n]
+        # pick random x,y,z extents for the fault
+        d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
+        # no faults smaller than one cell
+        d[d<1.] = 1.
+        # pick orientation for the fault according to relative probability p
+        fo = np.random.choice(np.arange(3),p=pnorm)
+        # reset width (normal to plane of fault)
+        # when assigned to array this translates to 1 cell width
+        d[fo] = 0.5
+        # define locations of edges of fault
+        mm = np.array([[np.ceil(centre[0]-d[0]),np.ceil(centre[0]+d[0])],
+                       [np.ceil(centre[1]-d[1]),np.ceil(centre[1]+d[1])],
+                       [np.ceil(centre[2]-d[2]),np.ceil(centre[2]+d[2])]])
+        # remove any negative numbers and numbers larger than network bounds
+        mm[mm < 0] = 0
+        for m in range(len(mm)):
+            if mm[m,1] > n[m]:
+                mm[m,1] = n[m]
+        # assign fault to resistivity array
+        for i in range(3):
+            if i != fo:
+                fvals = np.zeros(3)
+                fvals[-(fo+i)] = 1.
+                faults[mm[2,0]:mm[2,1]+fvals[2],mm[1,0]:mm[1,1]+fvals[1],mm[0,0]:mm[0,1]+fvals[0],i] = 1.
+        
+        # get uv extents of fault in local plane (i.e. exclude width normal to plane)
+        u,v_ = [mm[i] for i in range(3) if i != fo]
+        v = np.array([[v_[0]]*2,[v_[1]]*2])
+        faultuvw = [np.array([u,u[::-1]]),v]
+        faultuvw.insert(fo,np.array([[mm[fo,0]]*2]*2))
+        faults.append(faultuvw)
+        
+    # deal with edges
+    fault_array[:,:,-1,0] = np.nan
+    fault_array[:,-1,:,1] = np.nan
+    fault_array[-1,:,:,2] = np.nan
+    # make a new larger array of nans
+    fault_array_final = np.ones(list(n[::-1]+2)+[3])*np.nan
+    # put the fault array into this array in the correct position.
+    fault_array_final[1:,1:,1:] = fault_array
+    
+    return fault_array_final,np.array(faults)
+
+
+def assign_fault_aperture(fault_array,aperture_mean=1e-3,aperture_sd=0.):
+    """
+    take a fault array and assign aperture values
+    
+    =================================inputs====================================
+    fault_array = array containing 1 (fault), 0 (matrix), or nan (outside array)
+                  shape (nx,ny,nz,3), created using initialise_faults
+    
+    aperture_mean = mean aperture
+    
+    ===========================================================================    
+    """
+    
+
+def assign_random_resistivity(aperture_array,r_matrix,r_fluid):
     """ 
     
     Initialising faults from a pool - random location, orientation (i.e. in the 
@@ -37,56 +126,9 @@ def assign_random_resistivity(n,p,r_matrix,r_fluid,faultlengthmax = None,
     ===========================================================================
     """
     
-    n = np.array(n)
-    ptot = np.sum(p)/3.
-    pnorm = np.array(p)/np.sum(p)
-    res = np.ones([n[2]+1,n[1]+1,n[0]+1,3])*r_matrix
-
-    if faultlengthmax is None:
-        faultlengthmax = float(max(n))
-    faults = []
+    res_array = np.ones_like(fault_array)*r_matrix
     
-    while float(np.size(res[res==r_fluid]))/float(np.size(res)) < ptot:
-        # pick a random location for the fault x,y,z
-        centre = [np.random.randint(0,nn) for nn in n]
-        # pick random x,y,z extents for the fault
-        d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
-        # no faults smaller than one cell
-        d[d<1.] = 1.
-        # pick orientation for the fault according to relative probability p
-        fo = np.random.choice(np.arange(3),p=pnorm)
-        # reset width (normal to plane of fault)
-        # when assigned to array this translates to 1 cell width
-        d[fo] = 0.5
-        # define locations of edges of fault
-        mm = np.array([[np.ceil(centre[0]-d[0]),np.ceil(centre[0]+d[0])],
-                       [np.ceil(centre[1]-d[1]),np.ceil(centre[1]+d[1])],
-                       [np.ceil(centre[2]-d[2]),np.ceil(centre[2]+d[2])]])
-        # remove any negative numbers
-        mm[mm < 0] = 0
-        for m in range(len(mm)):
-            if mm[m,1] > n[m]:
-                mm[m,1] = n[m]
-        # assign fault to resistivity array
-        for i in range(3):
-            if i != fo:
-                fvals = np.zeros(3)
-                fvals[-(fo+i)] = 1.
-                res[mm[2,0]:mm[2,1]+fvals[2],mm[1,0]:mm[1,1]+fvals[1],mm[0,0]:mm[0,1]+fvals[0],i] = r_fluid
 
-        u,v_ = [mm[i] for i in range(3) if i != fo]
-        v = np.array([[v_[0]]*2,[v_[1]]*2])
-        faultuvw = [np.array([u,u[::-1]]),v]
-        faultuvw.insert(fo,np.array([[mm[fo,0]]*2]*2))
-        faults.append(faultuvw)
-        
-    res[:,:,-1,0] = np.nan
-    res[:,-1,:,1] = np.nan
-    res[-1,:,:,2] = np.nan
-    res_final = np.ones(list(n[::-1]+2)+[3])*np.nan
-    res_final[1:,1:,1:] = res
-    
-    return res_final,np.array(faults)
 
 def get_unique_values(inarray,log=False):
     
@@ -144,7 +186,7 @@ def get_electrical_resistance(res,r_matrix,r_fluid,d,fracture_diameter):
     
     phi = get_phi(d,fracture_diameter)
     res = 1.*res
-
+    
     for i in range(3):
         # area of the cell
         acell = np.product([d[ii] for ii in range(3) if ii != i])
