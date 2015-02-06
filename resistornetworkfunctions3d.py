@@ -67,12 +67,14 @@ def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
         for m in range(len(mm)):
             if mm[m,1] > n[m]:
                 mm[m,1] = n[m]
-        # assign fault to resistivity array
+        # assign fault to fault array
         for i in range(3):
             if i != fo:
                 fvals = np.zeros(3)
                 fvals[-(fo+i)] = 1.
-                faults[mm[2,0]:mm[2,1]+fvals[2],mm[1,0]:mm[1,1]+fvals[1],mm[0,0]:mm[0,1]+fvals[0],i] = 1.
+                fault_array[mm[2,0]:mm[2,1]+fvals[2],
+                            mm[1,0]:mm[1,1]+fvals[1],
+                            mm[0,0]:mm[0,1]+fvals[0],i] = 1.
         
         # get uv extents of fault in local plane (i.e. exclude width normal to plane)
         u,v_ = [mm[i] for i in range(3) if i != fo]
@@ -93,18 +95,82 @@ def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
     return fault_array_final,np.array(faults)
 
 
-def assign_fault_aperture(fault_array,aperture_mean=1e-3,aperture_sd=0.):
+def assign_fault_aperture(fault_array,faults = None,
+                          fault_dz=0.,separation=1e-3,
+                          offset=[0.,0.]):
     """
-    take a fault array and assign aperture values
+    take a fault array and assign aperture values. This is done by creating two
+    identical fault surfaces then separating them (normal to fault surface) and 
+    offsetting them (parallel to fault surface). The aperture is then
+    calculated as the difference between the two surfaces, and negative values
+    are set to zero.
+    To get a planar fault, set fault_dz to zero.
+    Returns: numpy array containing x,y,z aperture values, numpy array
+             containing geometry corrected aperture values for hydraulic flow
+             simulation [after Brush and Thomson 2003, Water Resources Research]
     
     =================================inputs====================================
+
     fault_array = array containing 1 (fault), 0 (matrix), or nan (outside array)
                   shape (nx,ny,nz,3), created using initialise_faults
-    
-    aperture_mean = mean aperture
+    faults = array or list containing u,v,w extents of faults, optional but 
+             speeds up process.
+    fault_dz, float = adjacent points on fault surface are separated by a 
+                      random value between +fault_dz/2 and -fault_dz/2, in metres
+    separation, float = fault separation normal to fault surface, in metres
+    offset, list of 2 integers = number of cells horizontal offset between 
+                                 surfaces [offset_x,offset_y]
     
     ===========================================================================    
     """
+    nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] - 2
+    aperture_array = fault_array.copy()
+
+    # if no fault indices provided, initialise a fault index array. For now,
+    # just assume everywhere is faulted (this gets cancelled out when
+    # multiplied by fault array, just takes longer)
+    if faults is None:
+        faults = []
+        faults += [[[[2,nx+2]]*2,[[2,2],[ny+2,ny+2]],[[i,i]]*2] for i in range(2,nz+2)]
+        faults += [[[[i,i]]*2,[[2,ny+2]]*2,[[2,2],[nz+2,nz+2]]] for i in range(2,nx+2)]
+        faults += [[[[2,2],[nx+2,nx+2]],[[i,i]]*2,[[2,nz+2]]*2] for i in range(2,ny+2)]
+        
+    for ib, bounds in enumerate(np.amax(faults)-np.amin(faults)):
+        # i and j define horizontal extents of the fault
+        imax,jmax = bounds[bounds!=0] + offset
+        # initialise a fault surface of the correct size
+        fs = np.zeros([imax,jmax])
+        for i in range(imax):
+            for j in range(jmax):
+                # get a random value between -dz/2 and +dz/2 to add to base value
+                rv = fault_dz*(np.random.rand() - 0.5)
+                if i == 0:
+                    if j == 0:
+                        # start the fault elevation at zero for first cell
+                        base = 0.
+                    else:
+                        # for all other first-row cells, take the previous cell
+                        base = fs[i,j-1]
+                elif j == 0:
+                    # starting (base) elevation for beginning of each row taken
+                    # from previous row
+                    base = fs[i-1,j]
+                else:
+                    # start (base) elevation for middle cells taken as 
+                    # an average of three adjacent cells in previous row
+                    base = np.mean(fs[i-1,j-1:j+2])
+
+                fs[i,j] = base + rv
+        # level the fault so there's no tilt
+        subtract = np.mean(fs,axis=0)
+        for i in range(len(fs)):
+            fs[i] -= subtract                
+        
+        
+        b = fs[offset[]:,offset[]:]-fs[:-offset[],:-offset[]]
+        b[b<0.] = 0.
+        
+        
     
 
 def assign_random_resistivity(aperture_array,r_matrix,r_fluid):
