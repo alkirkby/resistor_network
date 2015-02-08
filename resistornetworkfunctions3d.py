@@ -95,9 +95,9 @@ def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
     return fault_array_final,np.array(faults)
 
 
-def assign_fault_aperture(fault_array,faults = None,
-                          fault_dz=0.,separation=1e-3,
-                          offset=[0.,0.]):
+def assign_fault_aperture(fault_array,faults = None, method = 'fourier', 
+                          fault_dz=0.,separation=1e-3, offset=[0.,0.], 
+                          fractal_dimension = 2.5):
     """
     take a fault array and assign aperture values. This is done by creating two
     identical fault surfaces then separating them (normal to fault surface) and 
@@ -115,59 +115,82 @@ def assign_fault_aperture(fault_array,faults = None,
                   shape (nx,ny,nz,3), created using initialise_faults
     faults = array or list containing u,v,w extents of faults, optional but 
              speeds up process.
+    method = 'iterative' or 'fourier'. 'iterative' means that heights are
     fault_dz, float = adjacent points on fault surface are separated by a 
                       random value between +fault_dz/2 and -fault_dz/2, in metres
     separation, float = fault separation normal to fault surface, in metres
-    offset, list of 2 integers = number of cells horizontal offset between 
-                                 surfaces [offset_x,offset_y]
+    offset, integer = number of cells horizontal offset between surfaces.
+ 
     
     ===========================================================================    
     """
-    nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] - 2
-    aperture_array = fault_array.copy()
+    nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] 
+    aperture_array = np.ones([3,nz,ny,nx]) # yz, xz and xy directions
+    if method not in ['iterative','fourier']:
+        method = 'fourier'
 
     # if no fault indices provided, initialise a fault index array. For now,
     # just assume everywhere is faulted (this gets cancelled out when
     # multiplied by fault array, just takes longer)
     if faults is None:
         faults = []
-        faults += [[[[2,nx+2]]*2,[[2,2],[ny+2,ny+2]],[[i,i]]*2] for i in range(2,nz+2)]
-        faults += [[[[i,i]]*2,[[2,ny+2]]*2,[[2,2],[nz+2,nz+2]]] for i in range(2,nx+2)]
-        faults += [[[[2,2],[nx+2,nx+2]],[[i,i]]*2,[[2,nz+2]]*2] for i in range(2,ny+2)]
-        
-    for ib, bounds in enumerate(np.amax(faults)-np.amin(faults)):
-        # i and j define horizontal extents of the fault
-        imax,jmax = bounds[bounds!=0] + offset
-        # initialise a fault surface of the correct size
-        fs = np.zeros([imax,jmax])
-        for i in range(imax):
-            for j in range(jmax):
-                # get a random value between -dz/2 and +dz/2 to add to base value
-                rv = fault_dz*(np.random.rand() - 0.5)
-                if i == 0:
-                    if j == 0:
-                        # start the fault elevation at zero for first cell
-                        base = 0.
+        faults += [[[[2,nx]]*2,[[2,2],[ny,ny]],[[i,i]]*2] for i in range(2,nz+2)]
+        faults += [[[[i,i]]*2,[[2,ny]]*2,[[2,2],[nz,nz]]] for i in range(2,nx+2)]
+        faults += [[[[2,2],[nx,nx]],[[i,i]]*2,[[2,nz]]*2] for i in range(2,ny+2)]
+    
+    if method == 'iterative':
+        print("iterative method not implemented yet")
+        return
+        for ib, bounds in enumerate(np.amax(faults)-np.amin(faults)):
+            # i and j define horizontal extents of the fault
+            imax,jmax = bounds[bounds!=0] + offset
+            # initialise a fault surface of the correct size
+            fs = np.zeros([imax,jmax])
+            for i in range(imax):
+                for j in range(jmax):
+                    # get a random value between -dz/2 and +dz/2 to add to base value
+                    rv = fault_dz*(np.random.rand() - 0.5)
+                    if i == 0:
+                        if j == 0:
+                            # start the fault elevation at zero for first cell
+                            base = 0.
+                        else:
+                            # for all other first-row cells, take the previous cell
+                            base = fs[i,j-1]
+                    elif j == 0:
+                        # starting (base) elevation for beginning of each row taken
+                        # from previous row
+                        base = fs[i-1,j]
                     else:
-                        # for all other first-row cells, take the previous cell
-                        base = fs[i,j-1]
-                elif j == 0:
-                    # starting (base) elevation for beginning of each row taken
-                    # from previous row
-                    base = fs[i-1,j]
-                else:
-                    # start (base) elevation for middle cells taken as 
-                    # an average of three adjacent cells in previous row
-                    base = np.mean(fs[i-1,j-1:j+2])
+                        # start (base) elevation for middle cells taken as 
+                        # an average of three adjacent cells in previous row
+                        base = np.mean(fs[i-1,j-1:j+2])
+                    fs[i,j] = base + rv
 
-                fs[i,j] = base + rv
         # level the fault so there's no tilt
         subtract = np.mean(fs,axis=0)
         for i in range(len(fs)):
-            fs[i] -= subtract                
+            fs[i] -= subtract     
+                    
+    else:
+        size = int(max(nx-2,ny-2,nz-2)*1.2)
+        for i, nn in enumerate([nx,ny,nz]):
+            for n in range(nn):              
+                pl = np.fft.fftfreq(size+1)
+                pl[0] = 1.
+                p,q = np.meshgrid(pl,pl)
+                f = (p**2+q**2)
+                clip=int(size/10)
+                R1 = np.random.random(size=np.shape(f))
+                y1 = f**(-(4.-fractal_dimension)/2.)*np.exp(1j*2.*np.pi*R1)
+                y1s = np.shape(y1)
+                fs = np.real(np.fft.ifft2(y1))
+                if i == 0:
+                    aperture_array[1:-1:,1:-1:,n+1]
+
+              
         
-        
-        b = fs[offset[]:,offset[]:]-fs[:-offset[],:-offset[]]
+#        b = fs[offset[]:,offset[]:]-fs[:-offset[],:-offset[]]
         b[b<0.] = 0.
         
         
