@@ -11,12 +11,124 @@ from __future__ import division, print_function
 import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg as linalg
+import scipy.stats as stats
 
 """
 ===================Functions relating to class definition======================
 """
 
-def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
+def _prepare_ifft_inputs(y1a):
+    """
+    creates an array with correct inputs for np.fft.irfftn to create a real-
+    valued output. negative-frequency components are calculated as complex
+    conjugates of positive-frequency components, reflected diagonally.
+    
+    """
+    size = int(y1a.shape[0] - 1)
+    y1 = np.zeros((size+1,size+1),dtype=complex)
+    y1[1:,1:size/2+1] = y1a[1:,1:]
+    y1[1:size/2+1,size/2+1:] = np.real(y1a[size/2+1:,1:][::-1,::-1]) \
+                          - 1j*np.imag(y1a[size/2+1:,1:][::-1,::-1])
+    y1[size/2+1:,size/2+1:] = np.real(y1a[1:size/2+1,1:][::-1,::-1]) \
+                         - 1j*np.imag(y1a[1:size/2+1,1:][::-1,::-1])    
+    
+    return y1
+
+def _build_fault_pair(size,fc,D,std):
+    """
+    Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
+    authors). Uses numpy n dimensional inverse fourier transform. Returns two
+    fault surfaces
+    =================================inputs====================================
+    size = size of fault (fault will be square)
+    fc = cutoff frequency for matching of faults, the two fault surfaces will
+         match at frequencies greater than the cutoff frequency
+    D = fractal dimension of returned fault, recommended values in range [2.,2.5]
+    std = standard deviation of surface height of fault 1, surface 2 will be
+          scaled by the same factor as height 1 so may not have exactly the 
+          same standard deviation but needs to be scaled the same to ensure the
+          surfaces are matched properly
+    ===========================================================================    
+    """
+    # get frequency components
+    pl = np.fft.fftfreq(size+1)
+    pl[0] = 1.
+    # define frequencies in 2d
+    p,q = np.meshgrid(pl[:size/2+1],pl)
+    # define f
+    f = (p**2+q**2)**0.5
+    # define gamma for correlation between surfaces
+    gamma = f.copy()
+    gamma[gamma >= fc] = 1.
+    # define 2 sets of uniform random numbers
+    R1 = np.random.random(size=np.shape(f))
+    R2 = np.random.random(size=np.shape(f))
+    # define fourier components
+    y1 = _prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    y2 = _prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+    # use inverse discrete fast fourier transform to get surface heights
+    h1 = np.fft.irfftn(y1,y1.shape)
+    h2 = np.fft.irfftn(y2,y2.shape)
+    # scale so that standard deviation is as specified
+    scaling_factor = std/np.std(h1)
+    h1 = h1*scaling_factor
+    h2 = h2*scaling_factor
+    
+    return h1, h2
+
+def _add_nulls(in_array):
+    """
+    initialise a fault, resistivity, permeability, aperture etc array by
+    putting nulls at edges in correct spots
+    
+    """
+
+    in_array[:,:,-1,0] = np.nan
+    in_array[:,-1,:,1] = np.nan
+    in_array[-1,:,:,2] = np.nan
+    in_array[:,:,0] = np.nan
+    in_array[:,0,:] = np.nan
+    in_array[0,:,:] = np.nan
+    
+    return in_array
+
+def add_fault_to_array(fault_mm,fault_array,direction=None):
+    """
+    
+    """
+    if type(fault_mm) == list:
+        fault_mm = np.array(fault_mm)
+    if direction is None:
+        for i, mm in enumerate(fault_mm):
+            if mm[1]-mm[0] == 0:
+                direction = int(i)
+                break
+    print(direction)
+    if direction is None:
+        print("invalid fault minmax values, minimum must be same as max in one direction")
+        return
+    for i in range(3):
+        if i != direction:
+            fvals = np.zeros(3)
+            fvals[-(direction+i)] = 1.
+            fvals[direction] = 1.
+            print(fvals)
+            print(fault_mm[2,0],fault_mm[2,1]+fvals[2],"fvals[2]",fvals[2],
+                  fault_mm[1,0],fault_mm[1,1]+fvals[1],"fvals[1]",fvals[1],
+                  fault_mm[0,0],fault_mm[0,1]+fvals[0],"fvals[0]",fvals[0])
+            fault_array[fault_mm[2,0]:fault_mm[2,1]+fvals[2],
+                        fault_mm[1,0]:fault_mm[1,1]+fvals[1],
+                        fault_mm[0,0]:fault_mm[0,1]+fvals[0],i] = 1.
+    
+    # get uv extents of fault in local plane (i.e. exclude width normal to plane)
+    u,v_ = [fault_mm[i] for i in range(3) if i != direction]
+    v = np.array([[v_[0]]*2,[v_[1]]*2])
+    faultuvw = [np.array([u,u[::-1]]),v]
+    faultuvw.insert(direction,np.array([[fault_mm[direction,0]]*2]*2))
+
+    return fault_array,np.array(faultuvw)
+
+def initialise_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     """ 
     
     Initialising faults from a pool - random location, orientation (i.e. in the 
@@ -46,13 +158,14 @@ def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
         faultlengthmax = float(max(n))
     faults = []
     
-    while float(np.size(fault_array[fault_array==1.]))/float(np.size(fault_array)) < ptot:
+    while True:
         # pick a random location for the fault x,y,z
         centre = [np.random.randint(0,nn) for nn in n]
         # pick random x,y,z extents for the fault
         d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
         # no faults smaller than one cell
         d[d<1.] = 1.
+        print(np.ceil(d))
         # pick orientation for the fault according to relative probability p
         fo = np.random.choice(np.arange(3),p=pnorm)
         # reset width (normal to plane of fault)
@@ -67,37 +180,29 @@ def initialise_faults(n, p, faultlengthmax = None, decayfactor=5.):
         for m in range(len(mm)):
             if mm[m,1] > n[m]:
                 mm[m,1] = n[m]
+
         # assign fault to fault array
-        for i in range(3):
-            if i != fo:
-                fvals = np.zeros(3)
-                fvals[-(fo+i)] = 1.
-                fault_array[mm[2,0]:mm[2,1]+fvals[2],
-                            mm[1,0]:mm[1,1]+fvals[1],
-                            mm[0,0]:mm[0,1]+fvals[0],i] = 1.
-        
-        # get uv extents of fault in local plane (i.e. exclude width normal to plane)
-        u,v_ = [mm[i] for i in range(3) if i != fo]
-        v = np.array([[v_[0]]*2,[v_[1]]*2])
-        faultuvw = [np.array([u,u[::-1]]),v]
-        faultuvw.insert(fo,np.array([[mm[fo,0]]*2]*2))
-        faults.append(faultuvw)
-        
-    # deal with edges
-    fault_array[:,:,-1,0] = np.nan
-    fault_array[:,-1,:,1] = np.nan
-    fault_array[-1,:,:,2] = np.nan
+        if float(np.size(fault_array[fault_array==1.])+np.product(mm[:,1]-mm[:,0]))/\
+           float(np.size(fault_array[np.isfinite(fault_array)])) < ptot:
+            fault_array,faultuvw = add_fault_to_array(mm,fault_array,direction=fo)
+            faults.append(faultuvw+1.)
+        else:
+            break
     # make a new larger array of nans
-    fault_array_final = np.ones(list(n[::-1]+2)+[3])*np.nan
+    fault_array_final = np.zeros(list(np.array(np.shape(fault_array))[:-1]+1)+[3])
+    
     # put the fault array into this array in the correct position.
     fault_array_final[1:,1:,1:] = fault_array
+    # deal with edges
+    fault_array_final = _add_nulls(fault_array_final)
+
     
     return fault_array_final,np.array(faults)
 
 
-def assign_fault_aperture(fault_array,faults = None, method = 'fourier', 
-                          fault_dz=0.,separation=1e-3, offset=[0.,0.], 
-                          fractal_dimension = 2.5):
+def assign_fault_aperture(fault_array,faultedges, 
+                          fault_dz=0.,separation=1e-4, offset=0, 
+                          D = 2.5, fc = None, dx = 1e-3, std = 1e-4):
     """
     take a fault array and assign aperture values. This is done by creating two
     identical fault surfaces then separating them (normal to fault surface) and 
@@ -115,7 +220,6 @@ def assign_fault_aperture(fault_array,faults = None, method = 'fourier',
                   shape (nx,ny,nz,3), created using initialise_faults
     faults = array or list containing u,v,w extents of faults, optional but 
              speeds up process.
-    method = 'iterative' or 'fourier'. 'iterative' means that heights are
     fault_dz, float = adjacent points on fault surface are separated by a 
                       random value between +fault_dz/2 and -fault_dz/2, in metres
     separation, float = fault separation normal to fault surface, in metres
@@ -124,77 +228,52 @@ def assign_fault_aperture(fault_array,faults = None, method = 'fourier',
     
     ===========================================================================    
     """
+    fault_array = _add_nulls(fault_array)
+    
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] 
-    aperture_array = np.ones([3,nz,ny,nx]) # yz, xz and xy directions
-    if method not in ['iterative','fourier']:
-        method = 'fourier'
+    aperture_array = np.zeros_like(fault_array) # yz, xz and xy directions
 
-    # if no fault indices provided, initialise a fault index array. For now,
-    # just assume everywhere is faulted (this gets cancelled out when
-    # multiplied by fault array, just takes longer)
-    if faults is None:
-        faults = []
-        faults += [[[[2,nx]]*2,[[2,2],[ny,ny]],[[i,i]]*2] for i in range(2,nz+2)]
-        faults += [[[[i,i]]*2,[[2,ny]]*2,[[2,2],[nz,nz]]] for i in range(2,nx+2)]
-        faults += [[[[2,2],[nx,nx]],[[i,i]]*2,[[2,nz]]*2] for i in range(2,ny+2)]
-    
-    if method == 'iterative':
-        print("iterative method not implemented yet")
-        return
-        for ib, bounds in enumerate(np.amax(faults)-np.amin(faults)):
-            # i and j define horizontal extents of the fault
-            imax,jmax = bounds[bounds!=0] + offset
-            # initialise a fault surface of the correct size
-            fs = np.zeros([imax,jmax])
-            for i in range(imax):
-                for j in range(jmax):
-                    # get a random value between -dz/2 and +dz/2 to add to base value
-                    rv = fault_dz*(np.random.rand() - 0.5)
-                    if i == 0:
-                        if j == 0:
-                            # start the fault elevation at zero for first cell
-                            base = 0.
-                        else:
-                            # for all other first-row cells, take the previous cell
-                            base = fs[i,j-1]
-                    elif j == 0:
-                        # starting (base) elevation for beginning of each row taken
-                        # from previous row
-                        base = fs[i-1,j]
-                    else:
-                        # start (base) elevation for middle cells taken as 
-                        # an average of three adjacent cells in previous row
-                        base = np.mean(fs[i-1,j-1:j+2])
-                    fs[i,j] = base + rv
+    for i, nn in enumerate(faultedges):
+        u0,v0,w0 = np.amin(nn, axis=(1,2))
+        u1,v1,w1 = np.amax(nn, axis=(1,2))
+        duvw = np.array([u1-u0,v1-v0,w1-w0])
+        du,dv,dw = (duvw*0.5).astype(int)
 
-        # level the fault so there's no tilt
-        subtract = np.mean(fs,axis=0)
-        for i in range(len(fs)):
-            fs[i] -= subtract     
-                    
-    else:
-        size = int(max(nx-2,ny-2,nz-2)*1.2)
-        for i, nn in enumerate([nx,ny,nz]):
-            for n in range(nn):              
-                pl = np.fft.fftfreq(size+1)
-                pl[0] = 1.
-                p,q = np.meshgrid(pl,pl)
-                f = (p**2+q**2)
-                clip=int(size/10)
-                R1 = np.random.random(size=np.shape(f))
-                y1 = f**(-(4.-fractal_dimension)/2.)*np.exp(1j*2.*np.pi*R1)
-                y1s = np.shape(y1)
-                fs = np.real(np.fft.ifft2(y1))
-                if i == 0:
-                    aperture_array[1:-1:,1:-1:,n+1]
+        # define size, add some padding to account for edge effects     
+        size = int(np.amax(duvw)*1.2 + offset)
+        size += size%2
+        
+        # define direction normal to fault
+        direction = list(duvw).index(0)
+        
+        # define cutoff frequency for correlation
+        if fc is None:
+            fc = size*3e-4
+        h1,h2 = _build_fault_pair(size,fc,D,std)
+        
+        if offset > 0:
+            b = h1[offset:,offset:] - h2[:-offset,:-offset] + separation
+        else:
+            b = h1 - h2 + separation
+                         
+        b[b <= 0.] = 1e-8
+        b0 = stats.hmean(np.array([b[:,1:],b[:,:-1]]),axis=0)
+        b1 = stats.hmean(np.array([b[1:],b[:-1]]),axis=0)
+        cb = np.array(np.shape(b))*0.5
+#            print(np.shape(aperture_array),np.shape(b),cb,sx,sy,sz)
+        if direction == 0:
+            aperture_array[w0:w1+1,v0:v1,u0,1] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
+            aperture_array[w0:w1,v0:v1+1,u0,2] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+        elif direction == 1:
+            aperture_array[w0:w1+1,v0,u0:u1,0] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+            aperture_array[w0:w1,v0,u0:u1+1,2] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+        elif direction == 2:
+            aperture_array[w0,v0:v1+1,u0:u1,0] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+            aperture_array[w0,v0:v1,u0:u1+1,1] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
 
-              
+    aperture_array *= fault_array
+    return aperture_array
         
-#        b = fs[offset[]:,offset[]:]-fs[:-offset[],:-offset[]]
-        b[b<0.] = 0.
-        
-        
-    
 
 def assign_random_resistivity(aperture_array,r_matrix,r_fluid):
     """ 
@@ -214,8 +293,14 @@ def assign_random_resistivity(aperture_array,r_matrix,r_fluid):
                   a is the decay factor
     ===========================================================================
     """
-    
-    res_array = np.ones_like(fault_array)*r_matrix
+    return
+#    res_array = np.ones_like(aperture_array)*r_matrix
+#    nz,ny,nx, = np.array(np.shape(res_array))[:-1] - 2
+#    for k in range(1,nz+1):
+#        for j in range(1,ny+1):
+#            for i in range(1,nx+1):
+#                if aperture_array[k,j,i] is not nan 
+#    
     
 
 
@@ -257,7 +342,34 @@ def get_phi(d,fracture_diameter):
     return (np.pi/4.)*fracture_diameter**2/a
     
 
-def get_electrical_resistance(res,r_matrix,r_fluid,d,fracture_diameter):
+def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
+    """
+    
+    returns a numpy array containing resistance values 
+    
+    =================================inputs====================================
+    aperture_array = array containing fault apertures
+    r_matrix, r_fluid = resistivity of matrix and fluid
+    d = list containing cell size (length of connector) in x,y and z directions 
+    [dx,dy,dz]
+    
+    ===========================================================================
+    """
+    
+    res_array = np.zeros_like(aperture_array)
+    # ly, the width of each cell
+    ly = [d[1],d[2],d[0]]
+    # ln, the width normal to the cell
+    ln = [d[2],d[0],d[1]]
+
+    for i in range(3):
+        res_array[:,:,:,i] = 1./(aperture_array[:,:,:,i]*ly[i]/(r_fluid*d[i])+\
+                                 (ln[i]-aperture_array[:,:,:,i])*ly[i]/(r_matrix*d[i]))
+        res_array[:,:,:,i][aperture_array[:,:,:,i]==0.] = r_matrix*d[i]/(ly[i]*ln[i])
+
+    return res_array
+
+def get_electrical_resistance_old(res,r_matrix,r_fluid,d,fracture_diameter):
     """
     
     returns a numpy array containing resistance values 

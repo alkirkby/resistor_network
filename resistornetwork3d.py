@@ -16,7 +16,7 @@ import resistornetworkfunctions3d as rnf
 import sys
 import time
 
-class Resistivity_volume():
+class Rock_volume():
     """
     ***************Documentation last updated 8 October 2014*******************
     
@@ -64,7 +64,8 @@ class Resistivity_volume():
         self.fracture_diameter = 1.e-3
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.faultlength_max = None
-        self.faultlength_decay = 5.                         
+        self.faultlength_decay = 5.  
+        self.fault_array = None                       
 
         
         update_dict = {}
@@ -99,7 +100,15 @@ class Resistivity_volume():
         self.initialise_resistivity()
         self.initialise_permeability()
 
-
+    def build_faults(self):
+        """
+        initialise a faulted volume. 
+        
+        """
+        
+        if self.fault_array is not None:
+            nz,ny,nz = np.array(np.shape(self.fault_array)-2)[:-1]
+        
 
     def initialise_resistivity(self):
         """
