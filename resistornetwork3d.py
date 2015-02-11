@@ -634,6 +634,7 @@ class RandomResistorSuite():
                            comments='',
                            header = header,
                            fmt=['%4.2f','%4.2f','%4.2f',
+                                '%6.2e','%6.2e',
                                 '%6.3e','%6.3e','%6.3e'])
                        
                        
