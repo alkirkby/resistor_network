@@ -495,7 +495,7 @@ class RandomResistorSuite():
 
         list_of_inputs = []
         parameter_list = [v for v in dir(self) if v[0] != '_']
-
+        print self.fault_dict['fault_separation']
         for r in range(self.repeats):
             for pc in self.pconnection:
                 for pef in self.pembedded_fault:
@@ -509,18 +509,17 @@ class RandomResistorSuite():
                                                'resistivity_matrix',
                                                'resistivity_fluid',
                                                'wd',
-                                               'res_type',
                                                'mu',
                                                'outfile',
                                                'ncells',
                                                'cellsize']:
                                         input_dict[key] = getattr(self,key)
-                        input_dict['fault_separation'] = fs
-                        input_dict['elevation_standard_deviation'] = sd
-                        input_dict['pconnection'] = pc
-                        input_dict['pembedded_fault'] = pef
-                        input_dict['pembedded_matrix'] = pem
-                        list_of_inputs.append(input_dict)
+                                input_dict['fault_separation'] = fs
+                                input_dict['elevation_standard_deviation'] = sd
+                                input_dict['pconnection'] = pc
+                                input_dict['pembedded_fault'] = pef
+                                input_dict['pembedded_matrix'] = pem
+                                list_of_inputs.append(input_dict)
         
         return list_of_inputs
 
