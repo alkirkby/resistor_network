@@ -433,15 +433,13 @@ class RandomResistorSuite():
                             type=float)
         parser.add_argument('-km','--permeability_matrix',
                             type=float)
-        parser.add_argument('-fs','--fault_separation',
-                            type=float)
         parser.add_argument('--fault_assignment',
                             help = 'how to assign faults, random or list')
         parser.add_argument('-mu','--fluid_viscosity',
                             type=float)
                             
         for arg in ['fractal_dimension',
-                    'separation',
+                    'fault_separation',
                     'offset',
                     'length_max',
                     'length_decay',
