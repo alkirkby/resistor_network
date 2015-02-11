@@ -446,7 +446,7 @@ class RandomResistorSuite():
                     'elevation_standard_deviation',
                     'aperture_assignment']:
                         parser.add_argument('--'+arg, type=float, nargs = '*')
-                        
+        parser.add_argument('--fault_edges',type=int,nargs='*')    
         parser.add_argument('--aperture_assignment',
                             help='type of aperture assignment, random or constant')
         parser.add_argument('-wd',
@@ -477,6 +477,14 @@ class RandomResistorSuite():
                         at[1].append(at[1][-1])
                     # reshape
                     at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
+                if at[0] == 'fault_edges':
+                    if np.size(at[1])%6 != 6:
+                        pass
+                    else:
+                        fault_edges = []
+                        for i in range(np.size(at[1])/6):
+                            fault_edges.append(np.array(at[0][i*6:(i+1)*6]).reshape(3,2))
+                        fault_edges = np.array(fault_edges)
                 self.input_parameters[at[0]] = at[1]
 
 
