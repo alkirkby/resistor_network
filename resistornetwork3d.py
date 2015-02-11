@@ -62,7 +62,7 @@ class Rock_volume():
         self.permeability_matrix = 1.e-18
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.fault_dict = dict(fractal_dimension=2.5,
-                               separation = 1e-4,
+                               fault_separation = 1e-4,
                                offset = 0,
                                length_max = None,
                                length_decay = 5.,
@@ -151,14 +151,14 @@ class Rock_volume():
         
         if self.fault_dict['aperture_assignment'] == 'random':
             aperture_input = {}
-            for key in ['fractal_dimension','separation','offset',
+            for key in ['fractal_dimension','fault_separation','offset',
                         'elevation_standard_deviation',
                         'mismatch_frequency_cutoff']:
                             aperture_input[key] = self.fault_dict[key]
             self.aperture_array,bvals = \
             rnf.assign_fault_aperture(fault_array,fault_uvw,**aperture_input)
         else:
-            self.aperture_array = fault_array*self.fault_dict['separation']
+            self.aperture_array = fault_array*self.fault_dict['fault_separation']
         self.fault_array = fault_array
         self.fault_uvw = np.array(fault_uvw)
         
@@ -316,12 +316,12 @@ class RandomResistorSuite():
         self.permeability_matrix = 1.e-18
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
         self.fault_dict = dict(fractal_dimension=2.5,
-                               separation = 1e-4,
+                               fault_separation = [1e-4],
                                offset = 0,
                                length_max = None,
                                length_decay = 5.,
                                mismatch_frequency_cutoff = None,
-                               elevation_standard_deviation = 1e-4,
+                               elevation_standard_deviation = [1e-4],
                                aperture_assignment = 'random')
         self.fault_array = None                       
         self.fault_edges = None
@@ -329,33 +329,54 @@ class RandomResistorSuite():
         self.outfile = 'outputs'                        
         self.arguments = sys.argv[1:]
         self.solve_properties = 'currentfluid'
-        self.solve_directions = 'xyz'       
+        self.solve_directions = 'xyz'  
+        self.input_parameters = input_parameters
 
- 
+        if len(self.arguments) > 0:
+            self.read_arguments()
+            
+
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
         for key in input_parameters.keys():
+            # only assign if it's a valid attribute
             if hasattr(self,key):
                 input_parameters_nocase[key.lower()] = input_parameters[key]
+            else:
+                for dictionary in [self.fault_dict]:
+                    if key in dictionary.keys():
+                        input_parameters_nocase[key] = input_parameters[key]
+                
 
         update_dict.update(input_parameters_nocase)
         for key in update_dict:
             try:
+                # original value defined
                 value = getattr(self,key)
                 if type(value) == str:
                     try:
                         value = float(update_dict[key])
                     except:
                         value = update_dict[key]
+                elif type(value) == dict:
+                    value.update(update_dict[key])
                 else:
                     value = update_dict[key]
                 setattr(self,key,value)
             except:
-                continue 
-
-        if len(self.arguments) > 0:
-            self.read_arguments()
+                try:
+                    if key in self.fault_dict.keys():
+                        try:
+                            value = float(update_dict[key])
+                        except:
+                            value = update_dict[key]
+                        self.fault_dict[key] = value
+                except:
+                    continue 
+        
+        if type(self.cellsize) in [float,int]:
+            self.cellsize = np.ones(3)*self.cellsize
 
         
         self.setup_and_run_suite()
@@ -407,14 +428,27 @@ class RandomResistorSuite():
                             type=float)
         parser.add_argument('-km','--permeability_matrix',
                             type=float)
-        parser.add_argument('-fd','--fracture_diameter',
+        parser.add_argument('-fs','--fault_separation',
                             type=float)
-        parser.add_argument('-mu',
+        parser.add_argument('-mu','--fluid_viscosity',
                             type=float)
         parser.add_argument('-flm','--faultlength_max',
                             type=float)
         parser.add_argument('-fld','--faultlength_decay',
                             type=float)
+                            
+        for arg in ['fractal_dimension',
+                    'separation',
+                    'offset',
+                    'length_max',
+                    'length_decay',
+                    'mismatch_frequency_cutoff',
+                    'elevation_standard_deviation',
+                    'aperture_assignment']:
+                        parser.add_argument('--'+arg, type=float, nargs = '*')
+                        
+        parser.add_argument('--aperture_assignment',
+                            help='type of aperture assignment, random or constant')
         parser.add_argument('-wd',
                             help='working directory')
         parser.add_argument('-o','--outfile',
@@ -429,21 +463,21 @@ class RandomResistorSuite():
         if (hasattr(args,'probabilityfile') and (args.probabilityfile is not None)):
             try:
                 pvals = np.loadtxt(args.probabilityfile)
-                setattr('pconnection',pvals[:,:3])
-                setattr('pembedded_fault',pvals[:,3:6])
-                setattr('pembedded_matrix',pvals[:,6:9])
+                self.input_parameters['pconnection'] = pvals[:,:3]
+                self.input_parameters['pembedded_fault'] = pvals[:,3:6]
+                self.input_parameters['pembedded_matrix'] = pvals[:,6:9]
             except IOError:
                 print "Can't read probability file"
         
         for at in args._get_kwargs():
             if at[1] is not None:
                 if (at[0] in ['pconnection','pembedded_fault','pembedded_matrix']):
-                    # make sure number of values is divisible by 3
+                    # make sure number of values is divisible by 3 by repeating the last value
                     while np.size(at[1])%3 != 0:
                         at[1].append(at[1][-1])
                     # reshape
                     at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
-                setattr(self,at[0],at[1])
+                self.input_parameters[at[0]] = at[1]
 
 
     def initialise_inputs(self):
@@ -458,20 +492,23 @@ class RandomResistorSuite():
             for pc in self.pconnection:
                 for pef in self.pembedded_fault:
                     for pem in self.pembedded_matrix:
-                        input_dict = {} 
-                        for key in parameter_list:
-                            if key in ['fracture_diameter',
-                                       'permeability_matrix',
-                                       'resistivity_matrix',
-                                       'resistivity_fluid',
-                                       'wd',
-                                       'res_type',
-                                       'mu',
-                                       'outfile',
-                                       'faultlength_decay',
-                                       'ncells',
-                                       'cellsize']:
-                                input_dict[key] = getattr(self,key)
+                        for sd in self.fault_dict['elevation_standard_deviation']:
+                            for fs in self.fault_dict['fault_separation']:
+                                input_dict = {} 
+                                for key in parameter_list:
+                                    if key in ['fracture_diameter',
+                                               'permeability_matrix',
+                                               'resistivity_matrix',
+                                               'resistivity_fluid',
+                                               'wd',
+                                               'res_type',
+                                               'mu',
+                                               'outfile',
+                                               'ncells',
+                                               'cellsize']:
+                                        input_dict[key] = getattr(self,key)
+                        input_dict['fault_separation'] = fs
+                        input_dict['elevation_standard_deviation'] = sd
                         input_dict['pconnection'] = pc
                         input_dict['pembedded_fault'] = pef
                         input_dict['pembedded_matrix'] = pem
@@ -479,7 +516,9 @@ class RandomResistorSuite():
         
         return list_of_inputs
 
-
+        self.fault_array = None                       
+        self.fault_edges = None
+        self.fault_assignment = 'random'
 
         
         
@@ -494,7 +533,7 @@ class RandomResistorSuite():
         r = 0
         for input_dict in list_of_inputs:
             # initialise random resistor network
-            ro = Resistivity_volume(**input_dict)
+            ro = Rock_volume(**input_dict)
             # solve the network
             ro.solve_resistor_network(self.solve_properties,self.solve_directions)
             # append result to list of r objects
@@ -521,7 +560,7 @@ class RandomResistorSuite():
         rank = comm.Get_rank()
         name = MPI.Get_processor_name()
         print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
-    
+       
         if rank == 0:
             list_of_inputs = self.initialise_inputs()
             inputs = rnf.divide_inputs(list_of_inputs,size)
@@ -561,14 +600,16 @@ class RandomResistorSuite():
             for prop in ['resistivity_bulk','permeability_bulk']:
                 if hasattr(ro,prop):
                     results[prop] = np.vstack([np.hstack([ro.pconnection,
-                                                          getattr(ro,prop)]) for ro in og2])
+                                                         [ro.fault_dict['fault_separation']],
+                                                         [ro.fault_dict['elevation_standard_deviation']],
+                                                         getattr(ro,prop)]) for ro in og2])
             # save results to text file
             # first define header
             header  = '# resistor network models - results\n'
             header += '# resistivity_matrix (ohm-m) {}\n'.format(self.resistivity_matrix)
             header += '# resistivity_fluid (ohm-m) {}\n'.format(self.resistivity_fluid)
             header += '# permeability_matrix (m^2) {}\n'.format(self.permeability_matrix)
-            header += '# fracture diameter (m) {}\n'.format(self.fault_dict['separation'])
+            header += '# fracture diameter (m) {}\n'.format(self.fault_dict['fault_separation'])
             header += '# fluid viscosity {}\n'.format(self.mu)
             header += '# fracture max length {}\n'.format(self.faultlength_max)
             header += '# fracture length decay {}\n'.format(self.faultlength_decay)
@@ -578,7 +619,7 @@ class RandomResistorSuite():
             header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
                                                               self.cellsize[1],
                                                               self.cellsize[2])
-            header += ' '.join(['# px','py','pz','propertyx','propertyy','propertyz'])
+            header += ' '.join(['# px','py','pz','fault_sep','elev_sd','propertyx','propertyy','propertyz'])
 
             for rr in results.keys():
                 np.savetxt(os.path.join(self.wd,rr+'.dat'),np.array(results[rr]),

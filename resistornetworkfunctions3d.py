@@ -195,7 +195,9 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     return fault_array_final,np.array(faults)
 
 
-def assign_fault_aperture(fault_array,fault_uvw, separation=1e-4, offset=0, 
+def assign_fault_aperture(fault_array,fault_uvw, 
+                          fault_separation=1e-4, 
+                          offset=0, 
                           fractal_dimension = 2.5, 
                           mismatch_frequency_cutoff = None, 
                           elevation_standard_deviation = 1e-4):
@@ -255,9 +257,9 @@ def assign_fault_aperture(fault_array,fault_uvw, separation=1e-4, offset=0,
                                   elevation_standard_deviation)
         
         if offset > 0:
-            b = h1[offset:,offset:] - h2[:-offset,:-offset] + separation
+            b = h1[offset:,offset:] - h2[:-offset,:-offset] + fault_separation
         else:
-            b = h1 - h2 + separation
+            b = h1 - h2 + fault_separation
                          
         b[b <= 0.] = 1e-20
         b0 = stats.hmean(np.array([b[:,1:],b[:,:-1]]),axis=0)
