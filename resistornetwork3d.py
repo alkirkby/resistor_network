@@ -51,53 +51,71 @@ class Rock_volume():
     
     def __init__(self, **input_parameters):
         self.wd = '.' # working directory
-        self.ncells = [10,10,10]
+        self.ncells = [10,10,10] #ncells in x, y and z directions
         self.cellsize = np.array([1.,1.,1.])
         self.pconnection = np.array([0.5,0.5,0.5])
         self.pembedded_fault = np.array([1.,1.,1.])
         self.pembedded_matrix = np.array([0.,0.,0.])
-        self.res_type = 'ones'
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
         self.resistivity = None
         self.permeability_matrix = 1.e-18
-        self.fracture_diameter = 1.e-3
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
-        self.faultlength_max = None
-        self.faultlength_decay = 5.  
+        self.fault_dict = dict(fractal_dimension=2.5,
+                               separation = 1e-4,
+                               offset = 0,
+                               length_max = None,
+                               length_decay = 5.,
+                               mismatch_frequency_cutoff = None,
+                               elevation_standard_deviation = 1e-4,
+                               aperture_assignment = 'random')
         self.fault_array = None                       
-
-        
+        self.fault_edges = None
+        self.fault_assignment = 'random' # how to assign faults, 'random' or 'list'
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
         for key in input_parameters.keys():
+            # only assign if it's a valid attribute
             if hasattr(self,key):
                 input_parameters_nocase[key.lower()] = input_parameters[key]
+            else:
+                for dictionary in [self.fault_dict]:
+                    if key in dictionary.keys():
+                        input_parameters_nocase[key] = input_parameters[key]
+                
 
         update_dict.update(input_parameters_nocase)
         for key in update_dict:
             try:
+                # original value defined
                 value = getattr(self,key)
                 if type(value) == str:
                     try:
                         value = float(update_dict[key])
                     except:
                         value = update_dict[key]
+                elif type(value) == dict:
+                    value.update(update_dict[key])
                 else:
                     value = update_dict[key]
                 setattr(self,key,value)
             except:
-                continue 
+                try:
+                    if key in self.fault_dict.keys():
+                        try:
+                            value = float(update_dict[key])
+                        except:
+                            value = update_dict[key]
+                        self.fault_dict[key] = value
+                except:
+                    continue 
+        
+        if type(self.cellsize) in [float,int]:
+            self.cellsize = np.ones(3)*self.cellsize
 
-        if self.res_type == 'array':
-            if self.resistivity is None:
-                print "Please provide resistivity array or specify a different res_type"
-                return
-            else:
-                self.nz,self.ny,self.nx = [int(i) for i in np.shape(self.resistivity)][:-1]
-
-        self.initialise_resistivity()
+        self.build_faults()
+        self.initialise_electrical_resistance()
         self.initialise_permeability()
 
     def build_faults(self):
@@ -105,51 +123,60 @@ class Rock_volume():
         initialise a faulted volume. 
         
         """
+        nx,ny,nz = self.ncells
+        fault_array = np.zeros([nz+2,ny+2,nx+2,3])
+        fault_array = rnf._add_nulls(fault_array)
+        fault_uvw = []
         
-        if self.fault_array is not None:
-            nz,ny,nz = np.array(np.shape(self.fault_array)-2)[:-1]
+        if self.fault_assignment == 'list':
+            if self.fault_edges is not None:
+                if np.shape(self.fault_edges)[-2:] == (3,2):
+                    if len(np.shape(self.fault_edges)) == 2:
+                        self.fault_edges = [self.fault_edges]
+                    for fedge in self.fault_edges:
+                        fault_array, fuvwi = rnf.add_fault_to_array(fedge,fault_array)
+                        fault_uvw.append(fuvwi)
+            else:
+                print "Can't assign faults, no fault list provided, use random"\
+                " assignment or provide fault_edges"
+        elif self.fault_assignment =='random':
+            fault_array,fault_uvw = \
+            rnf.build_random_faults(self.ncells,
+                                    self.pconnection,
+                                    faultlengthmax = self.fault_dict['length_max'],
+                                    decayfactor = self.fault_dict['length_decay'])
+        else:
+            print "Can't assign faults, invalid fault assignment type provided"
+            return
+        
+        if self.fault_dict['aperture_assignment'] == 'random':
+            aperture_input = {}
+            for key in ['fractal_dimension','separation','offset',
+                        'elevation_standard_deviation',
+                        'mismatch_frequency_cutoff']:
+                            aperture_input[key] = self.fault_dict[key]
+            self.aperture_array,bvals = \
+            rnf.assign_fault_aperture(fault_array,fault_uvw,**aperture_input)
+        else:
+            self.aperture_array = fault_array*self.fault_dict['separation']
+        self.fault_array = fault_array
+        self.fault_uvw = np.array(fault_uvw)
         
 
-    def initialise_resistivity(self):
+    def initialise_electrical_resistance(self):
         """
         initialise a resistivity array
 
         """
-                                                                                                                                                                                    
-        if self.res_type == 'ones':
-            nx,ny,nz = self.ncells
-            self.resistivity = np.ones([nz+2,ny+2,nx+2,3])*np.nan
-            self.resistivity[1:,1:,1:-1,0] = self.resistivity_fluid
-            self.resistivity[1:,1:-1,1:,1] = self.resistivity_fluid
-            self.resistivity[1:-1,1:,1:,2] = self.resistivity_fluid
+        
+        self.resistance = \
+        rnf.get_electrical_resistance(self.aperture_array,
+                                      self.resistivity_matrix,
+                                      self.resistivity_fluid,
+                                      self.cellsize)
+        
+        
 
-        elif self.res_type == "random":
-            self.resistivity,self.faults = \
-            rnf.assign_random_resistivity(self.ncells,
-                                          self.pconnection,
-                                           self.resistivity_matrix,
-                                           self.resistivity_fluid,
-                                           faultlengthmax=self.faultlength_max,
-                                           decayfactor = self.faultlength_decay)
-            
-        elif self.res_type == 'array':
-            # resistivity fed in as a variable in initialisation so don't need
-            # to create it
-            rm = np.amax(self.resistivity[np.isfinite(self.resistivity)])
-            rf = np.amin(self.resistivity[np.isfinite(self.resistivity)])
-            if rm != rf:
-                self.resistivity_fluid = rf
-                self.resistivity_matrix = rm
-        else:
-            print "res type {} not supported, please redefine".format(self.res_type)
-            return
-
-        self.resistance = rnf.get_electrical_resistance(self.resistivity,
-                                                        self.resistivity_matrix,
-                                                        self.resistivity_fluid,
-                                                        self.cellsize,
-                                                        self.fracture_diameter)
-        self.phi = sum(rnf.get_phi(self.cellsize,self.fracture_diameter))
 
 
     def initialise_permeability(self):
@@ -162,15 +189,14 @@ class Rock_volume():
             self.initialise_resistivity()
         
 
-        self.permeability = rnf.get_permeability(self.resistivity,
-                                                 self.resistivity_fluid,
-                                                 self.permeability_matrix,
-                                                 self.fracture_diameter)
+        self.permeability = \
+        rnf.get_permeability(self.aperture_array,
+                             self.permeability_matrix,
+                             self.cellsize)
         self.hydraulic_resistance = \
-        rnf.get_hydraulic_resistance(self.permeability,
+        rnf.get_hydraulic_resistance(self.aperture_array,
                                      self.permeability_matrix,
                                      self.cellsize,
-                                     self.fracture_diameter,
                                      mu = self.mu)
 
 
@@ -186,12 +212,12 @@ class Rock_volume():
         'z' solves x y and z currents for flow in the z (vertical) direction
         
         resulting current/fluid flow array:
-             resx resy resz
-               |   |   |
-               v   v   v
-            [[xx, xy, xz], <-- flow modelled in x direction
-             [yx, yy, yz], <-- flow y
-             [zx, zy, zz]] <-- flow z
+      x currents  ycurrents  zcurrents
+               |      |      |
+               v      v      v
+            [[xx,    xy,    xz], <-- flow modelled in x direction
+             [yx,    yy,    yz], <-- flow y
+             [zx,    zy,    zz]] <-- flow z
         
         """
         # set kfactor to divide hydraulic conductivities by so that matrix
@@ -283,16 +309,23 @@ class RandomResistorSuite():
         self.pconnection = np.array([[0.5,0.5,0.5]])
         self.pembedded_fault = np.array([[1.,1.,1.]])
         self.pembedded_matrix = np.array([[0.,0.,0.]])
-        self.res_type = 'random'
         self.repeats = 1
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
         self.resistivity = None
         self.permeability_matrix = 1.e-18
-        self.fracture_diameter = 1.e-3
         self.mu = 1.e-3 #default is for freshwater at 20 degrees 
-        self.faultlength_max = None
-        self.faultlength_decay = 5. 
+        self.fault_dict = dict(fractal_dimension=2.5,
+                               separation = 1e-4,
+                               offset = 0,
+                               length_max = None,
+                               length_decay = 5.,
+                               mismatch_frequency_cutoff = None,
+                               elevation_standard_deviation = 1e-4,
+                               aperture_assignment = 'random')
+        self.fault_array = None                       
+        self.fault_edges = None
+        self.fault_assignment = 'random' # how to assign faults, 'random' or 'list'
         self.outfile = 'outputs'                        
         self.arguments = sys.argv[1:]
         self.solve_properties = 'currentfluid'
@@ -535,7 +568,7 @@ class RandomResistorSuite():
             header += '# resistivity_matrix (ohm-m) {}\n'.format(self.resistivity_matrix)
             header += '# resistivity_fluid (ohm-m) {}\n'.format(self.resistivity_fluid)
             header += '# permeability_matrix (m^2) {}\n'.format(self.permeability_matrix)
-            header += '# fracture diameter (m) {}\n'.format(self.fracture_diameter)
+            header += '# fracture diameter (m) {}\n'.format(self.fault_dict['separation'])
             header += '# fluid viscosity {}\n'.format(self.mu)
             header += '# fracture max length {}\n'.format(self.faultlength_max)
             header += '# fracture length decay {}\n'.format(self.faultlength_decay)

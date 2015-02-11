@@ -103,7 +103,6 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
             if mm[1]-mm[0] == 0:
                 direction = int(i)
                 break
-    print(direction)
     if direction is None:
         print("invalid fault minmax values, minimum must be same as max in one direction")
         return
@@ -112,10 +111,7 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
             fvals = np.zeros(3)
             fvals[-(direction+i)] = 1.
             fvals[direction] = 1.
-            print(fvals)
-            print(fault_mm[2,0],fault_mm[2,1]+fvals[2],"fvals[2]",fvals[2],
-                  fault_mm[1,0],fault_mm[1,1]+fvals[1],"fvals[1]",fvals[1],
-                  fault_mm[0,0],fault_mm[0,1]+fvals[0],"fvals[0]",fvals[0])
+
             fault_array[fault_mm[2,0]:fault_mm[2,1]+fvals[2],
                         fault_mm[1,0]:fault_mm[1,1]+fvals[1],
                         fault_mm[0,0]:fault_mm[0,1]+fvals[0],i] = 1.
@@ -128,7 +124,7 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
 
     return fault_array,np.array(faultuvw)
 
-def initialise_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
+def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     """ 
     
     Initialising faults from a pool - random location, orientation (i.e. in the 
@@ -165,7 +161,6 @@ def initialise_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
         d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
         # no faults smaller than one cell
         d[d<1.] = 1.
-        print(np.ceil(d))
         # pick orientation for the fault according to relative probability p
         fo = np.random.choice(np.arange(3),p=pnorm)
         # reset width (normal to plane of fault)
@@ -200,9 +195,10 @@ def initialise_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     return fault_array_final,np.array(faults)
 
 
-def assign_fault_aperture(fault_array,faultedges, 
-                          fault_dz=0.,separation=1e-4, offset=0, 
-                          D = 2.5, fc = None, dx = 1e-3, std = 1e-4):
+def assign_fault_aperture(fault_array,fault_uvw, separation=1e-4, offset=0, 
+                          fractal_dimension = 2.5, 
+                          mismatch_frequency_cutoff = None, 
+                          elevation_standard_deviation = 1e-4):
     """
     take a fault array and assign aperture values. This is done by creating two
     identical fault surfaces then separating them (normal to fault surface) and 
@@ -218,22 +214,26 @@ def assign_fault_aperture(fault_array,faultedges,
 
     fault_array = array containing 1 (fault), 0 (matrix), or nan (outside array)
                   shape (nx,ny,nz,3), created using initialise_faults
-    faults = array or list containing u,v,w extents of faults, optional but 
-             speeds up process.
-    fault_dz, float = adjacent points on fault surface are separated by a 
-                      random value between +fault_dz/2 and -fault_dz/2, in metres
+    fault_uvw = array or list containing u,v,w extents of faults
     separation, float = fault separation normal to fault surface, in metres
     offset, integer = number of cells horizontal offset between surfaces.
- 
-    
+    fractal_dimension, integer = fractal dimension of surface, recommended in 
+                                 range [2.,2.5]
+    mismatch_frequency_cutoff, integer = cutoff frequency for matching of 
+                                         surfaces, default 3% of fault plane 
+                                         size
+    elevation_standard_deviation, integer = standard deviation of the height 
+                                            of the fault surface
+       
     ===========================================================================    
     """
     fault_array = _add_nulls(fault_array)
     
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] 
     aperture_array = np.zeros_like(fault_array) # yz, xz and xy directions
+    bvals = []
 
-    for i, nn in enumerate(faultedges):
+    for i, nn in enumerate(fault_uvw):
         u0,v0,w0 = np.amin(nn, axis=(1,2))
         u1,v1,w1 = np.amax(nn, axis=(1,2))
         duvw = np.array([u1-u0,v1-v0,w1-w0])
@@ -247,62 +247,36 @@ def assign_fault_aperture(fault_array,faultedges,
         direction = list(duvw).index(0)
         
         # define cutoff frequency for correlation
-        if fc is None:
-            fc = size*3e-4
-        h1,h2 = _build_fault_pair(size,fc,D,std)
+        if mismatch_frequency_cutoff is None:
+            mismatch_frequency_cutoff = size*3e-4
+        h1,h2 = _build_fault_pair(size,
+                                  mismatch_frequency_cutoff,
+                                  fractal_dimension,
+                                  elevation_standard_deviation)
         
         if offset > 0:
             b = h1[offset:,offset:] - h2[:-offset,:-offset] + separation
         else:
             b = h1 - h2 + separation
                          
-        b[b <= 0.] = 1e-8
+        b[b <= 0.] = 1e-20
         b0 = stats.hmean(np.array([b[:,1:],b[:,:-1]]),axis=0)
         b1 = stats.hmean(np.array([b[1:],b[:-1]]),axis=0)
         cb = np.array(np.shape(b))*0.5
 #            print(np.shape(aperture_array),np.shape(b),cb,sx,sy,sz)
         if direction == 0:
-            aperture_array[w0:w1+1,v0:v1,u0,1] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
-            aperture_array[w0:w1,v0:v1+1,u0,2] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+            aperture_array[w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
+            aperture_array[w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
         elif direction == 1:
-            aperture_array[w0:w1+1,v0,u0:u1,0] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-            aperture_array[w0:w1,v0,u0:u1+1,2] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+            aperture_array[w0:w1+1,v0,u0:u1,0] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+            aperture_array[w0:w1,v0,u0:u1+1,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
         elif direction == 2:
-            aperture_array[w0,v0:v1+1,u0:u1,0] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-            aperture_array[w0,v0:v1,u0:u1+1,1] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
-
+            aperture_array[w0,v0:v1+1,u0:u1,0] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+            aperture_array[w0,v0:v1,u0:u1+1,1] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+        bvals.append([b,b0,b1])
     aperture_array *= fault_array
-    return aperture_array
+    return aperture_array,bvals
         
-
-def assign_random_resistivity(aperture_array,r_matrix,r_fluid):
-    """ 
-    
-    Initialising faults from a pool - random location, orientation (i.e. in the 
-    xz, xy or zy plane), length and width. Translate these onto an array.
-    
-    =================================inputs====================================
-    n = list containing number of cells in x, y and z directions [nx,ny,nz]
-    p = probability of connection in yz, xz and xy directions [pyz,pxz,pxy]
-    r_matrix, r_fluid = resistivity of matrix and fluid
-    faultlengthmax =  maximum fault length for network
-    decayfactor = defines the shape of the fault length distribution. 
-                  Fault length follows a decaying distribution so that longer
-                  faults are more probable than shorter faults:
-                  fl = faultlengthmax*e^(-ax) where x ranges from 0 to 1 and
-                  a is the decay factor
-    ===========================================================================
-    """
-    return
-#    res_array = np.ones_like(aperture_array)*r_matrix
-#    nz,ny,nx, = np.array(np.shape(res_array))[:-1] - 2
-#    for k in range(1,nz+1):
-#        for j in range(1,ny+1):
-#            for i in range(1,nx+1):
-#                if aperture_array[k,j,i] is not nan 
-#    
-    
-
 
 def get_unique_values(inarray,log=False):
     
@@ -351,79 +325,84 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     aperture_array = array containing fault apertures
     r_matrix, r_fluid = resistivity of matrix and fluid
     d = list containing cell size (length of connector) in x,y and z directions 
-    [dx,dy,dz]
+    [dx,dy,dz] or float/integer if d is the same in all directions
     
     ===========================================================================
     """
     
     res_array = np.zeros_like(aperture_array)
+    if type(d) in [float,int]:
+        d = [float(d)]*3
+        
     # ly, the width of each cell
     ly = [d[1],d[2],d[0]]
     # ln, the width normal to the cell
     ln = [d[2],d[0],d[1]]
 
     for i in range(3):
-        res_array[:,:,:,i] = 1./(aperture_array[:,:,:,i]*ly[i]/(r_fluid*d[i])+\
-                                 (ln[i]-aperture_array[:,:,:,i])*ly[i]/(r_matrix*d[i]))
-        res_array[:,:,:,i][aperture_array[:,:,:,i]==0.] = r_matrix*d[i]/(ly[i]*ln[i])
+        res_array[:,:,:,i] = 1./((ln[i]-aperture_array[:,:,:,i])/r_matrix +\
+                                        aperture_array[:,:,:,i]/r_fluid)*d[i]/ly[i]
 
     return res_array
 
-def get_electrical_resistance_old(res,r_matrix,r_fluid,d,fracture_diameter):
+
+def get_permeability(aperture_array,k_matrix,d):
     """
-    
-    returns a numpy array containing resistance values 
+    calculate permeability based on an aperture array
     
     =================================inputs====================================
+    aperture_array = array containing fault apertures
+    k_matrix = permeability of matrix
     d = list containing cell size (length of connector) in x,y and z directions 
-    [dx,dy,dz]
-    
-    phiz = porosity from fractures in z direction
-    res = resistivity arry containing x,y,z resistivities.
-          shape [nz+2,ny+2,nx+2,3]
-    r_matrix, r_fluid = resistivity of matrix and fluid
-    ===========================================================================
-    """
-    
-    phi = get_phi(d,fracture_diameter)
-    res = 1.*res
-    
-    for i in range(3):
-        # area of the cell
-        acell = np.product([d[ii] for ii in range(3) if ii != i])
-        # convert resistivities to resistances
-        # first, resistance in an open node: harmonic mean of resistance in
-        # fracture and resistance in surrounding rockmass. 
-        res[:,:,:,i][(res[:,:,:,i]==r_fluid)&(np.isfinite(res[:,:,:,i]))] = \
-        d[i]/(acell*((phi[i]/r_fluid) + (1.-phi[i])/r_matrix))
-        # second, resistance in a closed node, r = rho*length/width
-        res[:,:,:,i][res[:,:,:,i]==r_matrix] = d[i]*r_matrix/acell
-
-    return res
-
-
-def get_permeability(res,r_fluid,k_matrix,fracture_diameter):
-    """
-
-
-
-    calculate permeability based on a resistivity array
-    
-    =================================inputs====================================
-    res_array = numpy array containing resistivity
-    r_fluid = resistivity of fluid, in ohm-m
-    k_matrix = permeability of matrix, in m^2
-    fracture_diameter = fracture diameter
+    [dx,dy,dz] or float/integer if d is the same in all directions
     ===========================================================================    
     """
-    permeability = np.ones_like(res)*k_matrix        
-    permeability[res==r_fluid] = fracture_diameter**2/32.
-    permeability[np.isnan(res)] = np.nan
+    permeability_array = np.ones_like(aperture_array)*k_matrix        
+    if type(d) in [float,int]:
+        d = [float(d)]*3
+
+    # ln, the width normal to the cell
+    ln = [d[2],d[0],d[1]]
+
+    for i in range(3):
+        permeability_array[:,:,:,i] = aperture_array[:,:,:,i]**2/12. + \
+                                      (ln[i]-aperture_array[:,:,:,i])*k_matrix
     
-    return permeability
+    return permeability_array
 
 
-def get_hydraulic_resistance(k,k_matrix,d,fracture_diameter,mu=1e-3):
+def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
+    """
+    calculate hydraulic resistance based on a hydraulic permeability array
+    
+    =================================inputs====================================
+    aperture_array = array containing fault apertures
+    k_matrix = permeability of matrix
+    d = list containing cell size (length of connector) in x,y and z directions 
+    [dx,dy,dz] or float/integer if d is the same in all directions
+    mu = viscosity of fluid
+    ===========================================================================
+    
+    """
+    hydraulic_resistance = np.ones_like(aperture_array)
+   
+    if type(d) in [float,int]:
+        d = [float(d)]*3
+
+    # ly, the width of each cell
+    ly = [d[1],d[2],d[0]]
+    # ln, the width normal to the cell
+    ln = [d[2],d[0],d[1]]
+
+    for i in range(3):
+        hydraulic_resistance[:,:,:,i] = mu*d[i]/(ly[i]*(aperture_array[:,:,:,i]**3/12.\
+                                        +k_matrix*(ln[i]-aperture_array[:,:,:,i])))
+
+    return hydraulic_resistance
+
+
+
+def get_hydraulic_resistance_old(k,k_matrix,d,fracture_diameter,mu=1e-3):
     """
     calculate hydraulic resistance based on a hydraulic permeability array
     
