@@ -441,8 +441,7 @@ class RandomResistorSuite():
                     'length_max',
                     'length_decay',
                     'mismatch_frequency_cutoff',
-                    'elevation_standard_deviation',
-                    'aperture_assignment']:
+                    'elevation_standard_deviation']:
                         parser.add_argument('--'+arg, type=float, nargs = '*')
         parser.add_argument('--fault_edges',type=int,nargs='*')    
         parser.add_argument('--aperture_assignment',
