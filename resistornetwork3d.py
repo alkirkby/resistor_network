@@ -523,9 +523,6 @@ class RandomResistorSuite():
         
         return list_of_inputs
 
-        self.fault_array = None                       
-        self.fault_edges = None
-        self.fault_assignment = 'random'
 
         
         
