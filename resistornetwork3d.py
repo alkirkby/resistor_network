@@ -619,8 +619,8 @@ class RandomResistorSuite():
             header += '# permeability_matrix (m^2) {}\n'.format(self.permeability_matrix)
             header += '# fracture diameter (m) {}\n'.format(self.fault_dict['fault_separation'])
             header += '# fluid viscosity {}\n'.format(self.mu)
-            header += '# fracture max length {}\n'.format(self.faultlength_max)
-            header += '# fracture length decay {}\n'.format(self.faultlength_decay)
+            header += '# fracture max length {}\n'.format(self.fault_dict['length_max'])
+            header += '# fracture length decay {}\n'.format(self.fault_dict['length_decay'])
             header += '# ncells {} {} {}\n'.format(self.ncells[0],
                                                    self.ncells[1],
                                                    self.ncells[2])
