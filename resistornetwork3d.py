@@ -378,6 +378,11 @@ class RandomResistorSuite():
         if type(self.cellsize) in [float,int]:
             self.cellsize = np.ones(3)*self.cellsize
 
+        if type(self.fault_dict['fault_separation']) == float:
+            self.fault_dict['fault_separation'] = [self.fault_dict['fault_separation']]
+        if type(self.fault_dict['elevation_standard_deviation']) == float:
+            self.fault_dict['elevation_standard_deviation'] = [self.fault_dict['elevation_standard_deviation']]
+
         
         self.setup_and_run_suite()
 
