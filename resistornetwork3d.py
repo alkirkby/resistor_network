@@ -382,7 +382,6 @@ class RandomResistorSuite():
             self.fault_dict['fault_separation'] = [self.fault_dict['fault_separation']]
         if type(self.fault_dict['elevation_standard_deviation']) == float:
             self.fault_dict['elevation_standard_deviation'] = [self.fault_dict['elevation_standard_deviation']]
-
         
         self.setup_and_run_suite()
 
@@ -476,16 +475,18 @@ class RandomResistorSuite():
                     while np.size(at[1])%3 != 0:
                         at[1].append(at[1][-1])
                     # reshape
-                    at[1] = np.array(at[1]).reshape(len(at[1])/3,3)
-                if at[0] == 'fault_edges':
-                    if np.size(at[1])%6 != 6:
-                        pass
+                    self.input_parameters[at[0]] = np.array(at[1]).reshape(len(at[1])/3,3)
+                elif at[0] == 'fault_edges':
+                    if np.size(at[1])%6 != 0:
+                        print "fault edges are incorrect size!!"
                     else:
                         fault_edges = []
-                        for i in range(np.size(at[1])/6):
-                            fault_edges.append(np.array(at[0][i*6:(i+1)*6]).reshape(3,2))
-                        fault_edges = np.array(fault_edges)
-                self.input_parameters[at[0]] = at[1]
+                        for i in range(int(np.size(at[1])/6)):
+                            fault_edges.append(np.array(at[1][i*6:(i+1)*6]).reshape(3,2))
+                            print fault_edges
+                        self.input_parameters[at[0]] = np.array(fault_edges)
+                else:
+                    self.input_parameters[at[0]] = at[1]
 
 
     def initialise_inputs(self):
@@ -495,6 +496,9 @@ class RandomResistorSuite():
 
         list_of_inputs = []
         parameter_list = [v for v in dir(self) if v[0] != '_']
+        fdkeys = [k for k in self.fault_dict.keys() if k not in ['fault_separation','elevation_standard_deviation']]
+        parameter_list += fdkeys
+
         print self.fault_dict['fault_separation']
         for r in range(self.repeats):
             for pc in self.pconnection:
@@ -504,7 +508,8 @@ class RandomResistorSuite():
                             for fs in self.fault_dict['fault_separation']:
                                 input_dict = {} 
                                 for key in parameter_list:
-                                    if key in ['fracture_diameter',
+                                    if key in ['fault_assignment',
+                                               'fault_edges',
                                                'permeability_matrix',
                                                'resistivity_matrix',
                                                'resistivity_fluid',
@@ -514,14 +519,14 @@ class RandomResistorSuite():
                                                'ncells',
                                                'cellsize']:
                                         input_dict[key] = getattr(self,key)
+                                    elif key in fdkeys:
+                                        input_dict[key] = self.fault_dict[key]
                                 input_dict['fault_separation'] = fs
                                 input_dict['elevation_standard_deviation'] = sd
                                 input_dict['pconnection'] = pc
                                 input_dict['pembedded_fault'] = pef
                                 input_dict['pembedded_matrix'] = pem
                                 list_of_inputs.append(input_dict)
-        
-        return list_of_inputs
 
 
         
