@@ -859,5 +859,5 @@ def divide_inputs(work_to_do,size):
     chunks = [[] for _ in range(size)]
     for i,d in enumerate(work_to_do):
         chunks[i%size].append(d)
-
+    print(chunks)
     return chunks

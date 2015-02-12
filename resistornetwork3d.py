@@ -528,7 +528,7 @@ class RandomResistorSuite():
                                 input_dict['pembedded_matrix'] = pem
                                 list_of_inputs.append(input_dict)
 
-
+        return list_of_inputs
         
         
     def run(self,list_of_inputs,rank,wd):
@@ -598,13 +598,16 @@ class RandomResistorSuite():
         outputs_gathered = comm.gather(r_objects,root=0)
          
         if rank == 0:
-
+            print "gathering outputs..",
             # flatten list, outputs currently a list of lists
             og2 = []
+            count = 1
             for group in outputs_gathered:
                 for ro in group:
                     og2.append(ro)
-                    
+                    print count,
+                    count += 1
+            print "gathered outputs into list, now sorting"
             results = {}
             for prop in ['resistivity_bulk','permeability_bulk']:
                 if hasattr(ro,prop):
@@ -612,6 +615,7 @@ class RandomResistorSuite():
                                                          [ro.fault_dict['fault_separation']],
                                                          [ro.fault_dict['elevation_standard_deviation']],
                                                          getattr(ro,prop)]) for ro in og2])
+            print "outputs sorted, now writing to a text file, define header"
             # save results to text file
             # first define header
             header  = '# resistor network models - results\n'
@@ -629,7 +633,7 @@ class RandomResistorSuite():
                                                               self.cellsize[1],
                                                               self.cellsize[2])
             header += ' '.join(['# px','py','pz','fault_sep','elev_sd','propertyx','propertyy','propertyz'])
-
+            "header defined"
             for rr in results.keys():
                 np.savetxt(os.path.join(self.wd,rr+'.dat'),np.array(results[rr]),
                            comments='',
