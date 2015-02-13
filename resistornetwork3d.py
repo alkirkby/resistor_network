@@ -549,7 +549,7 @@ class RandomResistorSuite():
             r_objects.append(ro)
             print "run {} completed".format(r)
             for prop in ['resistivity','permeability',
-                         'current','flowrate']:
+                         'current','flowrate','aperture_array']:
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
                         getattr(ro,prop)
                         )
