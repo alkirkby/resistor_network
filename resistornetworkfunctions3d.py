@@ -261,7 +261,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         else:
             b = h1 - h2 + fault_separation
                          
-        b[b <= 0.] = 1e-20
+        b[b <= 0.] = 1e-50
         b0 = stats.hmean(np.array([b[:,1:],b[:,:-1]]),axis=0)
         b1 = stats.hmean(np.array([b[1:],b[:-1]]),axis=0)
         cb = np.array(np.shape(b))*0.5
