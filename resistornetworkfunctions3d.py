@@ -92,6 +92,57 @@ def _add_nulls(in_array):
     
     return in_array
 
+
+def _correct_aperture_geometry(faultsurface_1,aperture,dl,propertyname):
+    """
+    correct an aperture array for geometry, e.g. tapered plates or sloping
+    plates
+    
+    """
+    dl = 1e-3 # spacing in the x and y direction
+    ny,nx = np.array(aperture.shape).astype(int)
+    # rename faultsurface and aperture_array so they are shorter
+    s1 = faultsurface_1
+    
+    # first, get aperture values at the centres of the cells
+    b = np.mean([aperture[:-1,:-1],aperture[:-1,1:],
+                 aperture[1:,:-1],aperture[1:,1:]])
+    
+    # surface 2 elevation
+    s2 = s1 + b
+    
+    # mean surface elevation
+    rz = np.mean([s1,s2],axis=0)
+    
+    # x, y positions of surface
+    rx,ry = np.meshgrid(np.linspace(0.,ny*dl,ny+1),np.linspace(0,nx*dl,nx+1))
+    
+    # distance between mid points in x and y directions, slightly > dl
+    dr = np.array([((dl)**2 + (rz[:-1,:-1]-rz[:-1,1:])**2)**0.5,
+                   ((dl)**2 + (rz[:-1,:-1]-rz[1:,:-1])**2)**0.5])
+                   
+    # nz - z component of normal vector to mid point between plates
+    nz = dr/dl
+    
+    # kappa - correction factor for undulation defined in x and y directions
+    kappa = nz*dl/dr
+    
+    # beta - correction factor when applying harmonic mean, for current it is equal to kappa
+    betaf = nz**3*dl/dr
+    betac = kappa.copy()
+    
+    # theta, angle of tapered plates for correction, defined in x and y directions
+    theta = np.array([np.arctan(kappa[0]*np.abs(b[:-1,:-1]-b[:-1,1:])/dl),
+                      np.arctan(kappa[1]*np.abs(b[:-1,:-1]-b[1:,:-1])/dl)])
+    
+    # corrected b**3, defined in x and y directions
+    b3 = np.array([(2*b[:-1,:-1]**2*b[:-1,1:]**2/(b[:-1,:-1]+b[:-1,1:]))*3*(np.tan(theta[0])-theta[0])/(np.tan(theta[0]))**3,
+                   (2*b[:-1,:-1]**2*b[1:,:-1]**2/(b[:-1,:-1]+b[1:,:-1]))*3*(np.tan(theta[1])-theta[1])/(np.tan(theta[1]))**3])
+    b3[theta==0.] = 1e-150
+    b = b3**(1/3)
+    
+    return b,betaf,betac
+
 def add_fault_to_array(fault_mm,fault_array,direction=None):
     """
     
@@ -196,11 +247,13 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
 
 
 def assign_fault_aperture(fault_array,fault_uvw, 
+                          dl = 1e-3,
                           fault_separation=1e-4, 
                           offset=0, 
                           fractal_dimension = 2.5, 
                           mismatch_frequency_cutoff = None, 
-                          elevation_standard_deviation = 1e-4):
+                          elevation_standard_deviation = 1e-4,
+                          correct_for_geometry = True):
     """
     take a fault array and assign aperture values. This is done by creating two
     identical fault surfaces then separating them (normal to fault surface) and 
@@ -208,15 +261,19 @@ def assign_fault_aperture(fault_array,fault_uvw,
     calculated as the difference between the two surfaces, and negative values
     are set to zero.
     To get a planar fault, set fault_dz to zero.
-    Returns: numpy array containing x,y,z aperture values, numpy array
+    Returns: numpy array containing aperture values, numpy array
              containing geometry corrected aperture values for hydraulic flow
-             simulation [after Brush and Thomson 2003, Water Resources Research]
+             simulation [after Brush and Thomson 2003, Water Resources Research],
+             and numpy array containing corrected aperture values for electric
+             current. different in x, y and z directions.
+             
     
     =================================inputs====================================
 
     fault_array = array containing 1 (fault), 0 (matrix), or nan (outside array)
                   shape (nx,ny,nz,3), created using initialise_faults
     fault_uvw = array or list containing u,v,w extents of faults
+    dl = cellsize in metres, has to be same in x and y directions
     separation, float = fault separation normal to fault surface, in metres
     offset, integer = number of cells horizontal offset between surfaces.
     fractal_dimension, integer = fractal dimension of surface, recommended in 
@@ -226,6 +283,8 @@ def assign_fault_aperture(fault_array,fault_uvw,
                                          size
     elevation_standard_deviation, integer = standard deviation of the height 
                                             of the fault surface
+    correct_for_geometry, True/False, whether or not to correct aperture for
+                                      geometry
        
     ===========================================================================    
     """
@@ -241,8 +300,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
         duvw = np.array([u1-u0,v1-v0,w1-w0])
         du,dv,dw = (duvw*0.5).astype(int)
 
-        # define size, add some padding to account for edge effects     
-        size = int(np.amax(duvw)*1.2 + offset)
+        # define size, add some padding to account for edge effects and make 
+        # the fault square as I am not sure if fft is working properly for non-
+        # square geometries
+        size = int(np.amax(duvw)(1.+max(0.2*np.amax(duvw),4)) + offset)
         size += size%2
         
         # define direction normal to fault
@@ -260,12 +321,20 @@ def assign_fault_aperture(fault_array,fault_uvw,
             b = h1[offset:,offset:] - h2[:-offset,:-offset] + fault_separation
         else:
             b = h1 - h2 + fault_separation
-                         
-        b[b <= 0.] = 1e-50
-        b0 = stats.hmean(np.array([b[:,1:],b[:,:-1]]),axis=0)
-        b1 = stats.hmean(np.array([b[1:],b[:-1]]),axis=0)
+            
+        # set zero values to really low value to allow averaging
+        b[b <= 1e-50] = 1e-50
         cb = np.array(np.shape(b))*0.5
-#            print(np.shape(aperture_array),np.shape(b),cb,sx,sy,sz)
+        
+        if correct_for_geometry:
+            bf,beta = _correct_aperture_geometry(h1[offset:,offset:],b,dl,'fluid')
+            
+        else:
+            bf,beta = b.copy(),np.ones(2)
+        
+        bf0 = stats.hmean(np.array([beta[0]*bf[:,1:],beta[0]*bf[:,:-1]]),axis=0)
+        bf1 = stats.hmean(np.array([beta[1]*bf[1:],beta[1]*bf[:-1]]),axis=0)
+        
         if direction == 0:
             aperture_array[w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
             aperture_array[w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
@@ -278,7 +347,9 @@ def assign_fault_aperture(fault_array,fault_uvw,
         bvals.append([b,b0,b1])
     aperture_array *= fault_array
     return aperture_array,bvals
-        
+
+
+
 
 def get_unique_values(inarray,log=False):
     
@@ -694,6 +765,7 @@ def build_matrix3d(resistance):
                      np.hstack([rows1,rows2,rows3]),\
                      np.hstack([cols1,cols2,cols3])
     m = sparse.coo_matrix((data,(rows,cols)), shape=(nfree+1,nfree))
+    # take out central row to make the matrix square
     mc = sparse.bmat([[m.tocsr()[:int(nn/2)]],[m.tocsr()[int(nn/2)+1:]]]).tocsr()
     b = np.zeros(nfree)
     b[nn+nc-1:-1] = 1.
