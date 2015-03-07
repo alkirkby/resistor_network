@@ -128,14 +128,14 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     
     # aperture and height values at plane between nodes
     s1p = np.mean([s1[:-1,:-1],s1[1:,1:],s1[1:,:-1],s1[:-1,1:]],axis=0)
-    bp = [np.mean([bn[0][:,:-1],bn[0][:,1:]]),
-          np.mean([bn[1][:-1],bn[1][1:]])]
+    bp = [np.mean([bn[0][:,:-1],bn[0][:,1:]],axis=0),
+          np.mean([bn[1][:-1],bn[1][1:]],axis=0)]
     s2p = [s1p[i] + bp[i] for i in range(2)]
     
     
     # midpoint elevation at nodes and planes
     rzn = [np.mean([s1n[i],s2n[i]],axis=0) for i in range(2)]
-    rzp = np.mean([s1p[i],s2p[i]],axis=0)
+#    rzp = np.mean([s1p[i],s2p[i]],axis=0)
     
     # distance between node points, slightly > dl
 #    print(rzn)
@@ -152,14 +152,22 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     betaf = [nz[i]**3*dl/dr[i] for i in range(2)]
     betac = [nz[i]*dl/dr[i] for i in range(2)]
     
-    # theta, angle of tapered plates for correction, defined in x and y directions
+    # theta, relative angle of tapered plates for correction, defined in x and y directions
 
-    theta = np.array([np.arctan(kappa[0]*np.abs(bn[0][:,:-1]-bn[0][:,1:])/dl),
-                      np.arctan(kappa[1]*np.abs(bn[1][:-1,:]-bn[1][1:,:])/dl)])
-    
+#    theta = 2*np.array([np.arctan(0.5*kappa[0]*np.abs(bn[0][:,:-1]-bn[0][:,1:])/dl),
+#                        np.arctan(0.5*kappa[1]*np.abs(bn[1][:-1,:]-bn[1][1:,:])/dl)])
+
+    theta = np.abs(np.array([np.arctan((s1n[0][:,:-1]-s1n[0][:,1:])/dl) -\
+                             np.arctan((s2n[0][:,:-1]-s2n[0][:,1:])/dl),
+                             np.arctan((s1n[1][:-1]-s1n[1][1:])/dl) -\
+                             np.arctan((s2n[1][:-1]-s2n[1][1:])/dl)]))
+                        
     # corrected b**3, defined in x and y directions, and comprising first and 
     # second half volumes
     tf = 3*(np.tan(theta)-theta)/((np.tan(theta))**3)
+    # tf is undefined for theta = 0 (0/0) so need to fix this, should equal 1 
+    # (i.e. parallel plates)
+    tf[theta==0.] = 1.
     bf3beta = np.array([[(2*bn[0][:,1:]**2*bp[0]**2/(bn[0][:,1:]+bp[0]))*tf[0]*betaf[0],
                          (2*bn[0][:,:-1]**2*bp[0]**2/(bn[0][:,:-1]+bp[0]))*tf[0]*betaf[0]],
                         [(2*bn[1][1:]**2*bp[1]**2/(bn[1][1:]+bp[1]))*tf[1]*betaf[1],
@@ -167,8 +175,8 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     bf3beta[np.isnan(bf3beta)] = 1e-150
     bf3 = stats.hmean(bf3beta,axis=1)
     b = bf3**(1./3.)
-    
-    return b,bf3,tf,kappa,betaf,betac
+
+    return b,bf3,bn,theta,tf,kappa,betaf,betac,bp,bf3beta
     
 
 def add_fault_to_array(fault_mm,fault_array,direction=None):
