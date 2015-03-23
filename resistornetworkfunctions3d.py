@@ -117,23 +117,34 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     # rename faultsurface_1 to make it shorter
     s1 = faultsurface_1
     
+    # midpoint at original nodes
+    rz = faultsurface_1 + aperture/2.
+    
     aperture[aperture<1e-50] = 1e-50    
     
     # aperture and height values at nodes
     s1n = [np.mean([s1[:-1],s1[1:]],axis=0),
            np.mean([s1[:,:-1],s1[:,1:]],axis=0)]
-    bn = [np.mean([aperture[:-1]**3,aperture[1:]**3],axis=0)**(1./3.),
-          np.mean([aperture[:,:-1]**3,aperture[:,1:]**3],axis=0)**(1./3.)]
+           
+    # mean vertical hydraulic aperture, defined based on the cube of the aperture as 
+    # fluid flow is defined based on the cube
+    bn = [np.mean([aperture[:-1]**3.,aperture[1:]**3.],axis=0)**(1./3.),
+          np.mean([aperture[:,:-1]**3.,aperture[:,1:]**3.],axis=0)**(1./3.)]
     s2n = [s1n[i] + bn[i] for i in range(2)]
     
+    # rzp = z component of normal vector perpendicular to flow
+    rzp = [dl/((rz[:-1]-rz[1:])**2.+dl**2.)**0.5,
+           dl/((rz[:,:-1]-rz[:,1:])**2.+dl**2.)**0.5] 
+           
+           
     # aperture and height values at plane between nodes
     s1p = np.mean([s1[:-1,:-1],s1[1:,1:],s1[1:,:-1],s1[:-1,1:]],axis=0)
     bp = [np.mean([bn[0][:,:-1],bn[0][:,1:]],axis=0),
           np.mean([bn[1][:-1],bn[1][1:]],axis=0)]
-    s2p = [s1p[i] + bp[i] for i in range(2)]
+#    s2p = [s1p[i] + bp[i] for i in range(2)]
     
     
-    # midpoint elevation at nodes and planes
+    # midpoint elevation at nodes
     rzn = [np.mean([s1n[i],s2n[i]],axis=0) for i in range(2)]
 #    rzp = np.mean([s1p[i],s2p[i]],axis=0)
     
@@ -143,13 +154,17 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
           ((dl)**2 + (rzn[1][:-1,:]-rzn[1][1:,:])**2)**0.5]
                    
     # nz - z component of unit normal vector from mid point of plates
-    nz = [dl/dr[i] for i in range(2)]
+    nz = [dl*rzp[0][:,:-1]/dr[0],#
+          dl*rzp[1][:-1]/dr[1]]#
+    
+
+    
     
     # kappa - correction factor for undulation defined in x and y directions
     kappa = [nz[i]*dl/dr[i] for i in range(2)]
     
     # beta - correction factor when applying harmonic mean, for current it is equal to kappa
-    betaf = [nz[i]**3*dl/dr[i] for i in range(2)]
+    betaf = [nz[i]**3.*dl/dr[i] for i in range(2)]
     betac = [nz[i]*dl/dr[i] for i in range(2)]
     
     # theta, relative angle of tapered plates for correction, defined in x and y directions
@@ -168,15 +183,39 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     # tf is undefined for theta = 0 (0/0) so need to fix this, should equal 1 
     # (i.e. parallel plates)
     tf[theta==0.] = 1.
-    bf3beta = np.array([[(2*bn[0][:,1:]**2*bp[0]**2/(bn[0][:,1:]+bp[0]))*tf[0]*betaf[0],
-                         (2*bn[0][:,:-1]**2*bp[0]**2/(bn[0][:,:-1]+bp[0]))*tf[0]*betaf[0]],
-                        [(2*bn[1][1:]**2*bp[1]**2/(bn[1][1:]+bp[1]))*tf[1]*betaf[1],
-                         (2*bn[1][:-1]**2*bp[1]**2/(bn[1][:-1]+bp[1]))*tf[1]*betaf[1]]])
+    bf3beta = np.array([[(2.*bn[0][:,1:]**2*bp[0]**2/(bn[0][:,1:]+bp[0]))*tf[0]*betaf[0],
+                         (2.*bn[0][:,:-1]**2*bp[0]**2/(bn[0][:,:-1]+bp[0]))*tf[0]*betaf[0]],
+                        [(2.*bn[1][1:]**2*bp[1]**2/(bn[1][1:]+bp[1]))*tf[1]*betaf[1],
+                         (2.*bn[1][:-1]**2*bp[1]**2/(bn[1][:-1]+bp[1]))*tf[1]*betaf[1]]])
     bf3beta[np.isnan(bf3beta)] = 1e-150
-    bf3 = stats.hmean(bf3beta,axis=1)
+
+    # initialise an array to contain averaged bf**3 values
+    bf3 = np.ones((2,ny-1,nx-1))
+    
+    # x values
+    # first column, only one half volume
+    bf3[0,:,0] = bf3beta[0,1,:,0]/rzp[0][:,0]
+    # remaining columns, harmonic mean of 2 adjacent columns
+    bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
+#    print("bf3**(1./3.)x",bf3[0]**(1./3.))
+
+    bf3[0,:,1:] /= rzp[0][:,1:-1]
+
+    # y values
+    # first row, only one half volume (second half volume)
+    bf3[1,0] = bf3beta[1,1,0]/rzp[1][0]
+#    print(bf3**(1./3.))
+    # remaining rows, harmonic mean of 2 adjacent rows
+    bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
+#    print(bf3**(1./3.))
+#    print("bf3**(1./3.)y",bf3[1]**(1./3.))
+#    print(np.average([rzp[1][1:],rzp[1][:-1]],axis=0))
+#    print(bf3[1]**(1./3.))
+    bf3[1,1:] = bf3[1,1:]/rzp[1][1:-1]
+#    print(bf3[1]**(1./3.))
     b = bf3**(1./3.)
 
-    return b,bf3,bn,theta,tf,kappa,betaf,betac,bp,bf3beta
+    return b
     
 
 def add_fault_to_array(fault_mm,fault_array,direction=None):
