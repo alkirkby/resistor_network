@@ -131,12 +131,15 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     bn = [np.mean([aperture[:-1]**3.,aperture[1:]**3.],axis=0)**(1./3.),
           np.mean([aperture[:,:-1]**3.,aperture[:,1:]**3.],axis=0)**(1./3.)]
     s2n = [s1n[i] + bn[i] for i in range(2)]
-    
+
+    # midpoint elevation at nodes
+    rzn = [np.mean([s1n[i],s2n[i]],axis=0) for i in range(2)]
+
+   
     # rzp = z component of normal vector perpendicular to flow
-    rzp = [dl/((rz[:-1]-rz[1:])**2.+dl**2.)**0.5,
-           dl/((rz[:,:-1]-rz[:,1:])**2.+dl**2.)**0.5] 
-           
-           
+    rzp = [dl/((np.average([rz[1:,:-1],rz[1:,1:]],axis=0)-np.average([rz[:-1,:-1],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5,
+           dl/((np.average([rz[1:,:-1],rz[:-1,:-1]],axis=0)-np.average([rz[1:,1:],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5]    
+    
     # aperture and height values at plane between nodes
     s1p = np.mean([s1[:-1,:-1],s1[1:,1:],s1[1:,:-1],s1[:-1,1:]],axis=0)
     bp = [np.mean([bn[0][:,:-1],bn[0][:,1:]],axis=0),
@@ -144,8 +147,7 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
 #    s2p = [s1p[i] + bp[i] for i in range(2)]
     
     
-    # midpoint elevation at nodes
-    rzn = [np.mean([s1n[i],s2n[i]],axis=0) for i in range(2)]
+
 #    rzp = np.mean([s1p[i],s2p[i]],axis=0)
     
     # distance between node points, slightly > dl
@@ -154,9 +156,8 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
           ((dl)**2 + (rzn[1][:-1,:]-rzn[1][1:,:])**2)**0.5]
                    
     # nz - z component of unit normal vector from mid point of plates
-    nz = [dl*rzp[0][:,:-1]/dr[0],#
-          dl*rzp[1][:-1]/dr[1]]#
-    
+    nz = [dl*rzp[0]/dr[0],#
+          dl*rzp[1]/dr[1]]#
 
     
     
@@ -176,17 +177,17 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
                              np.arctan((s2n[0][:,:-1]-s2n[0][:,1:])/dl),
                              np.arctan((s1n[1][:-1]-s1n[1][1:])/dl) -\
                              np.arctan((s2n[1][:-1]-s2n[1][1:])/dl)]))
-                        
+             
     # corrected b**3, defined in x and y directions, and comprising first and 
     # second half volumes
     tf = 3*(np.tan(theta)-theta)/((np.tan(theta))**3)
     # tf is undefined for theta = 0 (0/0) so need to fix this, should equal 1 
     # (i.e. parallel plates)
     tf[theta==0.] = 1.
-    bf3beta = np.array([[(2.*bn[0][:,1:]**2*bp[0]**2/(bn[0][:,1:]+bp[0]))*tf[0]*betaf[0],
-                         (2.*bn[0][:,:-1]**2*bp[0]**2/(bn[0][:,:-1]+bp[0]))*tf[0]*betaf[0]],
-                        [(2.*bn[1][1:]**2*bp[1]**2/(bn[1][1:]+bp[1]))*tf[1]*betaf[1],
-                         (2.*bn[1][:-1]**2*bp[1]**2/(bn[1][:-1]+bp[1]))*tf[1]*betaf[1]]])
+    bf3beta = np.array([[(2.*bn[0][:,1:]**2*bp[0]**2/(bn[0][:,1:]+bp[0]))*tf[0]*betaf[0]/rzp[0],
+                         (2.*bn[0][:,:-1]**2*bp[0]**2/(bn[0][:,:-1]+bp[0]))*tf[0]*betaf[0]/rzp[0]],
+                        [(2.*bn[1][1:]**2*bp[1]**2/(bn[1][1:]+bp[1]))*tf[1]*betaf[1]/rzp[1],
+                         (2.*bn[1][:-1]**2*bp[1]**2/(bn[1][:-1]+bp[1]))*tf[1]*betaf[1]/rzp[1]]])
     bf3beta[np.isnan(bf3beta)] = 1e-150
 
     # initialise an array to contain averaged bf**3 values
@@ -194,28 +195,20 @@ def _correct_aperture_geometry(faultsurface_1,aperture,dl):
     
     # x values
     # first column, only one half volume
-    bf3[0,:,0] = bf3beta[0,1,:,0]/rzp[0][:,0]
+    bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
     # remaining columns, harmonic mean of 2 adjacent columns
     bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
-#    print("bf3**(1./3.)x",bf3[0]**(1./3.))
-
-    bf3[0,:,1:] /= rzp[0][:,1:-1]
 
     # y values
     # first row, only one half volume (second half volume)
-    bf3[1,0] = bf3beta[1,1,0]/rzp[1][0]
-#    print(bf3**(1./3.))
+    bf3[1,0] = bf3beta[1,1,0]#/rzp[1][0]
+
     # remaining rows, harmonic mean of 2 adjacent rows
     bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
-#    print(bf3**(1./3.))
-#    print("bf3**(1./3.)y",bf3[1]**(1./3.))
-#    print(np.average([rzp[1][1:],rzp[1][:-1]],axis=0))
-#    print(bf3[1]**(1./3.))
-    bf3[1,1:] = bf3[1,1:]/rzp[1][1:-1]
-#    print(bf3[1]**(1./3.))
-    b = bf3**(1./3.)
 
-    return b
+    bf = bf3**(1./3.)
+
+    return bf, betaf, betac
     
 
 def add_fault_to_array(fault_mm,fault_array,direction=None):
@@ -366,10 +359,11 @@ def assign_fault_aperture(fault_array,fault_uvw,
     fault_array = _add_nulls(fault_array)
     
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] 
-    aperture_array = np.zeros_like(fault_array) # yz, xz and xy directions
+    aperture_array = np.array(3*[np.zeros_like(fault_array)]) # yz, xz and xy directions
     bvals = []
 
     for i, nn in enumerate(fault_uvw):
+        bvals.append([])
         u0,v0,w0 = np.amin(nn, axis=(1,2))
         u1,v1,w1 = np.amax(nn, axis=(1,2))
         duvw = np.array([u1-u0,v1-v0,w1-w0])
@@ -378,7 +372,8 @@ def assign_fault_aperture(fault_array,fault_uvw,
         # define size, add some padding to account for edge effects and make 
         # the fault square as I am not sure if fft is working properly for non-
         # square geometries
-        size = int(np.amax(duvw)(1.+max(0.2*np.amax(duvw),4)) + offset)
+        size = int(np.amax(duvw) + 2*(max(0.2*np.amax(duvw),4)) + offset)
+
         size += size%2
         
         # define direction normal to fault
@@ -399,30 +394,28 @@ def assign_fault_aperture(fault_array,fault_uvw,
             
         # set zero values to really low value to allow averaging
         b[b <= 1e-50] = 1e-50
-        cb = np.array(np.shape(b))*0.5
+        # centre indices of array b
+        cb = (np.array(np.shape(b))*0.5).astype(int)
         
         if correct_for_geometry:
-            bc = b.copy()
-            bf,betaf,betac = _correct_aperture_geometry(h1[offset:,offset:],b,dl)
+            bf, bc = _correct_aperture_geometry(h1[offset:,offset:],b,dl)
             
         else:
             bf,bc,betaf,betac = b.copy(),b.copy(),np.ones(2),np.ones(2)
         
-        for bb, beta in [[bf,betaf],[bc,betac]]:
-            bvals.append([])
-            b0 = stats.hmean(np.array([beta[0]*bb[:,1:],beta[0]*bb[:,:-1]]),axis=0)
-            b1 = stats.hmean(np.array([beta[1]*bb[1:],beta[1]*bb[:-1]]),axis=0)
+        for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
+            b0,b1 = bb
             
             if direction == 0:
-                aperture_array[w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
-                aperture_array[w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+                aperture_array[i,w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
+                aperture_array[i,w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
             elif direction == 1:
-                aperture_array[w0:w1+1,v0,u0:u1,0] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                aperture_array[w0:w1,v0,u0:u1+1,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                aperture_array[i,w0:w1+1,v0,u0:u1,0] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                aperture_array[i,w0:w1,v0,u0:u1+1,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             elif direction == 2:
-                aperture_array[w0,v0:v1+1,u0:u1,0] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                aperture_array[w0,v0:v1,u0:u1+1,1] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
-            bvals[-1].append([b,bb,b0,b1])
+                aperture_array[i,w0,v0:v1+1,u0:u1,0] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                aperture_array[i,w0,v0:v1,u0:u1+1,1] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+            bvals[-1].append([bb,b0,b1])
     aperture_array *= fault_array
     
     return aperture_array,bvals
