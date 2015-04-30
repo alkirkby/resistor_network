@@ -62,8 +62,8 @@ def build_fault_pair(size,fc=None,D=2.5,std=1e-3):
     R1 = np.random.random(size=np.shape(f))
     R2 = np.random.random(size=np.shape(f))
     # define fourier components
-    y1 = _prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
-    y2 = _prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+    y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
     # use inverse discrete fast fourier transform to get surface heights
     h1 = np.fft.irfftn(y1,y1.shape)
     h2 = np.fft.irfftn(y2,y2.shape)

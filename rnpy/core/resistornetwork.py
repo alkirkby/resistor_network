@@ -51,7 +51,7 @@ class Rock_volume():
         self.ncells = [10,10,10] #ncells in x, y and z directions
         self.cellsize = np.array([1.,1.,1.])
         self.pconnection = np.array([0.5,0.5,0.5])
-        self.pembedded_fault = np.array([1.,1.,1.])
+        self.pembedded_fault = np.array([0.,0.,0.])
         self.pembedded_matrix = np.array([0.,0.,0.])
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
