@@ -68,7 +68,9 @@ class Rock_volume():
                                length_decay = 5.,
                                mismatch_frequency_cutoff = None,
                                elevation_standard_deviation = 1e-4,
-                               aperture_assignment = 'random')
+                               aperture_assignment = 'random',
+                               fault_surfaces = None,
+                               correct_aperture_for_geometry = True)
         self.fault_array = None                       
         self.fault_edges = None
         self.fault_assignment = 'random' # how to assign faults, 'random' or 'list'
@@ -152,13 +154,18 @@ class Rock_volume():
         if self.fault_dict['aperture_assignment'] == 'random':
             aperture_input = {}
             for key in ['fractal_dimension','fault_separation','offset',
-                        'elevation_standard_deviation',
-                        'mismatch_frequency_cutoff']:
+                        'elevation_standard_deviation', 'fault_surfaces',
+                        'mismatch_frequency_cutoff',
+                        'correct_aperture_for_geometry']:
                             aperture_input[key] = self.fault_dict[key]
-            self.aperture_array,bvals = \
+            self.aperture_array,self.aperture_correction_f, \
+            self.aperture_correction_c,bvals = \
             rnf.assign_fault_aperture(fault_array,fault_uvw,**aperture_input)
         else:
             self.aperture_array = fault_array*self.fault_dict['fault_separation']
+            self.aperture_array[self.aperture_array < 1e-50] = 1e-50
+            self.aperture_correction_f,self.aperture_correction_c = \
+            [np.ones_like(self.aperture_array)]*2
         self.fault_array = fault_array
         self.fault_uvw = np.array(fault_uvw)
         
@@ -170,7 +177,7 @@ class Rock_volume():
         """
         
         self.resistance = \
-        rnf.get_electrical_resistance(self.aperture_array,
+        rnf.get_electrical_resistance(self.aperture_array*self.aperture_correction_c,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       self.cellsize)
@@ -190,11 +197,11 @@ class Rock_volume():
         
 
         self.permeability = \
-        rnf.get_permeability(self.aperture_array,
+        rnf.get_permeability(self.aperture_array*self.aperture_correction_f,
                              self.permeability_matrix,
                              self.cellsize)
         self.hydraulic_resistance = \
-        rnf.get_hydraulic_resistance(self.aperture_array,
+        rnf.get_hydraulic_resistance(self.aperture_array*self.aperture_correction_f,
                                      self.permeability_matrix,
                                      self.cellsize,
                                      mu = self.mu)
@@ -233,7 +240,6 @@ class Rock_volume():
 #            if not hasattr(self,'hydraulic_resistance'):
 #                self.initialise_permeability()
             property_arrays['fluid'] = self.hydraulic_resistance 
-        
    
         dx,dy,dz = [float(n) for n in self.cellsize]      
 
