@@ -182,7 +182,8 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
                              np.arctan((s2n[0][:,:-1]-s2n[0][:,1:])/dl),
                              np.arctan((s1n[1][:-1]-s1n[1][1:])/dl) -\
                              np.arctan((s2n[1][:-1]-s2n[1][1:])/dl)]))
-             
+    # set zero theta values to small number to prevent silly error messages (makes no difference to result)
+    theta[np.abs(theta) < 1e-50] = 1e-50
     # corrected b**3, defined in x and y directions, and comprising first and 
     # second half volumes
     tf = 3*(np.tan(theta)-theta)/((np.tan(theta))**3)
