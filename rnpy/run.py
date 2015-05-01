@@ -7,6 +7,12 @@ Created on Thu Apr 30 11:52:26 2015
 
 import numpy as np
 import sys
+import rnpy.core.resistornetwork as rn
+import rnpy.functions.faultaperture as rnfa
+import rnpy.functions.assignfaults as rnaf
+import os
+import time
+
 
 arguments = sys.argv[1:]
 
@@ -54,7 +60,8 @@ def read_arguments(arguments):
                       ['workdir','wd','working directory',1,str],
                       ['outfile','o','output file name',1,str],
                       ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
-                      ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str]]
+                      ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
+                      ['repeats','r','how many times to repeat each permutation',1,int]]
                       
     for longname,shortname,helpmsg,nargs,vtype in argument_names:
         if longname == 'fault_edges':
@@ -65,17 +72,21 @@ def read_arguments(arguments):
         
         if shortname is None:
             parser.add_argument(longname,help=helpmsg,
-                                nargs=nargs,type=vtype)
+                                nargs=nargs,type=vtype,action=action)
         else:
             shortname = '-'+shortname
             parser.add_argument(shortname,longname,help=helpmsg,
-                                nargs=nargs,type=vtype)
+                                nargs=nargs,type=vtype,action=action)
     
 
     args = parser.parse_args(arguments)
 
     loop_parameters = {}
-    fixed_parameters = {}    
+    fixed_parameters = {}   
+    faultsurface_parameters = {'fractal_dimension':[2.5],
+                               'elevation_standard_deviation':[1e-3],
+                               'mismatch_frequency_cutoff':[None]}
+
     
     for at in args._get_kwargs():
         if at[1] is not None:
@@ -83,70 +94,94 @@ def read_arguments(arguments):
                 nf = len(at[1])
                 value = np.reshape(at[1],(nf,3,2))
             else:
-                value = at[1]
-                
-            if type(at[1]) != list:
-                fixed_parameters[at[0]] = value
+                value = [at[1]]
+            
+            if at[0] in faultsurface_parameters.keys():
+                if type(value) != list:
+                    value = [value]
+                faultsurface_parameters[at[0]] = value
+            elif at[0] == 'repeats':
+                faultsurface_parameters[at[0]] = range(at[1])
+            elif type(at[1]) != list:
+                fixed_parameters[at[0]] = [value]
             elif len(value) == 1:
-                fixed_parameters[at[0]] = value[0]
+                fixed_parameters[at[0]] = value
             else:
                 loop_parameters[at[0]] = value
+
     
-    return fixed_parameters, loop_parameters
+    
+    return fixed_parameters, loop_parameters, faultsurface_parameters
 
 
-def initialise_inputs(fixed_parameters, loop_parameters):
+def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters):
     """
     make a list of run parameters
-    """        
+    """
+    import itertools
 
     list_of_inputs = []
+
+
+    loop_inputs = [val for val in itertools.product(*loop_parameters.values())]
+    faultsurface_inputs = [val for val in itertools.product(*faultsurface_parameters.values())]
     
-    fixed_param_list =
+    keys = faultsurface_parameters.keys()
+    keys += loop_parameters.keys()
+
+    variablelist = [val for val in itertools.product(faultsurface_inputs,loop_inputs)]
+
+    # number of different fault surface variations, including repeats
+    nfv = len(faultsurface_inputs)
+    
+    # get ncells
+    if 'ncells' in fixed_parameters.keys():
+        ncells = fixed_parameters['ncells']
+    else:
+        ro = rn.Rock_volume()
+        ncells = ro.ncells
     
     
-    parameter_list = [v for v in dir(self) if v[0] != '_']
-    fdkeys = [k for k in self.fault_dict.keys() if k not in ['fault_separation','elevation_standard_deviation']]
-    parameter_list += fdkeys
+    for iv,variable in enumerate(variablelist):
+        input_dict = fixed_parameters.copy()
+        for k, key in enumerate(keys):
+            input_dict[key] = variable[k]
+        # check if we need to create a new fault surface pair
+        if iv % (len(variablelist)/nfv) == 0:
+            size = rnaf
+        
+            
+        
+            
+            
+        
+        
+#    for variation in fault_variations:
+#        for fkey in faultsurface_parameters.keys()
+#        h1,h2 = rnfa.build_fault_pair()
+#    for iv,variation in enumerate(loop_variations):
+#        input_dict = fixed_parameters.copy()
+#        for ik, key in enumerate(loop_parameters.keys()):
+#            input_dict[key] = variation[ik]
+#        list_of_inputs.append(input_dict)
 
-
-
-
-
-
-    print self.fault_dict['fault_separation']
-    for r in range(self.repeats):
-        for pc in self.pconnection:
-            for pef in self.pembedded_fault:
-                for pem in self.pembedded_matrix:
-                    for sd in self.fault_dict['elevation_standard_deviation']:
-                        for fs in self.fault_dict['fault_separation']:
-                            input_dict = {} 
-                            for key in parameter_list:
-                                if key in ['fault_assignment',
-                                           'fault_edges',
-                                           'permeability_matrix',
-                                           'resistivity_matrix',
-                                           'resistivity_fluid',
-                                           'wd',
-                                           'mu',
-                                           'outfile',
-                                           'ncells',
-                                           'cellsize']:
-                                    input_dict[key] = getattr(self,key)
-                                elif key in fdkeys:
-                                    input_dict[key] = self.fault_dict[key]
-                            input_dict['fault_separation'] = fs
-                            input_dict['elevation_standard_deviation'] = sd
-                            input_dict['pconnection'] = pc
-                            input_dict['pembedded_fault'] = pef
-                            input_dict['pembedded_matrix'] = pem
-                            list_of_inputs.append(input_dict)
 
     return list_of_inputs
+
+
+def divide_inputs(work_to_do,size):
+    """
+    divide list of inputs into chunks to send to each processor
+    
+    """
+    chunks = [[] for _ in range(size)]
+    for i,d in enumerate(work_to_do):
+        chunks[i%size].append(d)
+
+    return chunks
     
     
-def run(self,list_of_inputs,rank,wd):
+def run(list_of_inputs,rank,wd,save_array=True):
     """
     generate and run a random resistor network
     takes a dictionary of inputs to be used to create a resistivity object
@@ -157,47 +192,56 @@ def run(self,list_of_inputs,rank,wd):
     r = 0
     for input_dict in list_of_inputs:
         # initialise random resistor network
-        ro = Rock_volume(**input_dict)
+        ro = rn.Rock_volume(**input_dict)
         # solve the network
-        ro.solve_resistor_network(self.solve_properties,self.solve_directions)
+        ro.solve_resistor_network()
         # append result to list of r objects
         r_objects.append(ro)
         print "run {} completed".format(r)
-        for prop in ['resistivity','permeability',
-                     'current','flowrate','aperture_array']:
-            np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
-                    getattr(ro,prop)
-                    )
+        if save_array:
+            for prop in ['resistivity','permeability',
+                         'current','flowrate','aperture_array']:
+                np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                        getattr(ro,prop)
+                        )
         r += 1
     return r_objects
     
     
-def setup_and_run_suite(self):
+def setup_and_run_suite(arguments):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
     
     from mpi4py import MPI
     
+    # sort out rank and size info
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
     name = MPI.Get_processor_name()
     print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
    
+    # get inputs from the command line
+    fixed_parameters, loop_parameters = read_arguments(arguments)
+    if 'workdir' in fixed_parameters.keys():
+        wd = fixed_parameters['workdir']
+    else:
+        wd = './model_runs'
+    
     if rank == 0:
-        list_of_inputs = self.initialise_inputs()
-        inputs = rnf.divide_inputs(list_of_inputs,size)
+        list_of_inputs = initialise_inputs()
+        inputs = divide_inputs(list_of_inputs,size)
     else:
         list_of_inputs = None
         inputs = None
 
     if rank == 0:
-        if not os.path.exists(self.wd):
-            os.mkdir(self.wd)
-        self.wd = os.path.abspath(self.wd)
+        if not os.path.exists(wd):
+            os.mkdir(wd)
+        wd = os.path.abspath(wd)
 
-    wd2 = os.path.join(self.wd,'arrays')
+    wd2 = os.path.join(wd,'arrays')
 
     if rank == 0:
         if not os.path.exists(wd2):
@@ -209,17 +253,18 @@ def setup_and_run_suite(self):
             print '.',
 
     inputs_sent = comm.scatter(inputs,root=0)
-    r_objects = self.run(inputs_sent,rank,wd2)
+    r_objects = run(inputs_sent,rank,wd2)
     outputs_gathered = comm.gather(r_objects,root=0)
      
     if rank == 0:
-        print "gathering outputs..",
-        # flatten list, outputs currently a list of lists
-        og2 = []
+        print "gathering outputs...",
+        # flatten list, outputs currently a list of lists for each rank, we
+        # don't need the outputs sorted by rank
+        ogflat = []
         count = 1
         for group in outputs_gathered:
             for ro in group:
-                og2.append(ro)
+                ogflat.append(ro)
                 print count,
                 count += 1
         print "gathered outputs into list, now sorting"
@@ -259,5 +304,5 @@ def setup_and_run_suite(self):
                    
                    
 if __name__ == "__main__":
-RandomResistorSuite()
+    setup_and_run_suite(sys.argv[1:])
 
