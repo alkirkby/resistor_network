@@ -122,14 +122,16 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     list_of_inputs = []
 
-
+    # create list of all the different variables, need to ensure that fault surface
+    # inputs are on the outermost loop
     loop_inputs = [val for val in itertools.product(*loop_parameters.values())]
     faultsurface_inputs = [val for val in itertools.product(*faultsurface_parameters.values())]
+    variablelist = [val for val in itertools.product(faultsurface_inputs,loop_inputs)]
     
+    # create a list of keys for all loop inputs including faultsurface, faultsurface
+    # keywords first
     keys = faultsurface_parameters.keys()
     keys += loop_parameters.keys()
-
-    variablelist = [val for val in itertools.product(faultsurface_inputs,loop_inputs)]
 
     # number of different fault surface variations, including repeats
     nfv = len(faultsurface_inputs)
@@ -143,27 +145,23 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     
     
     for iv,variable in enumerate(variablelist):
+        # initialise a dictionary
         input_dict = fixed_parameters.copy()
+        # add loop parameters including fault surface variables
         for k, key in enumerate(keys):
             input_dict[key] = variable[k]
         # check if we need to create a new fault surface pair
         if iv % (len(variablelist)/nfv) == 0:
-            size = rnaf
+            size = rnaf.get_faultsize(np.array(ncells))
+            D = faultsurface_inputs['fractal_dimension']
+            std = faultsurface_inputs['elevation_standard_deviation']
+            fc = faultsurface_inputs['mismatch_cutoff_frequency']
+            heights = np.array(rnfa.build_fault_pair(size,fc=fc,D=D,std=std))
+        # in every case until we create a new pair, the fault surface pair is the same
+        input_dict['fault_surfaces'] = heights
         
-            
+        list_of_inputs.append(input_dict)
         
-            
-            
-        
-        
-#    for variation in fault_variations:
-#        for fkey in faultsurface_parameters.keys()
-#        h1,h2 = rnfa.build_fault_pair()
-#    for iv,variation in enumerate(loop_variations):
-#        input_dict = fixed_parameters.copy()
-#        for ik, key in enumerate(loop_parameters.keys()):
-#            input_dict[key] = variation[ik]
-#        list_of_inputs.append(input_dict)
 
 
     return list_of_inputs
