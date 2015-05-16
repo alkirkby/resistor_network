@@ -28,26 +28,35 @@ def prepare_ifft_inputs(y1a):
     
     return y1
 
-def build_fault_pair(size,fc=None,D=2.5,std=1e-3):
+def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
     fault surfaces
     =================================inputs====================================
     size, integer = size of fault (fault will be square)
-    fc, float = cutoff frequency for matching of faults, the two fault surfaces 
-                will match at frequencies greater than the cutoff frequency,
-                default is 3 % of size
     D, float = fractal dimension of returned fault, recommended values in range 
                [2.,2.5]
     std, float = standard deviation of surface height of fault 1, surface 2 
                  will be scaled by the same factor as height 1 so may not have 
                  exactly the same standard deviation but needs to be scaled the same to ensure the
                  surfaces are matched properly
+    cs, float = cellsize, used to calculate defaults for lc,lcw and std
+    lc, float = cutoff wavelength in metres for matching of faults, the two 
+                fault surfaces will match at wavelengths greater than the 
+                cutoff frequency, default is 1e-3m (1mm)
+    fcw, float = window to include for tapering of wavelengths above cutoff.
+
     ===========================================================================    
     """
-    if fc is None:
-        fc = size*3e-4
+    if std is None:
+        std = cs*2.
+    if lc is None:
+        lc = 1e-3
+    fc = min(0.5,cs/lc)
+    if (fcw is None) or (fcw > fc):
+        fcw = min(fc,0.25)
+    print fc,fcw,std
     # get frequency components
     pl = np.fft.fftfreq(size+1)
     pl[0] = 1.
@@ -58,19 +67,26 @@ def build_fault_pair(size,fc=None,D=2.5,std=1e-3):
     # define gamma for correlation between surfaces
     gamma = f.copy()
     gamma[gamma >= fc] = 1.
+    gamma[gamma < fc-fcw] = 0.
+    gamma[(gamma < 1)&(gamma > 0)] -= (fc-fcw)
+    gamma[(gamma < 1)&(gamma > 0)] /= fcw
+    
     # define 2 sets of uniform random numbers
     R1 = np.random.random(size=np.shape(f))
     R2 = np.random.random(size=np.shape(f))
     # define fourier components
     y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+   
+    
     # use inverse discrete fast fourier transform to get surface heights
     h1 = np.fft.irfftn(y1,y1.shape)
     h2 = np.fft.irfftn(y2,y2.shape)
     # scale so that standard deviation is as specified
-    scaling_factor = std/np.std(h1)
-    h1 = h1*scaling_factor
-    h2 = h2*scaling_factor
+    if std is not None:
+        scaling_factor = std/np.std(h1)
+        h1 = h1*scaling_factor
+        h2 = h2*scaling_factor
     
     return h1, h2
 
