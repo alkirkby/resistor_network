@@ -66,7 +66,7 @@ class Rock_volume():
                                offset = 0,
                                length_max = 10.,
                                length_decay = 5.,
-                               mismatch_frequency_cutoff = None,
+                               mismatch_wavelength_cutoff = None,
                                elevation_standard_deviation = 1e-4,
                                aperture_assignment = 'random',
                                fault_surfaces = None,
@@ -171,7 +171,7 @@ class Rock_volume():
                 aperture_input = {}
                 for key in ['fractal_dimension','fault_separation','offset',
                             'elevation_standard_deviation', 'fault_surfaces',
-                            'mismatch_frequency_cutoff',
+                            'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
                 self.aperture_array,self.aperture_correction_f, \

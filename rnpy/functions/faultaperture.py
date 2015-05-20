@@ -44,7 +44,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
     cs, float = cellsize, used to calculate defaults for lc,lcw and std
     lc, float = cutoff wavelength in metres for matching of faults, the two 
                 fault surfaces will match at wavelengths greater than the 
-                cutoff frequency, default is 1e-3m (1mm)
+                cutoff frequency, default is 1mm (1e-3)
     fcw, float = window to include for tapering of wavelengths above cutoff.
 
     ===========================================================================    
@@ -56,7 +56,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
     fc = min(0.5,cs/lc)
     if (fcw is None) or (fcw > fc):
         fcw = min(fc,0.25)
-    print fc,fcw,std
+
     # get frequency components
     pl = np.fft.fftfreq(size+1)
     pl[0] = 1.

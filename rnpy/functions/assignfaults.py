@@ -198,9 +198,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
                           fault_surfaces = None,
                           offset=0, 
                           fractal_dimension = 2.5, 
-                          mismatch_frequency_cutoff = None, 
-                          elevation_standard_deviation = 1e-4,
-                          correct_aperture_for_geometry = True
+                          mismatch_wavelength_cutoff = None, 
+                          elevation_standard_deviation = None,
+                          correct_aperture_for_geometry = True,
+                          cellsize=None
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -229,14 +230,16 @@ def assign_fault_aperture(fault_array,fault_uvw,
     offset, integer = number of cells horizontal offset between surfaces.
     fractal_dimension, integer = fractal dimension of surface, recommended in 
                                  range [2.,2.5]
-    mismatch_frequency_cutoff, integer = cutoff frequency for matching of 
+    mismatch_wavelength_cutoff, integer = cutoff frequency for matching of 
                                          surfaces, default 3% of fault plane 
                                          size
     elevation_standard_deviation, integer = standard deviation of the height 
                                             of the fault surface
     correct_aperture_for_geometry, True/False, whether or not to correct aperture for
                                       geometry
-       
+    cellsize = size in metres of the cells, used to calculate a sensible default
+               for mismatch cutoff frequency, only needed if
+               mismatch_wavelength_cutoff not provided
     ===========================================================================    
     """
     fault_array = rna.add_nulls(fault_array)
@@ -263,9 +266,13 @@ def assign_fault_aperture(fault_array,fault_uvw,
         # define direction normal to fault
         direction = list(duvw).index(0)
         
-        # define cutoff frequency for correlation
-        if mismatch_frequency_cutoff is None:
-            mismatch_frequency_cutoff = size*3e-4
+        # define cutoff wavelength for correlation
+        faultpair_inputs = dict(D=fractal_dimension,
+                                std=elevation_standard_deviation)
+        if mismatch_wavelength_cutoff is not None:
+            faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
+        if cellsize is not None:
+            faultpair_inputs['cellsize'] = cellsize
         build = False
         if fault_surfaces is None:
             build = True
@@ -286,10 +293,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 build = True
             
         if build:
-            h1,h2 = rnfa.build_fault_pair(size,
-                                      mismatch_frequency_cutoff,
-                                      fractal_dimension,
-                                      elevation_standard_deviation)
+            h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
 
             
         if offset > 0:
