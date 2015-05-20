@@ -190,7 +190,8 @@ def get_faultsize(duvw,offset):
     
     size = int(np.amax(duvw) + 2*(max(0.2*np.amax(duvw),4)) + offset)
     size += size % 2
-
+    
+    return size
 
 def assign_fault_aperture(fault_array,fault_uvw, 
                           dl = 1e-3,
@@ -262,8 +263,6 @@ def assign_fault_aperture(fault_array,fault_uvw,
         # the fault square as I am not sure if fft is working properly for non-
         # square geometries
         size = get_faultsize(duvw,offset)
-        print "duvw",duvw
-        print "size",size
         
         # define direction normal to fault
         direction = list(duvw).index(0)

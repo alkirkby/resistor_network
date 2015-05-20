@@ -5,7 +5,7 @@ Created on Thu Apr 30 10:45:56 2015
 @author: a1655681
 """
 
-import scipy.linalg as linalg
+import scipy.sparse.linalg as linalg
     
 def solve_matrix(A,b):
     """
