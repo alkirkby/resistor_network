@@ -11,6 +11,7 @@ import rnpy.core.resistornetwork as rn
 import rnpy.functions.faultaperture as rnfa
 import rnpy.functions.assignfaults as rnaf
 import os
+import os.path as op
 import time
 
 
@@ -83,10 +84,10 @@ def read_arguments(arguments):
 
     loop_parameters = {}
     fixed_parameters = {}   
-    faultsurface_parameters = {'fractal_dimension':[2.5],
-                               'elevation_standard_deviation':[1e-3],
-                               'mismatch_frequency_cutoff':[None]}
-
+    faultsurface_keys = ['fractal_dimension',
+                         'elevation_standard_deviation',
+                         'mismatch_wavelength_cutoff']
+    faultsurface_parameters = {}
     
     for at in args._get_kwargs():
         if at[1] is not None:
@@ -96,7 +97,7 @@ def read_arguments(arguments):
             else:
                 value = [at[1]]
             
-            if at[0] in faultsurface_parameters.keys():
+            if at[0] in faultsurface_keys:
                 if type(value) != list:
                     value = [value]
                 faultsurface_parameters[at[0]] = value
@@ -123,10 +124,13 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     list_of_inputs = []
 
     # create list of all the different variables, need to ensure that fault surface
-    # inputs are on the outermost loop
+    # inputs are on the outermost loops
     loop_inputs = [val for val in itertools.product(*loop_parameters.values())]
     faultsurface_inputs = [val for val in itertools.product(*faultsurface_parameters.values())]
-    variablelist = [val for val in itertools.product(faultsurface_inputs,loop_inputs)]
+    if len(faultsurface_inputs) > 0:
+        variablelist = [val for val in itertools.product(faultsurface_inputs,loop_inputs)]
+    else:
+        variablelist = loop_inputs
     
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
@@ -136,13 +140,19 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     # number of different fault surface variations, including repeats
     nfv = len(faultsurface_inputs)
     
-    # get ncells
+    # get ncells, if it's not in commandline arguments need to get the default
     if 'ncells' in fixed_parameters.keys():
         ncells = fixed_parameters['ncells']
     else:
         ro = rn.Rock_volume()
         ncells = ro.ncells
-    
+
+    # get cellsize
+    if 'cellsize' in fixed_parameters.keys():
+        cellsize = fixed_parameters['cellsize']
+    else:
+        ro = rn.Rock_volume()
+        cellsize = ro.cellsize    
     
     for iv,variable in enumerate(variablelist):
         # initialise a dictionary
@@ -155,16 +165,16 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
             size = rnaf.get_faultsize(np.array(ncells))
             D = faultsurface_inputs['fractal_dimension']
             std = faultsurface_inputs['elevation_standard_deviation']
-            fc = faultsurface_inputs['mismatch_cutoff_frequency']
-            heights = np.array(rnfa.build_fault_pair(size,fc=fc,D=D,std=std))
+            lc = faultsurface_inputs['mismatch_wavelength_cutoff']
+            heights = np.array(rnfa.build_fault_pair(size,lc=lc,D=D,
+                                                     std=std, cs=cellsize))
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
         
         list_of_inputs.append(input_dict)
         
-
-
     return list_of_inputs
+
 
 
 def divide_inputs(work_to_do,size):
@@ -221,14 +231,16 @@ def setup_and_run_suite(arguments):
     print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
    
     # get inputs from the command line
-    fixed_parameters, loop_parameters = read_arguments(arguments)
+    fixed_parameters, loop_parameters, faultsurface_parameters = read_arguments(arguments)
     if 'workdir' in fixed_parameters.keys():
         wd = fixed_parameters['workdir']
     else:
         wd = './model_runs'
     
     if rank == 0:
-        list_of_inputs = initialise_inputs()
+        list_of_inputs = initialise_inputs(fixed_parameters, 
+                                           loop_parameters, 
+                                           faultsurface_parameters)
         inputs = divide_inputs(list_of_inputs,size)
     else:
         list_of_inputs = None
@@ -263,43 +275,40 @@ def setup_and_run_suite(arguments):
         for group in outputs_gathered:
             for ro in group:
                 ogflat.append(ro)
-                print count,
                 count += 1
         print "gathered outputs into list, now sorting"
-        results = {}
-        for prop in ['resistivity_bulk','permeability_bulk']:
-            if hasattr(ro,prop):
-                results[prop] = np.vstack([np.hstack([ro.pconnection,
-                                                     [ro.fault_dict['fault_separation']],
-                                                     [ro.fault_dict['elevation_standard_deviation']],
-                                                     getattr(ro,prop)]) for ro in og2])
-        print "outputs sorted, now writing to a text file, define header"
-        # save results to text file
-        # first define header
-        header  = '# resistor network models - results\n'
-        header += '# resistivity_matrix (ohm-m) {}\n'.format(self.resistivity_matrix)
-        header += '# resistivity_fluid (ohm-m) {}\n'.format(self.resistivity_fluid)
-        header += '# permeability_matrix (m^2) {}\n'.format(self.permeability_matrix)
-        header += '# fracture diameter (m) {}\n'.format(self.fault_dict['fault_separation'])
-        header += '# fluid viscosity {}\n'.format(self.mu)
-        header += '# fracture max length {}\n'.format(self.fault_dict['length_max'])
-        header += '# fracture length decay {}\n'.format(self.fault_dict['length_decay'])
-        header += '# ncells {} {} {}\n'.format(self.ncells[0],
-                                               self.ncells[1],
-                                               self.ncells[2])
-        header += '# cellsize (metres) {} {} {}\n'.format(self.cellsize[0],
-                                                          self.cellsize[1],
-                                                          self.cellsize[2])
-        header += ' '.join(['# px','py','pz','fault_sep','elev_sd','propertyx','propertyy','propertyz'])
-        "header defined"
-        for rr in results.keys():
-            np.savetxt(os.path.join(self.wd,rr+'.dat'),np.array(results[rr]),
-                       comments='',
-                       header = header,
-                       fmt=['%4.2f','%4.2f','%4.2f',
-                            '%6.2e','%6.2e',
-                            '%6.3e','%6.3e','%6.3e'])
-                   
+        # get list of fixed parameters
+        ro0 = ogflat[0]
+        fixed_paramkeys = []
+        for fpm in fixed_parameters.keys():
+            if fpm not in ['ncells','cellsize']:
+                # check it is a r object parameter
+                if hasattr(ro0,fpm):
+                    fixed_paramkeys.append(fpm)
+        
+        # get list of variable parameters
+        variable_paramkeys = []
+        for vpm in faultsurface_parameters.keys() + loop_parameters.keys():
+            if hasattr(ogflat[0],fpm):
+                # check it is a r object parameter
+                variable_paramkeys.append(fpm)            
+        
+        header = '# suite of resistor network simulations\n'
+        for pm in ['ncells','cellsize']:
+            header += pm + '# {} {} {}\n'.format(*(getattr(ro,pm)))
+        header += '# fixed parameters\n'
+        header += ' '.join(fpm)+'\n'
+        header += ' '.join([str(getattr(ro0,pm)) for pm in fpm])+'\n'
+        header += '# variable parameters\n'
+        header += ' '.join(vpm)
+        
+        output_array = np.array([[getattr(ro,pm) for pm in variable_paramkeys] \
+                                  for ro in ogflat]).T
+                                      
+        np.savetxt(op.join(wd,fixed_parameters['outfile']),
+                   output_array,
+                   header = header, fmt='%.3e')
+                  
                    
 if __name__ == "__main__":
     setup_and_run_suite(sys.argv[1:])
