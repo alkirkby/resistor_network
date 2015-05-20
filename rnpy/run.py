@@ -38,7 +38,7 @@ def read_arguments(arguments):
                       ['resistivity_matrix','rm','','*',float],
                       ['resistivity_fluid','rf','','*',float],
                       ['permeability_matrix','km','','*',float],
-                      ['fluid_viscosity','mu','','*',float]
+                      ['fluid_viscosity','mu','','*',float],
                       ['fault_assignment',None,'how to assign faults, random or list, '\
                                                'if list need to provide fault edges',1,str],
                       ['offset',None,'number of cells offset between fault surfaces','*',float],
@@ -91,25 +91,25 @@ def read_arguments(arguments):
     
     for at in args._get_kwargs():
         if at[1] is not None:
+            print at[0],at[1]
             if at[0] == 'fault_edges':
                 nf = len(at[1])
                 value = np.reshape(at[1],(nf,3,2))
             else:
-                value = [at[1]]
-            
+                value = at[1]
             if at[0] in faultsurface_keys:
                 if type(value) != list:
                     value = [value]
                 faultsurface_parameters[at[0]] = value
             elif at[0] == 'repeats':
-                faultsurface_parameters[at[0]] = range(at[1])
+                faultsurface_parameters[at[0]] = range(at[1][0])
             elif type(at[1]) != list:
                 fixed_parameters[at[0]] = [value]
             elif len(value) == 1:
                 fixed_parameters[at[0]] = value
             else:
                 loop_parameters[at[0]] = value
-
+    print "parameters processed from command line"
     
     
     return fixed_parameters, loop_parameters, faultsurface_parameters
@@ -220,7 +220,6 @@ def setup_and_run_suite(arguments):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
-    
     from mpi4py import MPI
     
     # sort out rank and size info
