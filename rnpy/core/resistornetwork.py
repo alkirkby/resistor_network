@@ -80,6 +80,7 @@ class Rock_volume():
         self.aperture_correction_f = None
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
+        self.build = True
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
@@ -122,10 +123,11 @@ class Rock_volume():
         if type(self.cellsize) in [float,int]:
             self.cellsize = np.ones(3)*self.cellsize
 
-        self.build_faults()
-        self.build_aperture()
-        self.initialise_electrical_resistance()
-        self.initialise_permeability()
+        if self.build:
+            self.build_faults()
+            self.build_aperture()
+            self.initialise_electrical_resistance()
+            self.initialise_permeability()
 
     def build_faults(self):
         """
@@ -152,12 +154,11 @@ class Rock_volume():
                     " assignment or provide fault_edges"
             elif self.fault_assignment =='random':
                 pc = [self.pconnectionx,self.pconnectiony,self.pconnectionz]
-                print pc,self.ncells,self.fault_dict['length_max'],self.fault_dict['length_decay']
                 fault_array,fault_uvw = \
                 rnaf.build_random_faults(self.ncells,
-                                        pc,
-                                        faultlengthmax = self.fault_dict['length_max'],
-                                        decayfactor = self.fault_dict['length_decay'])
+                                         pc,
+                                         faultlengthmax = self.fault_dict['length_max'],
+                                         decayfactor = self.fault_dict['length_decay'])
             else:
                 print "Can't assign faults, invalid fault assignment type provided"
                 return
