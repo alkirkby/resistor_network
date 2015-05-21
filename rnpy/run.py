@@ -210,8 +210,8 @@ def write_output(ro, loop_variables, outfilename, newfile):
     output_variables += ['permeability_bulk'+ri for ri in 'xyz']
     loop_input_output = loop_variables + output_variables
     
+    variablekeys = []
     fixeddict = {}
-
     variabledict = {}
 
     for vkey in variables.keys():        
@@ -219,33 +219,36 @@ def write_output(ro, loop_variables, outfilename, newfile):
         if type(variables[vkey]) in [np.float64,float,str]:
             keys, values, append = [vkey], [variables[vkey]], True
         elif type(variables[vkey]) == dict:
-            keys, values = variables[vkey].keys(), [variables[vkey][k] for k in variables[vkey].keys()] ,True
-        elif (type(variables[vkey]) == np.ndarray) and (len(variables[vkey]) == 3):
-            keys, values = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
+            keys = [kk for kk in variables[vkey].keys() if type(variables[vkey][kk]) in [np.float64,float,str]]
+            values = [variables[vkey][kk] for kk in keys]
+            append = True
+        elif vkey in ['resistivity_bulk','permeability_bulk']:
+            keys, values, append = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
         if append:
-            for key in keys:
+            for k,key in enumerate(keys):
                 if key in loop_input_output:
-                    variabledict[key] = variables[key]
+                    variablekeys.append(key)
+                    variabledict[key] = values[k]
                 else:
-                    fixeddict[key] = variables[key]
+                    fixeddict[key] = values[k]
 
-    output_line = [variabledict[vkey] for vkey in loop_input_output]
+    output_line = [variabledict[vkey] for vkey in variablekeys]
 
     if newfile:
         with open(outfilename, 'wb') as outfile:
-            header = 'suite of resistor network simulations\n'
+            header = '# suite of resistor network simulations\n'
             for pm in ['ncells','cellsize']:
-                header += pm + '{} {} {} \n'.format(*(getattr(ro,pm)))
-            header += 'fixed parameters\n'
-            header += ' '.join(fixeddict.keys())+'\n'
-            header += ' '.join([str(varf) for varf in fixeddict.values()])+'\n'
-            header += 'variable parameters\n'
-            header += ' '.join(loop_input_output)
+                header += '# ' + pm + ' {} {} {}\n'.format(*(getattr(ro,pm)))
+            header += '### fixed parameters ###\n'
+            header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'
+            header += '### variable parameters ###\n'
+            header += '# '+' '.join(loop_input_output)
             outfile.write(header)
-            outfile.write('\n'+''.join(['%.3e'%oo for oo in output_line]))
+            outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
     else:
+        print "appending to old file"
         with open(outfilename, 'ab') as outfile:
-            outfile.write('\n'+''.join(['%.3e'%oo for oo in output_line]))
+            outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
 
 
 
@@ -259,8 +262,11 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
     
     ofb = op.basename(outfilename)
     ofp = op.dirname(outfilename)
-    di = ofb.index('.')
-    outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
+    if '.' in ofb:
+        di = ofb.index('.')
+        outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
+    else:
+        outfilename = outfilename + str(rank)
 
     r = 0
     for input_dict in list_of_inputs:
@@ -281,9 +287,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             newfile = True
         else:
             newfile = False
-        
         write_output(ro,loop_variables,outfilename,newfile)
-        
         r += 1
         
     return outfilename
@@ -308,6 +312,8 @@ def setup_and_run_suite(arguments, argument_names):
         wd = fixed_parameters['workdir']
     else:
         wd = './model_runs'
+    wd2 = os.path.join(wd,'arrays')
+
     if rank == 0:
         # get inputs
         list_of_inputs = initialise_inputs(fixed_parameters, 
@@ -320,13 +326,9 @@ def setup_and_run_suite(arguments, argument_names):
         if not os.path.exists(wd):
             os.mkdir(wd)
         wd = os.path.abspath(wd)
-        wd2 = os.path.join(wd,'arrays')
-        
-        # initialise outfile
-        if 'outfile' in fixed_parameters.keys():
-            outfile = fixed_parameters['outfile']
-        else:
-            outfile = 'outputs.dat'        
+        if not os.path.exists(wd2):
+            os.mkdir(wd2)
+         
     else:
         list_of_inputs = None
         inputs = None
@@ -334,51 +336,40 @@ def setup_and_run_suite(arguments, argument_names):
             time.sleep(1)
             print 'process {} waiting for wd'.format(rank)
 
+    # initialise outfile
+    if 'outfile' in fixed_parameters.keys():
+        outfile = fixed_parameters['outfile']
+    else:
+        outfile = 'outputs.dat'
 
     print "sending jobs out"
     inputs_sent = comm.scatter(inputs,root=0)
-    outfilenames = run(inputs_sent,rank,wd2,op.join(wd,outfile),loop_parameters.values())
+    outfilenames = run(inputs_sent,
+                       rank,
+                       wd2,
+                       op.join(wd,outfile),
+                       loop_parameters.keys()+faultsurface_parameters.keys())
     outputs_gathered = comm.gather(outfilenames,root=0)
     
     if rank == 0:
-        print "gathering outputs..."
+        outfn = outputs_gathered[0]
+        outarray = np.loadtxt(outfn)
+        outfile0 = open(outfn)
+        line = outfile0.readline()
+        header = ''
 
+        while line[0] == '#':
+            header += line
+            line = outfile0.readline()
+        header = header.strip()
         count = 0
-        for outfl in outputs_gathered:
-            for outfn in outfl:
-                if count == 0:
-                    outarray = np.loadtxt(outfn)
-                    outfile0 = open(outfn)
-                    line = outfile0.readline()
-                    header = ''
-                    while line[0] == '#':
-                        header += line
-                        line = outfile0.readline()
-                else:
-                    outarray = np.vstack([outarray,np.loadtxt(outfn)])
-                count += 1
+        for outfn in outputs_gathered:
+            if count > 0:
+                outarray = np.vstack([outarray,np.loadtxt(outfn)])
+            count += 1
 
-    np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e')
+        np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
         
-            
-        
-#        # flatten list, outputs currently a list of lists for each rank, we
-#        # don't need the outputs sorted by rank
-#        ogflat = []
-#        count = 1
-#        for group in outputs_gathered:
-#            for ro in group:
-#                ogflat.append(ro)
-#                count += 1
-#        print "gathered outputs into list, now sorting"
-#        # get list of fixed parameters
-
-
-#
-#        np.savetxt(op.join(wd,outfile),
-#                   output_array,
-#                   header = header, fmt='%.3e')
-                  
                    
 if __name__ == "__main__":
     setup_and_run_suite(sys.argv[1:],argument_names)
