@@ -183,6 +183,7 @@ class Rock_volume():
                 self.aperture_array[self.aperture_array < 1e-50] = 1e-50
                 self.aperture_correction_f,self.aperture_correction_c = \
                 [np.ones_like(self.aperture_array)]*2
+        self.aperture_mean = np.average(self.aperture_array[self.fault_array.astype(bool)])
         
         if self.aperture_correction_f is None:
             self.aperture_correction_f = np.ones_like(self.aperture_array)
