@@ -180,11 +180,15 @@ class Rock_volume():
                 rnaf.assign_fault_aperture(self.fault_array,self.fault_uvw,**aperture_input)
             else:
                 self.aperture_array = self.fault_array*self.fault_dict['fault_separation']
-                self.aperture_array[self.aperture_array < 1e-50] = 1e-50
+                self.aperture_array[np.isfinite(self.aperture_array)&(self.aperture_array < 1e-50)] = 1e-50
                 self.aperture_correction_f,self.aperture_correction_c = \
                 [np.ones_like(self.aperture_array)]*2
-        self.aperture_mean = np.average(self.aperture_array[self.fault_array.astype(bool)])
         
+        # get the aperture values from the faulted part of the volume to do some calculations on
+        faultapvals = self.aperture_array[(self.fault_array.astype(bool))&np.isfinite(self.aperture_array)]
+        self.aperture_mean = np.average(faultapvals)
+        self.contact_area = float(len(faultapvals[faultapvals <= 1e-50]))/np.size(faultapvals)
+ 
         if self.aperture_correction_f is None:
             self.aperture_correction_f = np.ones_like(self.aperture_array)
         if self.aperture_correction_c is None:

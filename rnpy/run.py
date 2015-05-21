@@ -104,20 +104,14 @@ def read_arguments(arguments):
                 faultsurface_parameters[at[0]] = range(at[1][0])
             elif type(value) == list:
                 if len(value) == 1:
-                    print "len 1",at[0],value
                     fixed_parameters[at[0]] = value[0]
                 elif at[0] in ['ncells','cellsize']:
                     fixed_parameters[at[0]] = value
                 else:
                     loop_parameters[at[0]] = value
             else:
-                print "not list",at[0],value
                 fixed_parameters[at[0]] = value
     
-    print "fixed_parameters read in from command line",fixed_parameters
-    print "loop parameters read in from command line",loop_parameters
-    print "fault surface parameters read in from command line",faultsurface_parameters
-
 
     return fixed_parameters, loop_parameters, faultsurface_parameters
 
@@ -141,48 +135,31 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     else:
         faultsurface_inputs = [[val] for val in faultsurface_parameters.values()[0]]  
 
-    print "faultsurface_parameters",faultsurface_parameters
-    print "loop_parameters",loop_parameters
-
-    print "faultsurface_values",faultsurface_parameters.values()
-    print "loop_parameters_values",loop_parameters.values()
-
-    print "loop inputs",loop_inputs
-    print "faultsurface_inputs",faultsurface_inputs
     if len(faultsurface_inputs) > 0:
-        print "len(faultsurface_inputs > 0 so creating new variablelist"
         variablelist = [list(val) for val in itertools.product(faultsurface_inputs,loop_inputs)]
-        print variablelist
         variablelist2 = []
         for vline in variablelist:
             vlist_temp = []
             for vv in vline:
                 for v in vv:
-                    print "v",v
                     vlist_temp.append(v)
                 variablelist2.append(vlist_temp)
         variablelist = variablelist2
     else:
-        print "variablelist = loop_inputs"
         variablelist = loop_inputs
-    print "got variable list",variablelist    
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
     keys = faultsurface_parameters.keys()
     keys += loop_parameters.keys()
-    print "got keys", keys
     # number of different fault surface variations, including repeats
     nfv = min(len(faultsurface_inputs),1)
     
     # intialise a rock volume to get the defaults from
-    print "initialising a rock volume to get defaults"
     ro = rn.Rock_volume(build=False)
 
     for fparam in ['ncells','cellsize']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
-    print fixed_parameters
-    print "initialising variables"
     for iv,variable in enumerate(variablelist):
         offset = 0
         # initialise a dictionary
@@ -195,18 +172,15 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
         # check if we need to create a new fault surface pair
         if iv % (len(variablelist)/nfv) == 0:
             size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
-            print "size",size
             hinput = {}
             for inputname,param in [['D','fractal_dimension'],
                                     ['std','elevation_standard_deviation'],
                                     ['lc','mismatch_wavelength_cutoff']]:
                 hinput[inputname] = ro.fault_dict[param]
             hinput['cs'] = np.average(fixed_parameters['cellsize'])
-            print "creating height array"
             heights = np.array(rnfa.build_fault_pair(size, **hinput))
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
-        print input_dict
         list_of_inputs.append(input_dict)
          
     return list_of_inputs
@@ -271,15 +245,11 @@ def setup_and_run_suite(arguments):
         wd = fixed_parameters['workdir']
     else:
         wd = './model_runs'
-    print "got command line arguments, now divide inputs" 
     if rank == 0:
-        print "rank is zero, getting list of inputs"
         list_of_inputs = initialise_inputs(fixed_parameters, 
                                            loop_parameters, 
                                            faultsurface_parameters)
-        print "rank is zero, dividing inputs"
         inputs = divide_inputs(list_of_inputs,size)
-        print "divided inputs"
     else:
         list_of_inputs = None
         inputs = None
@@ -301,7 +271,7 @@ def setup_and_run_suite(arguments):
         # wait for wd2 to be created
         while not os.path.exists(wd2):
             time.sleep(1)
-            print '.',
+            print 'waiting for wd2......',
     print "sending jobs out"
     inputs_sent = comm.scatter(inputs,root=0)
     r_objects = run(inputs_sent,rank,wd2)
@@ -334,10 +304,8 @@ def setup_and_run_suite(arguments):
         # get list of variable parameters
         varp_out = {}
         varpkeys = []
-        print ro0.fault_dict
-        print "faultsurface_parameters.keys() + loop_parameters.keys()",faultsurface_parameters.keys() + loop_parameters.keys()
         for ro in ogflat:    
-            for vpm in faultsurface_parameters.keys() + loop_parameters.keys():
+            for vpm in faultsurface_parameters.keys() + loop_parameters.keys() + ['aperture_mean','contact_area']:
                 if hasattr(ro,vpm):
                     if vpm not in varp_out.keys():
                         varp_out[vpm] = []
@@ -358,7 +326,7 @@ def setup_and_run_suite(arguments):
 
         header = 'suite of resistor network simulations\n'
         for pm in ['ncells','cellsize']:
-            header += pm + '{} {} {}\n'.format(*(getattr(ro0,pm)))
+            header += pm + '{} {} {} \n'.format(*(getattr(ro0,pm)))
         header += 'fixed parameters\n'
         header += ' '.join(fixedp_out.keys())+'\n'
         header += ' '.join([str(varf) for varf in fixedp_out.values()])+'\n'
@@ -366,8 +334,6 @@ def setup_and_run_suite(arguments):
         header += ' '.join(varpkeys)
 
         output_array = np.array([varp_out[vkey] for vkey in varpkeys]).T
-        print header
-        print output_array                                      
         if 'outfile' in fixed_parameters.keys():
             outfile = fixed_parameters['outfile']
         else:
