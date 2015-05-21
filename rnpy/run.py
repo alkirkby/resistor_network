@@ -15,9 +15,45 @@ import os.path as op
 import time
 
 
-arguments = sys.argv[1:]
 
-def read_arguments(arguments):
+# arguments to put into parser:
+# [longname,shortname,help,nargs,type]
+argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
+                  ['cellsize','c','cellsize in x,y and z direction',3,float],
+                  ['pconnectionx','px','probability of connection in x direction','*',float],
+                  ['pconnectiony','py','probability of connection in y direction','*',float],
+                  ['pconnectionz','pz','probability of connection in z direction','*',float],
+                  ['resistivity_matrix','rm','','*',float],
+                  ['resistivity_fluid','rf','','*',float],
+                  ['permeability_matrix','km','','*',float],
+                  ['fluid_viscosity','mu','','*',float],
+                  ['fault_assignment',None,'how to assign faults, random or list, '\
+                                           'if list need to provide fault edges',1,str],
+                  ['offset',None,'number of cells offset between fault surfaces','*',float],
+                  ['length_max',None,'maximum fault length, if specifying random faults','*',float],
+                  ['length_decay',None,'decay in fault length, if specifying random '\
+                                       'fault locations, for each fault: '\
+                                       'faultlength = length_max*exp(-length_decay*R)'\
+                                       'where R is a random number in [0,1]','*',float],
+                  ['mismatch_frequency_cutoff',None,
+                  'frequency cutoff for matching between faults','*',float],
+                  ['elevation_standard_deviation',None,
+                  'standard deviation in elevation of fault surfaces','*',float],
+                  ['fractal_dimension',None,
+                  'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
+                  '*',float],
+                  ['fault_separation',None,'amount to separate faults by, in metres','*',float],
+                  ['fault_edges','fe','indices of fault edges in x,y,z directions '\
+                                      'xmin xmax ymin ymax zmin zmax',6,int],
+                  ['aperture_assignment',None,'type of aperture assignment, random or constant',1,str],
+                  ['workdir','wd','working directory',1,str],
+                  ['outfile','o','output file name',1,str],
+                  ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
+                  ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
+                  ['repeats','r','how many times to repeat each permutation',1,int]]
+
+
+def read_arguments(arguments, argument_names):
     """
     takes list of command line arguments obtained by passing in sys.argv
     reads these and updates attributes accordingly
@@ -27,43 +63,7 @@ def read_arguments(arguments):
     
             
     parser = argparse.ArgumentParser()
-    
-    # arguments to put into parser:
-    # [longname,shortname,help,nargs,type]
-    argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
-                      ['cellsize','c','cellsize in x,y and z direction',3,float],
-                      ['pconnectionx','px','probability of connection in x direction','*',float],
-                      ['pconnectiony','py','probability of connection in y direction','*',float],
-                      ['pconnectionz','pz','probability of connection in z direction','*',float],
-                      ['resistivity_matrix','rm','','*',float],
-                      ['resistivity_fluid','rf','','*',float],
-                      ['permeability_matrix','km','','*',float],
-                      ['fluid_viscosity','mu','','*',float],
-                      ['fault_assignment',None,'how to assign faults, random or list, '\
-                                               'if list need to provide fault edges',1,str],
-                      ['offset',None,'number of cells offset between fault surfaces','*',float],
-                      ['length_max',None,'maximum fault length, if specifying random faults','*',float],
-                      ['length_decay',None,'decay in fault length, if specifying random '\
-                                           'fault locations, for each fault: '\
-                                           'faultlength = length_max*exp(-length_decay*R)'\
-                                           'where R is a random number in [0,1]','*',float],
-                      ['mismatch_frequency_cutoff',None,
-                      'frequency cutoff for matching between faults','*',float],
-                      ['elevation_standard_deviation',None,
-                      'standard deviation in elevation of fault surfaces','*',float],
-                      ['fractal_dimension',None,
-                      'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
-                      '*',float],
-                      ['fault_separation',None,'amount to separate faults by, in metres','*',float],
-                      ['fault_edges','fe','indices of fault edges in x,y,z directions '\
-                                          'xmin xmax ymin ymax zmin zmax',6,int],
-                      ['aperture_assignment',None,'type of aperture assignment, random or constant',1,str],
-                      ['workdir','wd','working directory',1,str],
-                      ['outfile','o','output file name',1,str],
-                      ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
-                      ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
-                      ['repeats','r','how many times to repeat each permutation',1,int]]
-                      
+
     for longname,shortname,helpmsg,nargs,vtype in argument_names:
         if longname == 'fault_edges':
             action = 'append'
@@ -199,13 +199,68 @@ def divide_inputs(work_to_do,size):
     return chunks
     
     
-def run(list_of_inputs,rank,wd,save_array=True):
+
+def write_output(ro, loop_variables, outfilename, newfile):
+    """
+    prepare an output file for writing to
+    """
+    variables = vars(ro)
+    output_variables = ['contact_area','aperture_mean']
+    output_variables += ['resistivity_bulk'+ri for ri in 'xyz']
+    output_variables += ['permeability_bulk'+ri for ri in 'xyz']
+    loop_input_output = loop_variables + output_variables
+    
+    fixeddict = {}
+
+    variabledict = {}
+
+    for vkey in variables.keys():        
+        append = False
+        if type(variables[vkey]) in [np.float64,float,str]:
+            keys, values, append = [vkey], [variables[vkey]], True
+        elif type(variables[vkey]) == dict:
+            keys, values = variables[vkey].keys(), [variables[vkey][k] for k in variables[vkey].keys()] ,True
+        elif (type(variables[vkey]) == np.ndarray) and (len(variables[vkey]) == 3):
+            keys, values = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
+        if append:
+            for key in keys:
+                if key in loop_input_output:
+                    variabledict[key] = variables[key]
+                else:
+                    fixeddict[key] = variables[key]
+
+    output_line = [variabledict[vkey] for vkey in loop_input_output]
+
+    if newfile:
+        with open(outfilename, 'wb') as outfile:
+            header = 'suite of resistor network simulations\n'
+            for pm in ['ncells','cellsize']:
+                header += pm + '{} {} {} \n'.format(*(getattr(ro,pm)))
+            header += 'fixed parameters\n'
+            header += ' '.join(fixeddict.keys())+'\n'
+            header += ' '.join([str(varf) for varf in fixeddict.values()])+'\n'
+            header += 'variable parameters\n'
+            header += ' '.join(loop_input_output)
+            outfile.write(header)
+            outfile.write('\n'+''.join(['%.3e'%oo for oo in output_line]))
+    else:
+        with open(outfilename, 'ab') as outfile:
+            outfile.write('\n'+''.join(['%.3e'%oo for oo in output_line]))
+
+
+
+def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
     """
     generate and run a random resistor network
     takes a dictionary of inputs to be used to create a resistivity object
     """
     
     r_objects = []
+    
+    ofb = op.basename(outfilename)
+    ofp = op.dirname(outfilename)
+    di = ofb.index('.')
+    outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
 
     r = 0
     for input_dict in list_of_inputs:
@@ -222,11 +277,19 @@ def run(list_of_inputs,rank,wd,save_array=True):
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
                         getattr(ro,prop)
                         )
+        if r == 0:
+            newfile = True
+        else:
+            newfile = False
+        
+        write_output(ro,loop_variables,outfilename,newfile)
+        
         r += 1
-    return r_objects
+        
+    return outfilename
+  
     
-    
-def setup_and_run_suite(arguments):
+def setup_and_run_suite(arguments, argument_names):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
@@ -240,109 +303,83 @@ def setup_and_run_suite(arguments):
     print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
    
     # get inputs from the command line
-    fixed_parameters, loop_parameters, faultsurface_parameters = read_arguments(arguments)
+    fixed_parameters, loop_parameters, faultsurface_parameters = read_arguments(arguments, argument_names)
     if 'workdir' in fixed_parameters.keys():
         wd = fixed_parameters['workdir']
     else:
         wd = './model_runs'
     if rank == 0:
+        # get inputs
         list_of_inputs = initialise_inputs(fixed_parameters, 
                                            loop_parameters, 
                                            faultsurface_parameters)
+        # divide inputs
         inputs = divide_inputs(list_of_inputs,size)
-    else:
-        list_of_inputs = None
-        inputs = None
-    if rank == 0:
+        
+        # make working directories
         if not os.path.exists(wd):
             os.mkdir(wd)
-    else:
-        while not os.path.exists(wd):
-            time.sleep(1)
-            print rank,"waiting for wd......"
-    wd = os.path.abspath(wd)
-
-    wd2 = os.path.join(wd,'arrays')
-
-    if rank == 0:
-        if not os.path.exists(wd2):
-            os.mkdir(wd2)
-    else:
-        # wait for wd2 to be created
-        while not os.path.exists(wd2):
-            time.sleep(1)
-            print 'waiting for wd2......',
-    print "sending jobs out"
-    inputs_sent = comm.scatter(inputs,root=0)
-    r_objects = run(inputs_sent,rank,wd2)
-    outputs_gathered = comm.gather(r_objects,root=0)
-    
-    if rank == 0:
-        print "gathering outputs...",
-        # flatten list, outputs currently a list of lists for each rank, we
-        # don't need the outputs sorted by rank
-        ogflat = []
-        count = 1
-        for group in outputs_gathered:
-            for ro in group:
-                ogflat.append(ro)
-                count += 1
-        print "gathered outputs into list, now sorting"
-        # get list of fixed parameters
-        ro0 = ogflat[0]
-        fixedp_out = {}
-        for fpm in fixed_parameters.keys():
-            if fpm not in ['ncells','cellsize','workdir']:
-                # check it is a r object parameter
-                if (fpm == 'fault_edges') and (ro.fault_edges is not None):
-                    fixedp_out[fpm] = ''.join(['['+','.join([str(fp) for fp in np.array(fe).flatten()])+']' for fe in ro.fault_edges])
-                elif hasattr(ro0,fpm):
-                    fixedp_out[fpm] = getattr(ro0,fpm)
-                elif fpm in ro0.fault_dict.keys():
-                    fixedp_out[fpm] = ro0.fault_dict[fpm]
+        wd = os.path.abspath(wd)
+        wd2 = os.path.join(wd,'arrays')
         
-        # get list of variable parameters
-        varp_out = {}
-        varpkeys = []
-        for ro in ogflat:    
-            for vpm in faultsurface_parameters.keys() + loop_parameters.keys() + ['aperture_mean','contact_area']:
-                if hasattr(ro,vpm):
-                    if vpm not in varp_out.keys():
-                        varp_out[vpm] = []
-                        varpkeys.append(vpm)
-                    varp_out[vpm].append(getattr(ro,vpm))
-                elif vpm in ro.fault_dict.keys():
-                    if vpm not in varp_out.keys():
-                        varp_out[vpm] = []
-                        varpkeys.append(vpm)
-                    varp_out[vpm].append(ro.fault_dict[vpm])
-            for vpo in ['resistivity_bulk','permeability_bulk']:
-                for direction in range(3):
-                    vpokey = vpo + 'xyz'[direction]
-                    if vpokey not in varp_out.keys():
-                        varp_out[vpokey] = []
-                        varpkeys.append(vpokey)
-                    varp_out[vpokey].append(getattr(ro,vpo)[direction]) 
-
-        header = 'suite of resistor network simulations\n'
-        for pm in ['ncells','cellsize']:
-            header += pm + '{} {} {} \n'.format(*(getattr(ro0,pm)))
-        header += 'fixed parameters\n'
-        header += ' '.join(fixedp_out.keys())+'\n'
-        header += ' '.join([str(varf) for varf in fixedp_out.values()])+'\n'
-        header += 'variable parameters\n'
-        header += ' '.join(varpkeys)
-
-        output_array = np.array([varp_out[vkey] for vkey in varpkeys]).T
+        # initialise outfile
         if 'outfile' in fixed_parameters.keys():
             outfile = fixed_parameters['outfile']
         else:
-            outfile = 'outputs.dat'
-        np.savetxt(op.join(wd,outfile),
-                   output_array,
-                   header = header, fmt='%.3e')
+            outfile = 'outputs.dat'        
+    else:
+        list_of_inputs = None
+        inputs = None
+        while not os.path.exists(wd2):
+            time.sleep(1)
+            print 'process {} waiting for wd'.format(rank)
+
+
+    print "sending jobs out"
+    inputs_sent = comm.scatter(inputs,root=0)
+    outfilenames = run(inputs_sent,rank,wd2,op.join(wd,outfile),loop_parameters.values())
+    outputs_gathered = comm.gather(outfilenames,root=0)
+    
+    if rank == 0:
+        print "gathering outputs..."
+
+        count = 0
+        for outfl in outputs_gathered:
+            for outfn in outfl:
+                if count == 0:
+                    outarray = np.loadtxt(outfn)
+                    outfile0 = open(outfn)
+                    line = outfile0.readline()
+                    header = ''
+                    while line[0] == '#':
+                        header += line
+                        line = outfile0.readline()
+                else:
+                    outarray = np.vstack([outarray,np.loadtxt(outfn)])
+                count += 1
+
+    np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e')
+        
+            
+        
+#        # flatten list, outputs currently a list of lists for each rank, we
+#        # don't need the outputs sorted by rank
+#        ogflat = []
+#        count = 1
+#        for group in outputs_gathered:
+#            for ro in group:
+#                ogflat.append(ro)
+#                count += 1
+#        print "gathered outputs into list, now sorting"
+#        # get list of fixed parameters
+
+
+#
+#        np.savetxt(op.join(wd,outfile),
+#                   output_array,
+#                   header = header, fmt='%.3e')
                   
                    
 if __name__ == "__main__":
-    setup_and_run_suite(sys.argv[1:])
+    setup_and_run_suite(sys.argv[1:],argument_names)
 

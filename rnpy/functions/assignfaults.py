@@ -327,11 +327,11 @@ def assign_fault_aperture(fault_array,fault_uvw,
             bvals[-1].append([bb,b0,b1])
     for i in range(len(ap_array)):
         ap_array[i] *= fault_array
-    ap_array[ap_array < 1e-50] = 1e-50
+    ap_array[(np.isfinite(ap_array))&(ap_array < 1e-50)] = 1e-50
     corr_c = ap_array[2]/ap_array[0]
     corr_f = ap_array[1]/ap_array[0]
     aperture_array = ap_array[0]
-    aperture_array[aperture_array <= 2e-50] = 0.
+    aperture_array[(np.isfinite(aperture_array))&(aperture_array <= 2e-50)] = 0.
     
     return aperture_array,corr_f,corr_c,bvals
     

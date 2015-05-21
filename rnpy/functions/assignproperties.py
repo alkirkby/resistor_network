@@ -67,6 +67,7 @@ def get_permeability(aperture_array,k_matrix,d):
     for i in range(3):
         permeability_array[:,:,:,i] = aperture_array[:,:,:,i]**2/12. + \
                                       (ln[i]-aperture_array[:,:,:,i])*k_matrix
+   
     
     return permeability_array
 
@@ -94,8 +95,13 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     # ln, the width normal to the cell
     ln = [d[2],d[0],d[1]]
 
+
+    aperture_array[(np.isfinite(aperture_array))&(aperture_array < 1e-50)] = 1e-50
+
     for i in range(3):
         hydraulic_resistance[:,:,:,i] = mu*d[i]/(ly[i]*(aperture_array[:,:,:,i]**3/12.\
                                         +k_matrix*(ln[i]-aperture_array[:,:,:,i])))
+    
+    aperture_array[(np.isfinite(aperture_array))&(aperture_array <= 1e-50)] = 0
 
     return hydraulic_resistance
