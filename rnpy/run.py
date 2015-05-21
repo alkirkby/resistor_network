@@ -322,15 +322,18 @@ def setup_and_run_suite(arguments):
         ro0 = ogflat[0]
         fixedp_out = {}
         for fpm in fixed_parameters.keys():
-            if fpm not in ['ncells','cellsize']:
+            if fpm not in ['ncells','cellsize','workdir']:
                 # check it is a r object parameter
-                if hasattr(ro0,fpm):
+                if (fpm == 'fault_edges') and (ro.fault_edges is not None):
+                    fixedp_out[fpm] = ''.join(['['+','.join([str(fp) for fp in np.array(fe).flatten()])+']' for fe in ro.fault_edges])
+                elif hasattr(ro0,fpm):
                     fixedp_out[fpm] = getattr(ro0,fpm)
                 elif fpm in ro0.fault_dict.keys():
                     fixedp_out[fpm] = ro0.fault_dict[fpm]
         
         # get list of variable parameters
         varp_out = {}
+        varpkeys = []
         print ro0.fault_dict
         print "faultsurface_parameters.keys() + loop_parameters.keys()",faultsurface_parameters.keys() + loop_parameters.keys()
         for ro in ogflat:    
@@ -338,28 +341,31 @@ def setup_and_run_suite(arguments):
                 if hasattr(ro,vpm):
                     if vpm not in varp_out.keys():
                         varp_out[vpm] = []
+                        varpkeys.append(vpm)
                     varp_out[vpm].append(getattr(ro,vpm))
                 elif vpm in ro.fault_dict.keys():
                     if vpm not in varp_out.keys():
                         varp_out[vpm] = []
+                        varpkeys.append(vpm)
                     varp_out[vpm].append(ro.fault_dict[vpm])
             for vpo in ['resistivity_bulk','permeability_bulk']:
                 for direction in range(3):
                     vpokey = vpo + 'xyz'[direction]
                     if vpokey not in varp_out.keys():
                         varp_out[vpokey] = []
+                        varpkeys.append(vpokey)
                     varp_out[vpokey].append(getattr(ro,vpo)[direction]) 
 
-        header = '# suite of resistor network simulations\n'
+        header = 'suite of resistor network simulations\n'
         for pm in ['ncells','cellsize']:
-            header += pm + '# {} {} {}\n'.format(*(getattr(ro0,pm)))
-        header += '# fixed parameters\n'
+            header += pm + '{} {} {}\n'.format(*(getattr(ro0,pm)))
+        header += 'fixed parameters\n'
         header += ' '.join(fixedp_out.keys())+'\n'
         header += ' '.join([str(varf) for varf in fixedp_out.values()])+'\n'
-        header += '# variable parameters\n'
-        header += ' '.join(varp_out.keys())
+        header += 'variable parameters\n'
+        header += ' '.join(varpkeys)
 
-        output_array = np.array([varv for varv in varp_out.values()]).T
+        output_array = np.array([varp_out[vkey] for vkey in varpkeys]).T
         print header
         print output_array                                      
         if 'outfile' in fixed_parameters.keys():
