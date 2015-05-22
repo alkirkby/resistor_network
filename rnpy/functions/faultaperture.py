@@ -28,6 +28,29 @@ def prepare_ifft_inputs(y1a):
     
     return y1
 
+
+def get_faultpair_defaults(cs, std, lc, fcw):
+    """
+    get sensible defaults for fault height elevation based on cellsize.    
+    returns std, lc, fc, fcw
+    
+    """   
+    
+    
+    if std is None:
+        std =  cs*2.
+    if lc is None:
+        lc = cs*4.
+
+    # can't have a frequency cutoff equivalent to a wavelength of less than 2 cells
+    fc = min(0.5,cs/lc)
+    # update lc to reflect any changes in fc
+    lc = cs/fc
+
+    return std, lc, fc, min(0.5,fc)
+
+
+
 def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
@@ -49,14 +72,9 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
 
     ===========================================================================    
     """
-    if std is None:
-        std = cs*2.
-    if lc is None:
-        lc = 1e-3
-    fc = min(0.5,cs/lc)
-    if (fcw is None) or (fcw > fc):
-        fcw = min(fc,0.25)
-
+    
+    std, lc, fc, fcw = get_faultpair_defaults(cs, std, lc, fcw)    
+    
     # get frequency components
     pl = np.fft.fftfreq(size+1)
     pl[0] = 1.
