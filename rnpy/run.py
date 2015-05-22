@@ -19,7 +19,7 @@ import time
 # arguments to put into parser:
 # [longname,shortname,help,nargs,type]
 argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
-                  ['cellsize','c','cellsize in x,y and z direction',3,float],
+                  ['cellsize','c','cellsize, same in x,y and z direction',1,float],
                   ['pconnectionx','px','probability of connection in x direction','*',float],
                   ['pconnectiony','py','probability of connection in y direction','*',float],
                   ['pconnectionz','pz','probability of connection in z direction','*',float],
@@ -105,7 +105,7 @@ def read_arguments(arguments, argument_names):
             elif type(value) == list:
                 if len(value) == 1:
                     fixed_parameters[at[0]] = value[0]
-                elif at[0] in ['ncells','cellsize']:
+                elif at[0] == 'ncells':
                     fixed_parameters[at[0]] = value
                 else:
                     loop_parameters[at[0]] = value
@@ -157,7 +157,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
 
-    for fparam in ['ncells','cellsize']:
+    for fparam in ['ncells']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
     for iv,variable in enumerate(variablelist):
@@ -177,7 +177,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                                     ['std','elevation_standard_deviation'],
                                     ['lc','mismatch_wavelength_cutoff']]:
                 hinput[inputname] = ro.fault_dict[param]
-            hinput['cs'] = np.average(fixed_parameters['cellsize'])
+            hinput['cs'] = fixed_parameters['cellsize']
             heights = np.array(rnfa.build_fault_pair(size, **hinput))
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
@@ -216,7 +216,7 @@ def write_output(ro, loop_variables, outfilename, newfile):
 
     for vkey in variables.keys():        
         append = False
-        if type(variables[vkey]) in [np.float64,float,str]:
+        if type(variables[vkey]) in [np.float64,float,str,int]:
             keys, values, append = [vkey], [variables[vkey]], True
         elif type(variables[vkey]) == dict:
             keys = [kk for kk in variables[vkey].keys() if type(variables[vkey][kk]) in [np.float64,float,str]]
@@ -237,7 +237,7 @@ def write_output(ro, loop_variables, outfilename, newfile):
     if newfile:
         with open(outfilename, 'wb') as outfile:
             header = '# suite of resistor network simulations\n'
-            for pm in ['ncells','cellsize']:
+            for pm in ['ncells']:
                 header += '# ' + pm + ' {} {} {}\n'.format(*(getattr(ro,pm)))
             header += '### fixed parameters ###\n'
             header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'

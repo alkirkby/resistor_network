@@ -29,7 +29,7 @@ class Rock_volume():
     pconnectionx = probability of connection in the x direction if random faults, default 0.5
     pconnectiony = probability of connection in the y direction if random faults, default 0.5
     pconnectionz = probability of connection in the z direction if random faults, default 0.5
-    cellsize = size of cells in x,y and z directions
+    cellsize = size of cells, same in x,y and z directions
     res_type =  string describing how to calculate the resistivity structure;
                 options are "ones" (default; fully connected network), 
                             "random" (random network with some high resistivity bonds
@@ -53,7 +53,7 @@ class Rock_volume():
     def __init__(self, **input_parameters):
         self.workdir = '.' # working directory
         self.ncells = [10,10,10] #ncells in x, y and z directions
-        self.cellsize = np.array([1.,1.,1.])
+        self.cellsize = 1e-3
         self.pconnectionx = 0.5
         self.pconnectiony = 0.5
         self.pconnectionz = 0.5
@@ -121,8 +121,8 @@ class Rock_volume():
                 except:
                     continue 
         
-        if type(self.cellsize) in [float,int]:
-            self.cellsize = np.ones(3)*self.cellsize
+        if type(self.ncells) in [float,int]:
+            self.ncells = np.ones(3)*self.ncells
 
         if self.build:
             self.build_faults()
@@ -187,7 +187,7 @@ class Rock_volume():
                 aperture_input = {}
                 self.fault_dict['elevation_standard_deviation'], \
                 self.fault_dict['mismatch_wavelength_cutoff'], fc, fcw = \
-                rnfa.get_faultpair_defaults(self.cellsize[0],
+                rnfa.get_faultpair_defaults(self.cellsize,
                                             self.fault_dict['elevation_standard_deviation'],
                                             self.fault_dict['mismatch_wavelength_cutoff'], None)
                 for key in ['fractal_dimension','fault_separation','offset',
@@ -227,7 +227,7 @@ class Rock_volume():
         rnap.get_electrical_resistance(self.aperture_array*self.aperture_correction_c,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
-                                      self.cellsize)
+                                      [self.cellsize]*3)
         
         
     def initialise_permeability(self):
@@ -243,11 +243,11 @@ class Rock_volume():
         self.permeability = \
         rnap.get_permeability(self.aperture_array*self.aperture_correction_f,
                              self.permeability_matrix,
-                             self.cellsize)
+                             [self.cellsize]*3)
         self.hydraulic_resistance = \
         rnap.get_hydraulic_resistance(self.aperture_array*self.aperture_correction_f,
                                      self.permeability_matrix,
-                                     self.cellsize,
+                                     [self.cellsize]*3,
                                      mu = self.fluid_viscosity)
 
 
@@ -285,7 +285,7 @@ class Rock_volume():
 #                self.initialise_permeability()
             property_arrays['fluid'] = self.hydraulic_resistance 
    
-        dx,dy,dz = [float(n) for n in self.cellsize]      
+        dx,dy,dz = [self.cellsize]*3      
 
         for pname in property_arrays.keys():
             nz,ny,nx = np.array(np.shape(property_arrays[pname]))[:-1] - 2
