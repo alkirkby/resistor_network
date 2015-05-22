@@ -14,6 +14,7 @@ import rnpy.functions.assignproperties as rnap
 import rnpy.functions.matrixbuild as rnmb
 import rnpy.functions.matrixsolve as rnms
 import rnpy.functions.array as rna
+import rnpy.functions.faultaperture as rnfa
 import sys
 import time
 
@@ -68,7 +69,7 @@ class Rock_volume():
                                length_decay = 5.,
                                mismatch_wavelength_cutoff = None,
                                elevation_standard_deviation = 1e-4,
-                               aperture_assignment = 'random',
+                               aperture_type = 'random',
                                fault_surfaces = None,
                                correct_aperture_for_geometry = True)
         self.fault_array = None
@@ -167,20 +168,36 @@ class Rock_volume():
             self.fault_uvw = np.array(fault_uvw)
             
     def build_aperture(self):
+        
         if self.aperture_array is None:
-            if self.fault_dict['aperture_assignment'] == 'random':
+            if self.fault_dict['aperture_type'] == 'random':
+#                if self.fault_dict['fault_surfaces'] is None:
+#                    self.fault_dict['fault_surfaces'] = []
+#                    for nn in self.fault_uvw:
+#                        u0,v0,w0 = np.amin(nn, axis=(1,2))
+#                        u1,v1,w1 = np.amax(nn, axis=(1,2))
+#                        duvw = np.array([u1-u0,v1-v0,w1-w0])
+#                        size = rnaf.get_faultsize(duvw,self.fault_dict['offset'])
+#                        faultpair_inputs = dict(D=self.fault_dict['fractal_dimension'],
+#                                                std=self.fault_dict['elevation_standard_deviation'],
+#                                                cs=self.cellsize[0],
+#                                                lc=self.fault_dict['mismatch_wavelength_cutoff'])
+#                        self.fault_dict['fault_surfaces'].append(rnfa.build_fault_pair(size,**faultpair_inputs))
+                    
                 aperture_input = {}
                 for key in ['fractal_dimension','fault_separation','offset',
                             'elevation_standard_deviation', 'fault_surfaces',
                             'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
+                
                 self.aperture_array,self.aperture_correction_f, \
-                self.aperture_correction_c,bvals = \
+                self.aperture_correction_c,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_array,self.fault_uvw,**aperture_input)
             else:
                 self.aperture_array = self.fault_array*self.fault_dict['fault_separation']
-                self.aperture_array[np.isfinite(self.aperture_array)&(self.aperture_array < 1e-50)] = 1e-50
+                self.aperture_array[(self.aperture_array < 1e-50)] = 1e-50
+                self.fault_dict['fault_heights'] = np.ones()
                 self.aperture_correction_f,self.aperture_correction_c = \
                 [np.ones_like(self.aperture_array)]*2
         
