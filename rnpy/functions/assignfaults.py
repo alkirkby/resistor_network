@@ -193,16 +193,29 @@ def get_faultsize(duvw,offset):
     
     return size
 
+
+def get_faultpair_inputs(fractal_dimension,elevation_standard_deviation,
+                         mismatch_wavelength_cutoff,cellsize):
+
+    faultpair_inputs = dict(D=fractal_dimension,
+                            std=elevation_standard_deviation)
+    if mismatch_wavelength_cutoff is not None:
+        faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
+    if cellsize is not None:
+        faultpair_inputs['cellsize'] = cellsize
+
+    return faultpair_inputs
+    
+
 def assign_fault_aperture(fault_array,fault_uvw, 
-                          dl = 1e-3,
+                          cs = 0.25e-3,
                           fault_separation=1e-4, 
                           fault_surfaces = None,
                           offset=0, 
                           fractal_dimension = 2.5, 
                           mismatch_wavelength_cutoff = None, 
                           elevation_standard_deviation = None,
-                          correct_aperture_for_geometry = True,
-                          cellsize=None
+                          correct_aperture_for_geometry = True
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -223,7 +236,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
     fault_array = array containing 1 (fault), 0 (matrix), or nan (outside array)
                   shape (nx,ny,nz,3), created using initialise_faults
     fault_uvw = array or list containing u,v,w extents of faults
-    dl = cellsize in metres, has to be same in x and y directions
+    cs = cellsize in metres, has to be same in x and y directions
     fault_separation, float = fault separation normal to fault surface, in metres
     fault_surfaces = list or array of length the same as fault_uvw, each item containing 
                      2 numpy arrays, containing fault surface elevations, if 
@@ -251,6 +264,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
     ap_array = np.array([np.ones_like(fault_array)*1e-50]*3) # yz, xz and xy directions
 #    ap_array[0] *= 1e-50
     bvals = []
+    faultheights = []
 
     for i, nn in enumerate(fault_uvw):
         bvals.append([])
@@ -267,13 +281,13 @@ def assign_fault_aperture(fault_array,fault_uvw,
         # define direction normal to fault
         direction = list(duvw).index(0)
         
-        # define cutoff wavelength for correlation
-        faultpair_inputs = dict(D=fractal_dimension,
-                                std=elevation_standard_deviation)
-        if mismatch_wavelength_cutoff is not None:
-            faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
-        if cellsize is not None:
-            faultpair_inputs['cellsize'] = cellsize
+        faultpair_inputs = get_faultpair_inputs(fractal_dimension,
+                                                elevation_standard_deviation,
+                                                mismatch_wavelength_cutoff,
+                                                cs)
+            
+            
+            
         build = False
         if fault_surfaces is None:
             build = True
@@ -308,7 +322,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         cb = (np.array(np.shape(b))*0.5).astype(int)
         
         if correct_aperture_for_geometry:
-            bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,dl)
+            bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
         else:
             bf, bc = [np.ones_like(b[:-1,:-1])]*2
         
@@ -325,6 +339,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 ap_array[i,w0,v0:v1+1,u0:u1,0] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
                 ap_array[i,w0,v0:v1,u0:u1+1,1] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             bvals[-1].append([bb,b0,b1])
+        faultheights.append([h1,h2])
     for i in range(len(ap_array)):
         ap_array[i] *= fault_array
     ap_array[(np.isfinite(ap_array))&(ap_array < 1e-50)] = 1e-50
@@ -333,5 +348,5 @@ def assign_fault_aperture(fault_array,fault_uvw,
     aperture_array = ap_array[0]
     aperture_array[(np.isfinite(aperture_array))&(aperture_array <= 2e-50)] = 0.
     
-    return aperture_array,corr_f,corr_c,bvals
+    return aperture_array,corr_f,corr_c,faultheights
     
