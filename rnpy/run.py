@@ -316,6 +316,7 @@ def setup_and_run_suite(arguments, argument_names):
 
     if rank == 0:
         # get inputs
+        print "getting inputs, rank {}".format(rank)
         list_of_inputs = initialise_inputs(fixed_parameters, 
                                            loop_parameters, 
                                            faultsurface_parameters)
@@ -328,21 +329,22 @@ def setup_and_run_suite(arguments, argument_names):
         wd = os.path.abspath(wd)
         if not os.path.exists(wd2):
             os.mkdir(wd2)
-         
+        print "inputs ready, rank {}".format(rank)
     else:
+        
         list_of_inputs = None
         inputs = None
         while not os.path.exists(wd2):
             time.sleep(1)
             print 'process {} waiting for wd'.format(rank)
-
+	print 'wd made, rank {}'.format(rank)
     # initialise outfile
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
     else:
         outfile = 'outputs.dat'
 
-    print "sending jobs out"
+    print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
     outfilenames = run(inputs_sent,
                        rank,
@@ -372,5 +374,5 @@ def setup_and_run_suite(arguments, argument_names):
         
                    
 if __name__ == "__main__":
-    setup_and_run_suite(sys.argv[1:],argument_names)
+    setup_and_run_suite(sys.argv,argument_names)
 
