@@ -47,7 +47,7 @@ def get_faultpair_defaults(cs, std, lc, fcw):
     # update lc to reflect any changes in fc
     lc = cs/fc
 
-    return std, lc, fc, min(0.5,fc)
+    return std, lc, fc, min(0.25,fc)
 
 
 
