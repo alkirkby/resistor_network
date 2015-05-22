@@ -45,7 +45,7 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                   ['fault_separation',None,'amount to separate faults by, in metres','*',float],
                   ['fault_edges','fe','indices of fault edges in x,y,z directions '\
                                       'xmin xmax ymin ymax zmin zmax',6,int],
-                  ['aperture_assignment',None,'type of aperture assignment, random or constant',1,str],
+                  ['aperture_type',None,'type of aperture, random or constant',1,str],
                   ['workdir','wd','working directory',1,str],
                   ['outfile','o','output file name',1,str],
                   ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
