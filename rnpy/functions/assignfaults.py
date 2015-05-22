@@ -202,7 +202,7 @@ def get_faultpair_inputs(fractal_dimension,elevation_standard_deviation,
     if mismatch_wavelength_cutoff is not None:
         faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
     if cellsize is not None:
-        faultpair_inputs['cellsize'] = cellsize
+        faultpair_inputs['cs'] = cellsize
 
     return faultpair_inputs
     
