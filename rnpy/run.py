@@ -80,7 +80,7 @@ def read_arguments(arguments, argument_names):
                                 nargs=nargs,type=vtype,action=action)
     
 
-    args = parser.parse_args(arguments)
+    args = parser.parse_args(arguments[1:])
 
     loop_parameters = {}
     fixed_parameters = {}   
