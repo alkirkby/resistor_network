@@ -40,7 +40,7 @@ def get_faultpair_defaults(cs, std, lc, fcw):
     if std is None:
         std =  cs*2.
     if lc is None:
-        lc = cs*4.
+        lc = 1e-3
 
     # can't have a frequency cutoff equivalent to a wavelength of less than 2 cells
     fc = min(0.5,cs/lc)
