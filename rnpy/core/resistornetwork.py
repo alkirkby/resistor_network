@@ -75,7 +75,7 @@ class Rock_volume():
         self.fault_array = None
         self.fault_uvw = None                
         self.fault_edges = None
-        self.fault_assignment = 'random' # how to assign faults, 'random' or 'list'
+        self.fault_assignment = 'single_yz' # how to assign faults, 'random' or 'list', or 'single_yz'
         self.aperture_array = None
         self.aperture_correction_c = None
         self.aperture_correction_f = None
@@ -123,7 +123,7 @@ class Rock_volume():
         
         if type(self.ncells) in [float,int]:
             self.ncells = np.ones(3)*self.ncells
-
+        
         if self.build:
             self.build_faults()
             self.build_aperture()
@@ -135,35 +135,47 @@ class Rock_volume():
         initialise a faulted volume. 
         
         """
+        
         nx,ny,nz = self.ncells
         if self.fault_array is None:
             fault_array = np.zeros([nz+2,ny+2,nx+2,3])
             fault_array = rna.add_nulls(fault_array)
             fault_uvw = []
-        
+            
+            addfaults = False
             if self.fault_assignment == 'list':
                 if self.fault_edges is not None:
                     if np.shape(self.fault_edges)[-2:] == (3,2):
                         if len(np.shape(self.fault_edges)) == 2:
                             self.fault_edges = [self.fault_edges]
-                        for fedge in self.fault_edges:
-                            fault_array = rnaf.add_fault_to_array(fedge,fault_array)
-                            fuvwi = rnaf.minmax2uvw(fedge)
-                            fault_uvw.append(fuvwi)
-                else:
-                    print "Can't assign faults, no fault list provided, use random"\
-                    " assignment or provide fault_edges"
-            elif self.fault_assignment =='random':
+                        addfaults = True
+            elif self.fault_assignment == 'single_yz':
+
+                nx, ny, nz = self.ncells
+                ix = int(nx/2) + 1
+                iy0, iy1 = 1, ny + 1
+                iz0, iz1 = 1, nz + 1
+                self.fault_edges = [[[ix,ix],[iy0,iy1],[iz0,iz1]]]
+                addfaults = True
+    
+            if addfaults:
+                for fedge in self.fault_edges:
+                    fault_array = rnaf.add_fault_to_array(fedge,fault_array)
+                    fuvwi = rnaf.minmax2uvw(fedge)
+                    fault_uvw.append(fuvwi)
+    
+            elif self.fault_assignment == 'random':
                 pc = [self.pconnectionx,self.pconnectiony,self.pconnectionz]
                 fault_array,fault_uvw = \
                 rnaf.build_random_faults(self.ncells,
                                          pc,
                                          faultlengthmax = self.fault_dict['length_max'],
                                          decayfactor = self.fault_dict['length_decay'])
+    
             else:
-                print "Can't assign faults, invalid fault assignment type provided"
+                print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
                 return
-
+    
             self.fault_array = fault_array
             self.fault_uvw = np.array(fault_uvw)
             

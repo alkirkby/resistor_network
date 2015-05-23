@@ -33,6 +33,7 @@ def get_normal(minmax):
     direction = None
     
     for i, mm in enumerate(minmax):
+        print(mm)
         if mm[1]-mm[0] == 0:
             direction = int(i)
             break
