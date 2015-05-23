@@ -270,10 +270,15 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
+        t0 = time.time()
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
+        t1 = time.time()
+        print 'time to initialise a rock volume on rank {}, {} s'.format(t1-t0)
         # solve the network
         ro.solve_resistor_network()
+        t2 = time.time()
+        print 'time to solve a rock volume on rank {}, {} s'.format(t2-t1)
         # append result to list of r objects
         r_objects.append(ro)
         print "run {} completed".format(r)
@@ -283,11 +288,14 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
                         getattr(ro,prop)
                         )
+        t3 = time.time()
+        print 'time to save the full property arrays on rank {}, {} s'.format(t3-t2)
         if r == 0:
             newfile = True
         else:
             newfile = False
         write_output(ro,loop_variables,outfilename,newfile)
+        print 'time to write the results to output file on rank {}, {} s'.format(time.time()-t3)
         r += 1
         
     return outfilename
