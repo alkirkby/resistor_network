@@ -99,16 +99,18 @@ def read_arguments(arguments, argument_names):
             if at[0] in faultsurface_keys:
                 if type(value) != list:
                     value = [value]
-                faultsurface_parameters[at[0]] = value
+                if len(value) > 0:
+                    faultsurface_parameters[at[0]] = value
             elif at[0] == 'repeats':
-                faultsurface_parameters[at[0]] = range(at[1][0])
+                faultsurface_parameters['repeat'] = range(at[1][0])
             elif type(value) == list:
-                if len(value) == 1:
-                    fixed_parameters[at[0]] = value[0]
-                elif at[0] == 'ncells':
-                    fixed_parameters[at[0]] = value
-                else:
-                    loop_parameters[at[0]] = value
+                if len(value) > 0:
+                    if len(value) == 1:
+                        fixed_parameters[at[0]] = value[0]
+                    elif at[0] == 'ncells':
+                        fixed_parameters[at[0]] = value
+                    else:
+                        loop_parameters[at[0]] = value
             else:
                 fixed_parameters[at[0]] = value
     
@@ -123,30 +125,36 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     import itertools
 
     list_of_inputs = []
+    
 
     # create list of all the different variables, need to ensure that fault surface
     # inputs are on the outermost loops
     if len(loop_parameters) > 1:
         loop_inputs = [list(val) for val in itertools.product(*loop_parameters.values())]
     else:
-        loop_inputs = [[val] for val in loop_parameters.values()[0]]
+        loop_inputs = loop_parameters.values()[0]
     if len(faultsurface_parameters) > 1:
         faultsurface_inputs = [list(val) for val in itertools.product(*faultsurface_parameters.values())]
     else:
-        faultsurface_inputs = [[val] for val in faultsurface_parameters.values()[0]]  
+        faultsurface_inputs = faultsurface_parameters.values()[0]
 
-    if len(faultsurface_inputs) > 0:
-        variablelist = [list(val) for val in itertools.product(faultsurface_inputs,loop_inputs)]
-        variablelist2 = []
-        for vline in variablelist:
-            vlist_temp = []
-            for vv in vline:
-                for v in vv:
-                    vlist_temp.append(v)
-                variablelist2.append(vlist_temp)
-        variablelist = variablelist2
-    else:
+    if len(faultsurface_inputs) == 0:
         variablelist = loop_inputs
+    elif len(loop_inputs) == 0:
+        variablelist = faultsurface_inputs
+    else:
+        variablelist = []
+        
+        for vline in itertools.product(faultsurface_inputs,loop_inputs):
+            tmpline = []
+            for val in vline:
+                if type(val) == list:
+                    tmpline += val
+                else:
+                    tmpline.append(val)
+            variablelist.append(tmpline)
+    print variablelist
+
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
     keys = faultsurface_parameters.keys()
@@ -182,7 +190,6 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
         list_of_inputs.append(input_dict)
-         
     return list_of_inputs
 
 
@@ -200,7 +207,7 @@ def divide_inputs(work_to_do,size):
     
     
 
-def write_output(ro, loop_variables, outfilename, newfile):
+def write_output(ro, loop_variables, outfilename, newfile, repeatno):
     """
     prepare an output file for writing to
     """
@@ -231,7 +238,8 @@ def write_output(ro, loop_variables, outfilename, newfile):
                     variabledict[key] = values[k]
                 else:
                     fixeddict[key] = values[k]
-
+    variablekeys.append('repeat')
+    variabledict['repeat'] = repeatno
     output_line = [variabledict[vkey] for vkey in variablekeys]
 
     if newfile:
@@ -242,7 +250,7 @@ def write_output(ro, loop_variables, outfilename, newfile):
             header += '### fixed parameters ###\n'
             header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'
             header += '### variable parameters ###\n'
-            header += '# '+' '.join(loop_input_output)
+            header += '# '+' '.join(variablekeys)
             outfile.write(header)
             outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
     else:
@@ -274,11 +282,11 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
         t1 = time.time()
-        print 'time to initialise a rock volume on rank {}, {} s'.format(t1-t0)
+        print 'time to initialise a rock volume on rank {}, {} s'.format(rank,t1-t0)
         # solve the network
         ro.solve_resistor_network()
         t2 = time.time()
-        print 'time to solve a rock volume on rank {}, {} s'.format(t2-t1)
+        print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
         # append result to list of r objects
         r_objects.append(ro)
         print "run {} completed".format(r)
@@ -289,13 +297,13 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                         getattr(ro,prop)
                         )
         t3 = time.time()
-        print 'time to save the full property arrays on rank {}, {} s'.format(t3-t2)
+        print 'time to save the full property arrays on rank {}, {} s'.format(rank, t3-t2)
         if r == 0:
             newfile = True
         else:
             newfile = False
-        write_output(ro,loop_variables,outfilename,newfile)
-        print 'time to write the results to output file on rank {}, {} s'.format(time.time()-t3)
+        write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'])
+        print 'time to write the results to output file on rank {}, {} s'.format(rank, time.time()-t3)
         r += 1
         
     return outfilename
@@ -351,7 +359,6 @@ def setup_and_run_suite(arguments, argument_names):
         outfile = fixed_parameters['outfile']
     else:
         outfile = 'outputs.dat'
-
     print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
     outfilenames = run(inputs_sent,
