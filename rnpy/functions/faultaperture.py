@@ -10,6 +10,31 @@ functions relating to creation of a fractal aperture geometry
 
 import numpy as np
 import scipy.stats as stats
+import scipy.optimize as so
+
+
+def R(freq):
+#    return freq**(-0.5*np.log10(freq))
+    lfreq = np.log10(freq)
+    poly = [-0.00914017, -0.07034244, -0.4616544 ,  0.53296253,  0.0834078 ]
+#    poly = [-0.00914017, -0.07034244, -0.4616544 ,  0.53296253,  0.1834078 ]
+#    poly = np.array([-0.01828034, -0.14068488, -0.9233088 ,  1.06592505,  0.16681561])
+    powers=np.arange(len(poly))[::-1]
+#    return 10**(-0.31506034*lfreq**2 + 0.5665134*lfreq + 0.02426884)
+    value = 0.
+    for weight, power in np.vstack([poly,powers]).T:
+#        print weight,power
+        value += weight*lfreq**power
+    
+    return 10**value
+
+
+def func(gammaf,freq,var):
+    return 2*(1.-(np.sin(2.*np.pi*gammaf)/(2.*np.pi*gammaf))) - R(freq)
+    
+
+  
+
 
 def prepare_ifft_inputs(y1a):
     """
@@ -29,41 +54,39 @@ def prepare_ifft_inputs(y1a):
     return y1
 
 
-def get_faultpair_defaults(cs, std, lc, fcw):
+def get_faultpair_defaults(cs, lc, fcw):
     """
     get sensible defaults for fault height elevation based on cellsize.    
     returns std, lc, fc, fcw
     
     """   
     
-    
-    if std is None:
-        std =  cs*2.
     if lc is None:
         lc = 1e-3
 
-    # can't have a frequency cutoff equivalent to a wavelength of less than 2 cells
-    fc = min(0.5,cs/lc)
-    # update lc to reflect any changes in fc
-    lc = cs/fc
+    fc = cs/lc
+    
+    if fcw is None:
+        fcw = fc
 
-    return std, lc, fc, min(0.25,fc)
+    return lc, fc, fcw
 
 
 
-def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
+def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
     fault surfaces
     =================================inputs====================================
-    size, integer = size of fault (fault will be square)
+    size, integer = dimensions (number of cells across) for fault (fault will be square)
     D, float = fractal dimension of returned fault, recommended values in range 
                [2.,2.5]
-    std, float = standard deviation of surface height of fault 1, surface 2 
-                 will be scaled by the same factor as height 1 so may not have 
-                 exactly the same standard deviation but needs to be scaled the same to ensure the
-                 surfaces are matched properly
+    std, float = scaling factor for heights, heights are adjusted so their 
+                 standard deviation equals scalefactor * (size * cs)**0.5
+                 multiplied by size (=ncells in one direction, the surface is
+                 square). Surface 2 will be scaled by the same factor as surface
+                 1 
     cs, float = cellsize, used to calculate defaults for lc,lcw and std
     lc, float = cutoff wavelength in metres for matching of faults, the two 
                 fault surfaces will match at wavelengths greater than the 
@@ -73,21 +96,53 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
     ===========================================================================    
     """
     
-    std, lc, fc, fcw = get_faultpair_defaults(cs, std, lc, fcw)    
+    lc, fc, fcw = get_faultpair_defaults(cs, lc, fcw)
+    
+    if scalefactor is None:
+        scalefactor = 1e-3
+        
+    std = scalefactor(cs*size)**0.5
     
     # get frequency components
-    pl = np.fft.fftfreq(size+1)
+    pl = np.fft.fftfreq(size+1)*1e-3/cs
     pl[0] = 1.
     # define frequencies in 2d
     p,q = np.meshgrid(pl[:size/2+1],pl)
     # define f
-    f = (p**2+q**2)**0.5
+    
+    f = 1./(1./p**2+1./q**2)**0.5#*(2**.5)
+
     # define gamma for correlation between surfaces
+#    gamma = np.ones_like(f)
+#    for fi in range(len(f)):
+#        for fj in range(len(f[fi])):
+#            # get spatial frequency in millimetres
+#            freq = np.abs(f[fi,fj])*1e-3/cs
+##            print freq
+#            if freq < fc:
+#                gamma[fi,fj] = so.newton(func,0.5,args=(freq,1.))
+##    if np.amax(gamma) == 1.:
+##        gamma /= np.amax(gamma[gamma<1.])
+#    gamma[gamma<0] = 0.
+#    gamma[gamma>1] = 1.
+#    print gamma
     gamma = f.copy()
-    gamma[gamma >= fc] = 1.
-    gamma[gamma < fc-fcw] = 0.
-    gamma[(gamma < 1)&(gamma > 0)] -= (fc-fcw)
-    gamma[(gamma < 1)&(gamma > 0)] /= fcw
+#    k = 1./f
+#    kc = 1./fc
+    fc = fc*1e-3/cs
+    gamma = f/fc
+    gamma[f > fc] = 1.
+#    gamma[gamma>1] = 1.
+#    gamma[gamma<0] = 0.
+#    gamma *= 3
+#    gamma = 1.-10**(-f/fc)
+#
+#    gamma[gamma >= fc] = 1.
+#    gamma[gamma < (fc-fcw)] = 0.
+#    gamma[(gamma < 1)&(gamma > 0)] -= (fc-fcw)
+#    gamma[(gamma < 1)&(gamma > 0)] /= fcw
+    
+#    gamma[f < 0.1] /= 2.
     
     # define 2 sets of uniform random numbers
     R1 = np.random.random(size=np.shape(f))
@@ -106,7 +161,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,std=None,lc=None,fcw=None):
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
     
-    return h1, h2
+    return gamma, h1, h2
 
 
 def correct_aperture_geometry(faultsurface_1,aperture,dl):
