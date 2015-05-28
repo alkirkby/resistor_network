@@ -37,7 +37,7 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                                        'where R is a random number in [0,1]','*',float],
                   ['mismatch_frequency_cutoff',None,
                   'frequency cutoff for matching between faults','*',float],
-                  ['elevation_standard_deviation',None,
+                  ['elevation_scalefactor',None,
                   'standard deviation in elevation of fault surfaces','*',float],
                   ['fractal_dimension',None,
                   'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
@@ -85,7 +85,7 @@ def read_arguments(arguments, argument_names):
     loop_parameters = {}
     fixed_parameters = {}   
     faultsurface_keys = ['fractal_dimension',
-                         'elevation_standard_deviation',
+                         'elevation_scalefactor',
                          'mismatch_wavelength_cutoff']
     faultsurface_parameters = {}
     
@@ -182,7 +182,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
             size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
             hinput = {}
             for inputname,param in [['D','fractal_dimension'],
-                                    ['std','elevation_standard_deviation'],
+                                    ['std','elevation_scalefactor'],
                                     ['lc','mismatch_wavelength_cutoff']]:
                 hinput[inputname] = ro.fault_dict[param]
             hinput['cs'] = fixed_parameters['cellsize']

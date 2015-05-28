@@ -68,7 +68,7 @@ class Rock_volume():
                                length_max = 10.,
                                length_decay = 5.,
                                mismatch_wavelength_cutoff = None,
-                               elevation_standard_deviation = 1e-4,
+                               elevation_scalefactor = 1e-3,
                                aperture_type = 'random',
                                fault_surfaces = None,
                                correct_aperture_for_geometry = True)
@@ -191,19 +191,21 @@ class Rock_volume():
 #                        duvw = np.array([u1-u0,v1-v0,w1-w0])
 #                        size = rnaf.get_faultsize(duvw,self.fault_dict['offset'])
 #                        faultpair_inputs = dict(D=self.fault_dict['fractal_dimension'],
-#                                                std=self.fault_dict['elevation_standard_deviation'],
+#                                                std=self.fault_dict['elevation_scalefactor'],
 #                                                cs=self.cellsize[0],
 #                                                lc=self.fault_dict['mismatch_wavelength_cutoff'])
 #                        self.fault_dict['fault_surfaces'].append(rnfa.build_fault_pair(size,**faultpair_inputs))
                     
                 aperture_input = {}
-                self.fault_dict['elevation_standard_deviation'], \
+                self.fault_dict['elevation_scalefactor'], \
                 self.fault_dict['mismatch_wavelength_cutoff'], fc, fcw = \
                 rnfa.get_faultpair_defaults(self.cellsize,
-                                            self.fault_dict['elevation_standard_deviation'],
-                                            self.fault_dict['mismatch_wavelength_cutoff'], None)
+                                            self.fault_dict['elevation_scalefactor'],
+                                            self.fault_dict['mismatch_wavelength_cutoff'], 
+                                            None,
+                                            )
                 for key in ['fractal_dimension','fault_separation','offset',
-                            'elevation_standard_deviation', 'fault_surfaces',
+                            'elevation_scalefactor', 'fault_surfaces',
                             'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]

@@ -195,11 +195,11 @@ def get_faultsize(duvw,offset):
     return size
 
 
-def get_faultpair_inputs(fractal_dimension,elevation_standard_deviation,
+def get_faultpair_inputs(fractal_dimension,elevation_scalefactor,
                          mismatch_wavelength_cutoff,cellsize):
 
     faultpair_inputs = dict(D=fractal_dimension,
-                            std=elevation_standard_deviation)
+                            std=elevation_scalefactor)
     if mismatch_wavelength_cutoff is not None:
         faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
     if cellsize is not None:
@@ -215,7 +215,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                           offset=0, 
                           fractal_dimension = 2.5, 
                           mismatch_wavelength_cutoff = None, 
-                          elevation_standard_deviation = None,
+                          elevation_scalefactor = None,
                           correct_aperture_for_geometry = True
                           ):
     """
@@ -248,8 +248,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
     mismatch_wavelength_cutoff, integer = cutoff frequency for matching of 
                                          surfaces, default 3% of fault plane 
                                          size
-    elevation_standard_deviation, integer = standard deviation of the height 
-                                            of the fault surface
+    elevation_scalefactor, integer = scale for the standard deviation of the height 
+                                     of the fault surface; multiplied by 
+                                     (size * cellsize)**0.5 to ensure rock surface
+                                     scales correctly.
     correct_aperture_for_geometry, True/False, whether or not to correct aperture for
                                       geometry
     cellsize = size in metres of the cells, used to calculate a sensible default
@@ -283,7 +285,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         direction = list(duvw).index(0)
         
         faultpair_inputs = get_faultpair_inputs(fractal_dimension,
-                                                elevation_standard_deviation,
+                                                elevation_scalefactor,
                                                 mismatch_wavelength_cutoff,
                                                 cs)
             
