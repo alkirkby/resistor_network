@@ -101,7 +101,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     if scalefactor is None:
         scalefactor = 1e-3
         
-    std = scalefactor(cs*size)**0.5
+    std = scalefactor*(cs*size)**0.5
     
     # get frequency components
     pl = np.fft.fftfreq(size+1)*1e-3/cs
