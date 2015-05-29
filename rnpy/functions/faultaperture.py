@@ -54,7 +54,7 @@ def prepare_ifft_inputs(y1a):
     return y1
 
 
-def get_faultpair_defaults(cs, lc, fcw):
+def get_faultpair_defaults(cs, lc):
     """
     get sensible defaults for fault height elevation based on cellsize.    
     returns std, lc, fc, fcw
@@ -66,10 +66,8 @@ def get_faultpair_defaults(cs, lc, fcw):
 
     fc = cs/lc
     
-    if fcw is None:
-        fcw = fc
 
-    return lc, fc, fcw
+    return lc, fc
 
 
 
@@ -96,7 +94,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     ===========================================================================    
     """
     
-    lc, fc, fcw = get_faultpair_defaults(cs, lc, fcw)
+    lc, fc = get_faultpair_defaults(cs, lc)
     
     if scalefactor is None:
         scalefactor = 1e-3
@@ -161,7 +159,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
     
-    return gamma, h1, h2
+    return h1, h2
 
 
 def correct_aperture_geometry(faultsurface_1,aperture,dl):

@@ -35,10 +35,10 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                                        'fault locations, for each fault: '\
                                        'faultlength = length_max*exp(-length_decay*R)'\
                                        'where R is a random number in [0,1]','*',float],
-                  ['mismatch_frequency_cutoff',None,
-                  'frequency cutoff for matching between faults','*',float],
+                  ['mismatch_wavelength_cutoff',None,
+                  'wavelength cutoff for matching between faults','*',float],
                   ['elevation_scalefactor',None,
-                  'standard deviation in elevation of fault surfaces','*',float],
+                  'scale factor for standard deviation in elevation of fault surfaces','*',float],
                   ['fractal_dimension',None,
                   'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
                   '*',float],
@@ -129,14 +129,21 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     # create list of all the different variables, need to ensure that fault surface
     # inputs are on the outermost loops
+    print "loop_parameters",loop_parameters
     if len(loop_parameters) > 1:
         loop_inputs = [list(val) for val in itertools.product(*loop_parameters.values())]
-    else:
+    elif len(loop_parameters) == 1:
         loop_inputs = loop_parameters.values()[0]
+    else:
+        loop_inputs = loop_parameters.values()
+
+
     if len(faultsurface_parameters) > 1:
         faultsurface_inputs = [list(val) for val in itertools.product(*faultsurface_parameters.values())]
-    else:
+    elif len(faultsurface_inputs) == 1:
         faultsurface_inputs = faultsurface_parameters.values()[0]
+    else:
+        faultsurface_inputs = faultsurface_parameters.values()
 
     if len(faultsurface_inputs) == 0:
         variablelist = loop_inputs
@@ -157,15 +164,16 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
-    keys = faultsurface_parameters.keys()
-    keys += loop_parameters.keys()
+    fskeys = faultsurface_parameters.keys()
+    keys = fskeys + loop_parameters.keys()
     # number of different fault surface variations, including repeats
-    nfv = min(len(faultsurface_inputs),1)
-    
+    nfv = max(len(faultsurface_inputs),1)
+    print "nfv",nfv
+    print "faultsurface_inputs",faultsurface_inputs    
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
 
-    for fparam in ['ncells']:
+    for fparam in ['ncells','workdir']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
     for iv,variable in enumerate(variablelist):
@@ -182,11 +190,15 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
             size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
             hinput = {}
             for inputname,param in [['D','fractal_dimension'],
-                                    ['std','elevation_scalefactor'],
+                                    ['scalefactor','elevation_scalefactor'],
                                     ['lc','mismatch_wavelength_cutoff']]:
                 hinput[inputname] = ro.fault_dict[param]
             hinput['cs'] = fixed_parameters['cellsize']
             heights = np.array(rnfa.build_fault_pair(size, **hinput))
+            fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
+            fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])+'.npy'
+            np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
+            print "heights",heights
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
         list_of_inputs.append(input_dict)
@@ -207,7 +219,7 @@ def divide_inputs(work_to_do,size):
     
     
 
-def write_output(ro, loop_variables, outfilename, newfile, repeatno):
+def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno):
     """
     prepare an output file for writing to
     """
@@ -238,8 +250,11 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno):
                     variabledict[key] = values[k]
                 else:
                     fixeddict[key] = values[k]
-    variablekeys.append('repeat')
-    variabledict['repeat'] = repeatno
+    # add repeat number, rank and run number for that rank, helps with sorting out
+    for p, pp in [[repeatno,'repeat'],[rank,'rank'],[runno,'run_no']]:
+        variablekeys.append(pp)
+        variabledict[pp] = p
+
     output_line = [variabledict[vkey] for vkey in variablekeys]
 
     if newfile:
@@ -293,8 +308,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         if save_array:
             for prop in ['resistivity','permeability',
                          'current','flowrate','aperture_array']:
+                arrtosave = getattr(ro,prop)
+                print prop, "array type ", type(arrtosave)
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
-                        getattr(ro,prop)
+                        arrtosave
                         )
         t3 = time.time()
         print 'time to save the full property arrays on rank {}, {} s'.format(rank, t3-t2)
@@ -302,7 +319,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             newfile = True
         else:
             newfile = False
-        write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'])
+        write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
         print 'time to write the results to output file on rank {}, {} s'.format(rank, time.time()-t3)
         r += 1
         
@@ -386,7 +403,8 @@ def setup_and_run_suite(arguments, argument_names):
             count += 1
 
         np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
-        
+        for outfn in outputs_gathered:
+            os.remove(outfn) 
                    
 if __name__ == "__main__":
     setup_and_run_suite(sys.argv,argument_names)

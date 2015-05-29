@@ -197,12 +197,9 @@ class Rock_volume():
 #                        self.fault_dict['fault_surfaces'].append(rnfa.build_fault_pair(size,**faultpair_inputs))
                     
                 aperture_input = {}
-                self.fault_dict['elevation_scalefactor'], \
-                self.fault_dict['mismatch_wavelength_cutoff'], fc, fcw = \
+                self.fault_dict['mismatch_wavelength_cutoff'], fc = \
                 rnfa.get_faultpair_defaults(self.cellsize,
-                                            self.fault_dict['elevation_scalefactor'],
-                                            self.fault_dict['mismatch_wavelength_cutoff'], 
-                                            None,
+                                            self.fault_dict['mismatch_wavelength_cutoff'] 
                                             )
                 for key in ['fractal_dimension','fault_separation','offset',
                             'elevation_scalefactor', 'fault_surfaces',
