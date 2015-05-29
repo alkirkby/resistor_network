@@ -294,6 +294,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         build = False
         if fault_surfaces is None:
             build = True
+            print("fault surfaces none")
         else:
             try:
                 h1,h2 = fault_surfaces[i]
@@ -309,8 +310,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
                         raise                
             except:
                 build = True
+                print("fault surfaces wrong type")
             
         if build:
+            print("building new faults")
             h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
 
             

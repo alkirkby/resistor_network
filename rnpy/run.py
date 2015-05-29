@@ -168,12 +168,10 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     keys = fskeys + loop_parameters.keys()
     # number of different fault surface variations, including repeats
     nfv = max(len(faultsurface_inputs),1)
-    print "nfv",nfv
-    print "faultsurface_inputs",faultsurface_inputs    
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
 
-    for fparam in ['ncells','workdir']:
+    for fparam in ['ncells','workdir','fault_assignment']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
     for iv,variable in enumerate(variablelist):
@@ -187,18 +185,20 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 offset = variable[k]
         # check if we need to create a new fault surface pair
         if iv % (len(variablelist)/nfv) == 0:
-            size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
-            hinput = {}
-            for inputname,param in [['D','fractal_dimension'],
-                                    ['scalefactor','elevation_scalefactor'],
-                                    ['lc','mismatch_wavelength_cutoff']]:
-                hinput[inputname] = ro.fault_dict[param]
-            hinput['cs'] = fixed_parameters['cellsize']
-            heights = np.array(rnfa.build_fault_pair(size, **hinput))
-            fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
-            fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])+'.npy'
-            np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
-            print "heights",heights
+            if input_dict['fault_assignment'] == 'single_yz':
+                size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
+                hinput = {}
+                for inputname,param in [['D','fractal_dimension'],
+                                        ['scalefactor','elevation_scalefactor'],
+                                        ['lc','mismatch_wavelength_cutoff']]:
+                    hinput[inputname] = ro.fault_dict[param]
+                hinput['cs'] = fixed_parameters['cellsize']
+                heights = np.array([rnfa.build_fault_pair(size, **hinput)])
+                fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
+                fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])+'.npy'
+                np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
+            else:
+                heights = None 
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = heights
         list_of_inputs.append(input_dict)
@@ -309,7 +309,6 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             for prop in ['resistivity','permeability',
                          'current','flowrate','aperture_array']:
                 arrtosave = getattr(ro,prop)
-                print prop, "array type ", type(arrtosave)
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
                         arrtosave
                         )
