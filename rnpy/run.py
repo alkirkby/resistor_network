@@ -351,8 +351,9 @@ def gather_outputs(outputs_gathered, wd, outfile) :
 
     np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
 
-#    for outfn in outputs_gathered:
-#        os.remove(outfn) 
+    for outfn in outputs_gathered:
+        if outfile not in outfn:
+            os.remove(outfn) 
 
 
    
