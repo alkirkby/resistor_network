@@ -239,6 +239,11 @@ class Rock_volume():
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       [self.cellsize]*3)
+        self.resistivity = \
+        rnap.get_electrical_resistivity(self.aperture_array*self.aperture_correction_c,
+                                      self.resistivity_matrix,
+                                      self.resistivity_fluid,
+                                      [self.cellsize]*3)
         
         
     def initialise_permeability(self):
