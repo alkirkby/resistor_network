@@ -398,7 +398,10 @@ def setup_and_run_suite(arguments, argument_names):
         count = 0
         for outfn in outputs_gathered:
             if count > 0:
-                outarray = np.vstack([outarray,np.loadtxt(outfn)])
+                try:
+                    outarray = np.vstack([outarray,np.loadtxt(outfn)])
+                except IOError:
+                    print "Failed to find file {}, skipping and moving to the next file".format(outfn)
             count += 1
 
         np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
