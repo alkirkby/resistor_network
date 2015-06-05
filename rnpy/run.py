@@ -293,38 +293,69 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
-        t0 = time.time()
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
+        if save_array:
+            for prop in ['resistivity','permeability','aperture_array']:
+                arrtosave = getattr(ro,prop)
+                np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                        arrtosave
+                        )
         t1 = time.time()
-        print 'time to initialise a rock volume on rank {}, {} s'.format(rank,t1-t0)
         # solve the network
         ro.solve_resistor_network()
         t2 = time.time()
         print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
         # append result to list of r objects
         r_objects.append(ro)
-        print "run {} completed".format(r)
         if save_array:
-            for prop in ['resistivity','permeability',
-                         'current','flowrate','aperture_array']:
+            for prop in ['current','flowrate']:
                 arrtosave = getattr(ro,prop)
                 np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
                         arrtosave
                         )
-        t3 = time.time()
-        print 'time to save the full property arrays on rank {}, {} s'.format(rank, t3-t2)
         if r == 0:
             newfile = True
         else:
             newfile = False
         write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
-        print 'time to write the results to output file on rank {}, {} s'.format(rank, time.time()-t3)
         r += 1
         
     return outfilename
-  
+ 
+def gather_outputs(outputs_gathered, wd, outfile) :
+    """
+    gathers all the outputs written to individual files for each rank, to a 
+    master file.
     
+    
+    """
+    outfn = outputs_gathered[0]
+    outarray = np.loadtxt(outfn)
+    outfile0 = open(outfn)
+    line = outfile0.readline()
+    header = ''
+
+    while line[0] == '#':
+        header += line
+        line = outfile0.readline()
+    header = header.strip()
+    count = 0
+    for outfn in outputs_gathered:
+        if count > 0:
+            try:
+                outarray = np.vstack([outarray,np.loadtxt(outfn)])
+            except IOError:
+                print "Failed to find file {}, skipping and moving to the next file".format(outfn)
+        count += 1
+
+    np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
+
+#    for outfn in outputs_gathered:
+#        os.remove(outfn) 
+
+
+   
 def setup_and_run_suite(arguments, argument_names):
     """
     set up and run a suite of runs in parallel using mpi4py
@@ -382,31 +413,12 @@ def setup_and_run_suite(arguments, argument_names):
                        wd2,
                        op.join(wd,outfile),
                        loop_parameters.keys()+faultsurface_parameters.keys())
+
     outputs_gathered = comm.gather(outfilenames,root=0)
     
     if rank == 0:
-        outfn = outputs_gathered[0]
-        outarray = np.loadtxt(outfn)
-        outfile0 = open(outfn)
-        line = outfile0.readline()
-        header = ''
+        gather_outputs(outputs_gathered, wd, outfile)
 
-        while line[0] == '#':
-            header += line
-            line = outfile0.readline()
-        header = header.strip()
-        count = 0
-        for outfn in outputs_gathered:
-            if count > 0:
-                try:
-                    outarray = np.vstack([outarray,np.loadtxt(outfn)])
-                except IOError:
-                    print "Failed to find file {}, skipping and moving to the next file".format(outfn)
-            count += 1
-
-        np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
-        for outfn in outputs_gathered:
-            os.remove(outfn) 
                    
 if __name__ == "__main__":
     setup_and_run_suite(sys.argv,argument_names)
