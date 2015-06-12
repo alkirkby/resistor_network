@@ -293,8 +293,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
+        print input_dict
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
+        print "ro.solve_direction",ro.solve_direction
         if save_array:
             for prop in ['resistivity','permeability','aperture_array']:
                 arrtosave = getattr(ro,prop)
