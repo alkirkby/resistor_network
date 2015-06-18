@@ -99,7 +99,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     if scalefactor is None:
         scalefactor = 1e-3
         
-    std = scalefactor*(cs*size)**0.5
+    std = scalefactor*(cs*size)**(3.-D)
     
     # get frequency components
     pl = np.fft.fftfreq(size+1)#*1e-3/cs
@@ -127,7 +127,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     gamma = f.copy()
 #    k = 1./f
 #    kc = 1./fc
-#    fc = fc*1e-3/cs
+    fc = fc#*1e-3/cs
     gamma = f/fc
     gamma[f > fc] = 1.
 #    gamma[gamma>1] = 1.
@@ -155,7 +155,8 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     h2 = np.fft.irfftn(y2,y2.shape)
     # scale so that standard deviation is as specified
     if std is not None:
-        scaling_factor = std/np.std(h1)
+        meanstd = np.average([np.std(line) for line in h1])
+        scaling_factor = std/meanstd
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
     
