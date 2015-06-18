@@ -102,7 +102,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     std = scalefactor*(cs*size)**0.5
     
     # get frequency components
-    pl = np.fft.fftfreq(size+1)*1e-3/cs
+    pl = np.fft.fftfreq(size+1)#*1e-3/cs
     pl[0] = 1.
     # define frequencies in 2d
     p,q = np.meshgrid(pl[:size/2+1],pl)
@@ -127,7 +127,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     gamma = f.copy()
 #    k = 1./f
 #    kc = 1./fc
-    fc = fc*1e-3/cs
+#    fc = fc*1e-3/cs
     gamma = f/fc
     gamma[f > fc] = 1.
 #    gamma[gamma>1] = 1.
