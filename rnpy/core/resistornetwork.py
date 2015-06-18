@@ -125,9 +125,13 @@ class Rock_volume():
             self.ncells = np.ones(3)*self.ncells
         
         if self.build:
+            print "building faults"
             self.build_faults()
+            print "building aperture"
             self.build_aperture()
+            print "initialising electrical resistance"
             self.initialise_electrical_resistance()
+            print "initialising permeability"
             self.initialise_permeability()
 
     def build_faults(self):
@@ -183,6 +187,7 @@ class Rock_volume():
         
         if self.aperture_array is None:
             if self.fault_dict['aperture_type'] == 'random':
+                print "aperture type is none, building aperture"
 #                if self.fault_dict['fault_surfaces'] is None:
 #                    self.fault_dict['fault_surfaces'] = []
 #                    for nn in self.fault_uvw:
@@ -197,20 +202,23 @@ class Rock_volume():
 #                        self.fault_dict['fault_surfaces'].append(rnfa.build_fault_pair(size,**faultpair_inputs))
                     
                 aperture_input = {}
+                print "getting fault pair defaults"
                 self.fault_dict['mismatch_wavelength_cutoff'], fc = \
                 rnfa.get_faultpair_defaults(self.cellsize,
                                             self.fault_dict['mismatch_wavelength_cutoff'] 
                                             )
+                print "getting keys"
                 for key in ['fractal_dimension','fault_separation','offset',
                             'elevation_scalefactor', 'fault_surfaces',
                             'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
-                
+                print "assigning fault aperture"
                 self.aperture_array,self.aperture_correction_f, \
                 self.aperture_correction_c,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_array,self.fault_uvw,**aperture_input)
             else:
+                print "no need to assign new aperture array as aperture already provided"
                 self.aperture_array = self.fault_array*self.fault_dict['fault_separation']
                 self.aperture_array[(self.aperture_array < 1e-50)] = 1e-50
                 self.fault_dict['fault_heights'] = np.ones()
@@ -218,10 +226,12 @@ class Rock_volume():
                 [np.ones_like(self.aperture_array)]*2
         
         # get the aperture values from the faulted part of the volume to do some calculations on
+        print "getting fault aperture values"
         faultapvals = self.aperture_array[(self.fault_array.astype(bool))&np.isfinite(self.aperture_array)]
+        print "calculating mean ap and contact area"
         self.aperture_mean = np.average(faultapvals)
         self.contact_area = float(len(faultapvals[faultapvals <= 1e-50]))/np.size(faultapvals)
- 
+
         if self.aperture_correction_f is None:
             self.aperture_correction_f = np.ones_like(self.aperture_array)
         if self.aperture_correction_c is None:

@@ -198,9 +198,10 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])+'.npy'
                 np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
             else:
-                heights = None 
+                heights = None
+                fs_filename = None 
         # in every case until we create a new pair, the fault surface pair is the same
-        input_dict['fault_surfaces'] = heights
+        input_dict['fault_surfaces'] = fs_filename
         list_of_inputs.append(input_dict)
     return list_of_inputs
 
@@ -281,8 +282,6 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
     takes a dictionary of inputs to be used to create a resistivity object
     """
     
-    r_objects = []
-    
     ofb = op.basename(outfilename)
     ofp = op.dirname(outfilename)
     if '.' in ofb:
@@ -293,35 +292,46 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
-        print input_dict
+        print "rank {}, about to initialise a rock volume".format(rank)
+        # read relevant fault surface from file
+        print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
+        try:
+            input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
+        except IOError:
+            print "no fault surfaces file or file does not exist"
+            input_dict['fault_surfaces'] = None
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
         print "ro.solve_direction",ro.solve_direction
         if save_array:
-            for prop in ['resistivity','permeability','aperture_array']:
-                arrtosave = getattr(ro,prop)
-                np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
-                        arrtosave
-                        )
+            if r == 0:
+                for prop in ['resistivity','permeability','aperture_array']:
+                    arrtosave = getattr(ro,prop)
+                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                            arrtosave
+                            )
         t1 = time.time()
         # solve the network
         ro.solve_resistor_network()
         t2 = time.time()
         print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
         # append result to list of r objects
-        r_objects.append(ro)
         if save_array:
-            for prop in ['current','flowrate']:
-                arrtosave = getattr(ro,prop)
-                np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
-                        arrtosave
-                        )
+            # for now only saving first set of arrays for each rank as 
+            # outputs are taking up way too much space!
+            if r == 0:
+                for prop in ['current','flowrate']:
+                    arrtosave = getattr(ro,prop)
+                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                            arrtosave
+                            )
         if r == 0:
             newfile = True
         else:
             newfile = False
         write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
         r += 1
+        input_dict['fault_surfaces'] = None
         
     return outfilename
  
@@ -380,15 +390,15 @@ def setup_and_run_suite(arguments, argument_names):
         wd = './model_runs'
     wd2 = os.path.join(wd,'arrays')
 
-    if rank == 0:
+    #if rank == 0:
         # get inputs
-        print "getting inputs, rank {}".format(rank)
-        list_of_inputs = initialise_inputs(fixed_parameters, 
-                                           loop_parameters, 
-                                           faultsurface_parameters)
-        # divide inputs
-        inputs = divide_inputs(list_of_inputs,size)
-        
+    print "getting inputs, rank {}".format(rank)
+    list_of_inputs = initialise_inputs(fixed_parameters, 
+                                       loop_parameters, 
+                                       faultsurface_parameters)
+    # divide inputs
+    inputs = divide_inputs(list_of_inputs,size)
+    if rank == 0:        
         # make working directories
         if not os.path.exists(wd):
             os.mkdir(wd)
@@ -411,6 +421,7 @@ def setup_and_run_suite(arguments, argument_names):
         outfile = 'outputs.dat'
     print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
+    print "inputs have been sent", len(inputs_sent), "rank", rank
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
