@@ -279,11 +279,13 @@ def assign_fault_aperture(fault_array,fault_uvw,
         # define size, add some padding to account for edge effects and make 
         # the fault square as I am not sure if fft is working properly for non-
         # square geometries
+        print("getting fault size")
         size = get_faultsize(duvw,offset)
         
         # define direction normal to fault
+        print("getting direction")
         direction = list(duvw).index(0)
-        
+        print("getting_faultpair inputs")
         faultpair_inputs = get_faultpair_inputs(fractal_dimension,
                                                 elevation_scalefactor,
                                                 mismatch_wavelength_cutoff,
@@ -313,10 +315,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 print("fault surfaces wrong type")
             
         if build:
-            print("building new faults")
+            print("building new fault surfaces")
             h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
 
-            
+        print("i have some fault surfaces")
         if offset > 0:
             b = h1[offset:,offset:] - h2[:-offset,:-offset] + fault_separation
         else:
@@ -328,10 +330,12 @@ def assign_fault_aperture(fault_array,fault_uvw,
         cb = (np.array(np.shape(b))*0.5).astype(int)
         
         if correct_aperture_for_geometry:
+            print("correcting aperture for geometry")
             bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
         else:
+            print("no aperture corrections")
             bf, bc = [np.ones_like(b[:-1,:-1])]*2
-        
+        print("assigning faults to array")
         for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
             b0,b1 = bb
 #            print(b0,b1)
