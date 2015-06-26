@@ -352,21 +352,11 @@ class Rock_volume():
                 oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)  
             
 
-            flow = np.array([np.sum(oa[:,:,-1,0,0]),
-                             np.sum(oa[:,-1,:,1,1]),
-                             np.sum(oa[-1,:,:,2,2])])
-             
-            factor = np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
-                               dz*dx*(nx+1)*(nz+1)/(dy*ny),
-                               dy*dx*(nx+1)*(ny+1)/(dz*nz)])
-
             if 'current' in pname:
-                self.current = 1.*oa
-                self.resistance_bulk = 1./flow
-                self.resistivity_bulk = factor*self.resistance_bulk
+                self.resistivity_bulk, self.resistance_bulk = \
+                rnap.get_bulk_resistivity(self.current,self.cellsize)
     
             if 'fluid' in pname:
-                self.flowrate = 1.*oa
-                self.hydraulic_resistance_bulk = 1./flow
-                self.permeability_bulk = self.fluid_viscosity/(self.hydraulic_resistance_bulk*factor)
+                self.permeability_bulk, self.hydraulic_resistance_bulk  = \
+                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)
             
