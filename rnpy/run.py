@@ -192,6 +192,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                                         ['scalefactor','elevation_scalefactor'],
                                         ['lc','mismatch_wavelength_cutoff']]:
                     hinput[inputname] = ro.fault_dict[param]
+                print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
                 hinput['cs'] = fixed_parameters['cellsize']
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
@@ -303,11 +304,14 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
         print "ro.solve_direction",ro.solve_direction
+
+        arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
+        arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])
         if save_array:
-            if r == 0:
-                for prop in ['resistivity','permeability','aperture_array']:
+         #   if r == 0:
+                for prop in ['aperture_array']:
                     arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                    np.save(os.path.join(wd,arr_fn+'_'+prop),
                             arrtosave
                             )
         t1 = time.time()
@@ -319,10 +323,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         if save_array:
             # for now only saving first set of arrays for each rank as 
             # outputs are taking up way too much space!
-            if r == 0:
+        #    if r == 0:
                 for prop in ['current','flowrate']:
                     arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                    np.save(os.path.join(wd,arr_fn+'_'+prop),
                             arrtosave
                             )
         if r == 0:
