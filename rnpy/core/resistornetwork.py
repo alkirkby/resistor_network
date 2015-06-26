@@ -353,10 +353,12 @@ class Rock_volume():
             
 
             if 'current' in pname:
+                self.current = 1.*oa
                 self.resistivity_bulk, self.resistance_bulk = \
                 rnap.get_bulk_resistivity(self.current,self.cellsize)
     
             if 'fluid' in pname:
+                self.flowrate=1.*oa
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)
             

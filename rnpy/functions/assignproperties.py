@@ -180,4 +180,4 @@ def get_bulk_permeability(flowrate_array,cellsize,fluid_viscosity):
 
     resistance = 1./flow
     
-    return fluid_viscosity/(resistance*factor)
+    return fluid_viscosity/(resistance*factor),resistance
