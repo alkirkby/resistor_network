@@ -191,12 +191,20 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 for inputname,param in [['D','fractal_dimension'],
                                         ['scalefactor','elevation_scalefactor'],
                                         ['lc','mismatch_wavelength_cutoff']]:
-                    hinput[inputname] = ro.fault_dict[param]
+                    if param in input_dict.keys():
+                        hinput[inputname] = input_dict[param]
+                    else:
+                        hinput[inputname] = ro.fault_dict[param]
                 print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
                 hinput['cs'] = fixed_parameters['cellsize']
+                print "hinput",hinput
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
+                np.savetxt(os.path.join(input_dict['workdir'],'h1.dat'),heights[0,0])
+                np.savetxt(os.path.join(input_dict['workdir'],'h2.dat'),heights[0,1])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
-                fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])+'.npy'
+                fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
+                fs_filename = fs_filename.replace('.','')+'.npy'
+
                 np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
             else:
                 heights = None
