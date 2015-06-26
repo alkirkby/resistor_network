@@ -129,7 +129,6 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     # create list of all the different variables, need to ensure that fault surface
     # inputs are on the outermost loops
-    print "loop_parameters",loop_parameters
     if len(loop_parameters) > 1:
         loop_inputs = [list(val) for val in itertools.product(*loop_parameters.values())]
     elif len(loop_parameters) == 1:
@@ -292,9 +291,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
-        print "rank {}, about to initialise a rock volume".format(rank)
+        t0 = time.time()
         # read relevant fault surface from file
-        print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
         try:
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
@@ -302,27 +300,29 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             input_dict['fault_surfaces'] = None
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
-        print "ro.solve_direction",ro.solve_direction
+        arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
+        arr_fn = '_'+''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])+'.npy'
+
         if save_array:
-            if r == 0:
+            if input_dict['repeat'] == 0:
                 for prop in ['resistivity','permeability','aperture_array']:
                     arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                    np.save(os.path.join(wd,arr_fn+prop),
                             arrtosave
                             )
         t1 = time.time()
         # solve the network
         ro.solve_resistor_network()
         t2 = time.time()
-        print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
+        print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1),
         # append result to list of r objects
         if save_array:
             # for now only saving first set of arrays for each rank as 
             # outputs are taking up way too much space!
-            if r == 0:
+            if input_dict['repeat'] == 0:
                 for prop in ['current','flowrate']:
                     arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,'{}{}_{}'.format(prop,rank,r)),
+                    np.save(os.path.join(wd,arr_fn+prop),
                             arrtosave
                             )
         if r == 0:
@@ -332,7 +332,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
         r += 1
         input_dict['fault_surfaces'] = None
-        
+        print 'time to prepare and run input on rank {}, {}'.format(rank,time.time()-t0)
     return outfilename
  
 def gather_outputs(outputs_gathered, wd, outfile) :
@@ -390,9 +390,6 @@ def setup_and_run_suite(arguments, argument_names):
         wd = './model_runs'
     wd2 = os.path.join(wd,'arrays')
 
-    #if rank == 0:
-        # get inputs
-    print "getting inputs, rank {}".format(rank)
     list_of_inputs = initialise_inputs(fixed_parameters, 
                                        loop_parameters, 
                                        faultsurface_parameters)
@@ -405,28 +402,29 @@ def setup_and_run_suite(arguments, argument_names):
         wd = os.path.abspath(wd)
         if not os.path.exists(wd2):
             os.mkdir(wd2)
-        print "inputs ready, rank {}".format(rank)
     else:
         
         list_of_inputs = None
         inputs = None
         while not os.path.exists(wd2):
             time.sleep(1)
-            print 'process {} waiting for wd'.format(rank)
-	print 'wd made, rank {}'.format(rank)
     # initialise outfile
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
     else:
         outfile = 'outputs.dat'
-    print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
-    print "inputs have been sent", len(inputs_sent), "rank", rank
+
+    # make a list of loop inputs
+    loop_variables = loop_parameters.keys()
+    for key in faultsurface_parameters.keys():
+        if len(faultsurface_parameters[key]) > 1:
+            loop_variables.append(key)
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
                        op.join(wd,outfile),
-                       loop_parameters.keys()+faultsurface_parameters.keys())
+                       loop_variables)
 
     outputs_gathered = comm.gather(outfilenames,root=0)
     
