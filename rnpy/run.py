@@ -234,9 +234,9 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     prepare an output file for writing to
     """
     variables = vars(ro)
-    output_variables = ['contact_area','aperture_mean']
-    output_variables += ['resistivity_bulk'+ri for ri in 'xyz']
-    output_variables += ['permeability_bulk'+ri for ri in 'xyz']
+    output_variables = ['contact_area']
+    for pname in ['resistivity_bulk','permeability_bulk','aperture_mean']:
+        output_variables += [pname+ri for ri in 'xyz']
     loop_input_output = loop_variables + output_variables
     
     variablekeys = []
@@ -251,7 +251,7 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
             keys = [kk for kk in variables[vkey].keys() if type(variables[vkey][kk]) in [np.float64,float,str]]
             values = [variables[vkey][kk] for kk in keys]
             append = True
-        elif vkey in ['resistivity_bulk','permeability_bulk']:
+        elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean']:
             keys, values, append = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
         if append:
             for k,key in enumerate(keys):

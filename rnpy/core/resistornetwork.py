@@ -227,9 +227,10 @@ class Rock_volume():
         
         # get the aperture values from the faulted part of the volume to do some calculations on
         print "getting fault aperture values"
-        faultapvals = self.aperture_array[(self.fault_array.astype(bool))&np.isfinite(self.aperture_array)]
+        faultapvals = [self.aperture_array[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture_array[:,:,:,i]))] \
+                      for i in range(3)]
         print "calculating mean ap and contact area"
-        self.aperture_mean = np.average(faultapvals)
+        self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
         self.contact_area = float(len(faultapvals[faultapvals <= 1e-50]))/np.size(faultapvals)
 
         if self.aperture_correction_f is None:
