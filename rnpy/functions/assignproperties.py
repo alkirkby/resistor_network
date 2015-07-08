@@ -155,9 +155,9 @@ def get_geometry_factor(output_array,cellsize):
 
 
 def get_flow(output_array):
-    print(np.array([np.sum(output_array[:,:,-1,0,0]),
-                     np.sum(output_array[:,-1,:,1,1]),
-                     np.sum(output_array[-1,:,:,2,2])]))
+    #print(np.array([np.sum(output_array[:,:,-1,0,0]),
+    #                 np.sum(output_array[:,-1,:,1,1]),
+    #                 np.sum(output_array[-1,:,:,2,2])]))
     return np.array([np.sum(output_array[:,:,-1,0,0]),
                      np.sum(output_array[:,-1,:,1,1]),
                      np.sum(output_array[-1,:,:,2,2])])

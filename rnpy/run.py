@@ -129,7 +129,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     # create list of all the different variables, need to ensure that fault surface
     # inputs are on the outermost loops
-    print "loop_parameters",loop_parameters
+    #print "loop_parameters",loop_parameters
     if len(loop_parameters) > 1:
         loop_inputs = [list(val) for val in itertools.product(*loop_parameters.values())]
     elif len(loop_parameters) == 1:
@@ -160,7 +160,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 else:
                     tmpline.append(val)
             variablelist.append(tmpline)
-    print variablelist
+    #print variablelist
 
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
@@ -195,12 +195,12 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                         hinput[inputname] = input_dict[param]
                     else:
                         hinput[inputname] = ro.fault_dict[param]
-                print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
+     #           print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
                 hinput['cs'] = fixed_parameters['cellsize']
-                print "hinput",hinput
+      #          print "hinput",hinput
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
-                np.savetxt(os.path.join(input_dict['workdir'],'h1.dat'),heights[0,0])
-                np.savetxt(os.path.join(input_dict['workdir'],'h2.dat'),heights[0,1])
+#                np.savetxt(os.path.join(input_dict['workdir'],'h1.dat'),heights[0,0])
+#                np.savetxt(os.path.join(input_dict['workdir'],'h2.dat'),heights[0,1])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
                 fs_filename = fs_filename.replace('.','')+'.npy'
@@ -234,8 +234,8 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     prepare an output file for writing to
     """
     variables = vars(ro)
-    output_variables = ['contact_area']
-    for pname in ['resistivity_bulk','permeability_bulk','aperture_mean']:
+    output_variables = []
+    for pname in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
         output_variables += [pname+ri for ri in 'xyz']
     loop_input_output = loop_variables + output_variables
     
@@ -251,7 +251,7 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
             keys = [kk for kk in variables[vkey].keys() if type(variables[vkey][kk]) in [np.float64,float,str]]
             values = [variables[vkey][kk] for kk in keys]
             append = True
-        elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean']:
+        elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
             keys, values, append = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
         if append:
             for k,key in enumerate(keys):
@@ -279,7 +279,7 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
             outfile.write(header)
             outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
     else:
-        print "appending to old file"
+       # print "appending to old file"
         with open(outfilename, 'ab') as outfile:
             outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
 
@@ -301,17 +301,17 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
-        print "rank {}, about to initialise a rock volume".format(rank)
+       # print "rank {}, about to initialise a rock volume".format(rank)
         # read relevant fault surface from file
-        print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
+        #print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
         try:
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
-            print "no fault surfaces file or file does not exist"
+         #   print "no fault surfaces file or file does not exist"
             input_dict['fault_surfaces'] = None
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
-        print "ro.solve_direction",ro.solve_direction
+       # print "ro.solve_direction",ro.solve_direction
 
         arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
         arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])
@@ -404,10 +404,11 @@ def setup_and_run_suite(arguments, argument_names):
 
     #if rank == 0:
         # get inputs
-    print "getting inputs, rank {}".format(rank)
+    #print "getting inputs, rank {}".format(rank)
     list_of_inputs = initialise_inputs(fixed_parameters, 
                                        loop_parameters, 
                                        faultsurface_parameters)
+    time.sleep(10)
     # divide inputs
     inputs = divide_inputs(list_of_inputs,size)
     if rank == 0:        
@@ -417,23 +418,23 @@ def setup_and_run_suite(arguments, argument_names):
         wd = os.path.abspath(wd)
         if not os.path.exists(wd2):
             os.mkdir(wd2)
-        print "inputs ready, rank {}".format(rank)
+       # print "inputs ready, rank {}".format(rank)
     else:
         
         list_of_inputs = None
         inputs = None
         while not os.path.exists(wd2):
             time.sleep(1)
-            print 'process {} waiting for wd'.format(rank)
-	print 'wd made, rank {}'.format(rank)
+        #    print 'process {} waiting for wd'.format(rank)
+	#print 'wd made, rank {}'.format(rank)
     # initialise outfile
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
     else:
         outfile = 'outputs.dat'
-    print "sending jobs out, rank {}".format(rank)
+    #print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
-    print "inputs have been sent", len(inputs_sent), "rank", rank
+    #print "inputs have been sent", len(inputs_sent), "rank", rank
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
