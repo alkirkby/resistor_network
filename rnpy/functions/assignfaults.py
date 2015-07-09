@@ -187,7 +187,23 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     
     return fault_array_final,np.array(faults)
 
+def get_duvw(ncells,ftype = 'single_yz'):
+    
+    nx, ny, nz = ncells
+    
+    
+    ix = int(nx/2) + 1
+    iy0, iy1 = 1, ny + 1
+    iz0, iz1 = 1, nz + 1
+    
+    return [[[ix,ix],[iy0,iy1],[iz0,iz1]]]
+
+
 def get_faultsize(duvw,offset):
+    """
+    get fault size based on the u,v,w extents of the fault
+    
+    """
     
     size = int(np.amax(duvw) + 2*(max(0.2*np.amax(duvw),4)) + offset)
     size += size % 2

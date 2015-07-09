@@ -174,6 +174,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     for fparam in ['ncells','workdir','fault_assignment']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
+            
+            
     for iv,variable in enumerate(variablelist):
         offset = 0
         # initialise a dictionary
@@ -186,6 +188,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
         # check if we need to create a new fault surface pair
         if iv % (len(variablelist)/nfv) == 0:
             if input_dict['fault_assignment'] == 'single_yz':
+                
                 size = rnaf.get_faultsize(np.array(fixed_parameters['ncells']),offset)
                 hinput = {}
                 for inputname,param in [['D','fractal_dimension'],
@@ -195,12 +198,12 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                         hinput[inputname] = input_dict[param]
                     else:
                         hinput[inputname] = ro.fault_dict[param]
-     #           print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
+                print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
                 hinput['cs'] = fixed_parameters['cellsize']
-      #          print "hinput",hinput
+                print "hinput",hinput
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
-#                np.savetxt(os.path.join(input_dict['workdir'],'h1.dat'),heights[0,0])
-#                np.savetxt(os.path.join(input_dict['workdir'],'h2.dat'),heights[0,1])
+                np.savetxt(os.path.join(input_dict['workdir'],'h1{}.dat'.format(input_dict['repeat'])),heights[0,0])
+                np.savetxt(os.path.join(input_dict['workdir'],'h2{}.dat'.format(input_dict['repeat'])),heights[0,1])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
                 fs_filename = fs_filename.replace('.','')+'.npy'
