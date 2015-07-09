@@ -93,6 +93,9 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
 
     ===========================================================================    
     """
+        
+    if size % 2 != 0:
+        size += 1
     
     lc, fc = get_faultpair_defaults(cs, lc)
     
