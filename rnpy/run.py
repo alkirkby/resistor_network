@@ -305,6 +305,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # read relevant fault surface from file
         #print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
         try:
+            print "input_dict",input_dict
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
          #   print "no fault surfaces file or file does not exist"
@@ -316,7 +317,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
         arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])
         if save_array:
-         #   if r == 0:
+            # save only first repeat so we get an example of the runs, not enough space to save all
+            if input_dict['repeat'] == 0:
                 for prop in ['aperture_array']:
                     arrtosave = getattr(ro,prop)
                     np.save(os.path.join(wd,arr_fn+'_'+prop),
@@ -329,9 +331,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
         # append result to list of r objects
         if save_array:
-            # for now only saving first set of arrays for each rank as 
-            # outputs are taking up way too much space!
-        #    if r == 0:
+            # save only first repeat so we get an example of the runs, not enough space to save all
+            if input_dict['repeat'] == 0:
                 for prop in ['current','flowrate']:
                     arrtosave = getattr(ro,prop)
                     np.save(os.path.join(wd,arr_fn+'_'+prop),
