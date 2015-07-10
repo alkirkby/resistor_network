@@ -202,13 +202,13 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 hinput['cs'] = fixed_parameters['cellsize']
                 print "hinput",hinput
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
-                np.savetxt(os.path.join(input_dict['workdir'],'h1{}.dat'.format(input_dict['repeat'])),heights[0,0])
-                np.savetxt(os.path.join(input_dict['workdir'],'h2{}.dat'.format(input_dict['repeat'])),heights[0,1])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
+                print "fskeys",fskeys,"fs_shortnames",fs_shortnames
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
-                fs_filename = fs_filename.replace('.','')+'.npy'
-
-                np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
+                fs_filename = fs_filename.replace('.','')
+                np.savetxt(os.path.join(input_dict['workdir'],fs_filename+'1'),heights[0,0],fmt='%.3e')
+                np.savetxt(os.path.join(input_dict['workdir'],fs_filename+'2'),heights[0,1],fmt='%.3e')
+                np.save(os.path.join(input_dict['workdir'],fs_filename+'.npy'),heights)
             else:
                 heights = None
                 fs_filename = None 
