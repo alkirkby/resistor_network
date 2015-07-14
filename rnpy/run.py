@@ -161,7 +161,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                     tmpline.append(val)
             variablelist.append(tmpline)
     #print "loop_parameters",loop_parameters.keys(),"fs_parameters",faultsurface_parameters.keys(),"fixed_parameters",fixed_parameters.keys()
-    print "loop_inputs",loop_inputs,"fs_inputs",faultsurface_inputs,"fixed_parameters",fixed_parameters
+#    print "loop_inputs",loop_inputs,"fs_inputs",faultsurface_inputs,"fixed_parameters",fixed_parameters
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
     fskeys = faultsurface_parameters.keys()
@@ -170,8 +170,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     nfv = max(len(faultsurface_inputs),1)
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
-    print nfv,len(variablelist)
-    print variablelist
+#    print nfv,len(variablelist)
+#    print variablelist
     for fparam in ['ncells','workdir','fault_assignment']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
@@ -207,13 +207,13 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
                 #print "fskeys",fskeys,"fs_shortnames",fs_shortnames
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
-                fs_filename = fs_filename.replace('.','')
+                fs_filename = fs_filename.replace('.','')+'.npy'
                 if rank == 0:
                     heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                     ap = heights[0,1]-heights[0,0]
                     ap[ap<0.] = 0.
                     print np.shape(heights[0,0]),np.shape(heights[0,1]),np.mean(ap)
-                    np.save(os.path.join(input_dict['workdir'],fs_filename+'.npy'),heights)
+                    np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
 #                np.savez(os.path.join(input_dict['workdir'],fs_filename+'.npz'),heights)
             else:
                 heights = None
@@ -314,7 +314,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # read relevant fault surface from file
         #print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
         try:
-            print "input_dict",input_dict
+           # print "input_dict",input_dict
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
          #   print "no fault surfaces file or file does not exist"

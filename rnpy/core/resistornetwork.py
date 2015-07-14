@@ -229,10 +229,10 @@ class Rock_volume():
         #print "getting fault aperture values"
         faultapvals = [self.aperture_array[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture_array[:,:,:,i]))] \
                       for i in range(3)]
-        print "faultapvals size",[np.size(fv) for fv in faultapvals],"mean aperture",
+#        print "faultapvals size",[np.size(fv) for fv in faultapvals],"mean aperture",
         #print "calculating mean ap and contact area"
         self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
-        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
+#        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
         self.contact_area = []
         for i in range(3):
             if np.size(faultapvals[i]) > 0:
