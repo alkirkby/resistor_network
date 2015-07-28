@@ -336,7 +336,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
 
 #        print("i have some fault surfaces")
         if offset > 0:
-            b = h1[offset:,offset:] - h2[:-offset,:-offset] + fault_separation
+            b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation
         else:
             b = h1 - h2 + fault_separation
             
@@ -355,6 +355,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
             b0,b1 = bb
 #            print(b0,b1)
+#            print('w0,w1+1,v0,v1,cb[0]-dw,cb[0]+dw+duvw[2]%2+1,cb[1]-dv,cb[1]+dv+duvw[1]%2',w0,w1+1,v0,v1,cb[0]-dw,cb[0]+dw+duvw[2]%2+1,cb[1]-dv,cb[1]+dv+duvw[1]%2)
             if direction == 0:
                 ap_array[i,w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
                 ap_array[i,w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
