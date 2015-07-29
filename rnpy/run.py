@@ -129,7 +129,6 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
 
     # create list of all the different variables, need to ensure that fault surface
     # inputs are on the outermost loops
-    #print "loop_parameters",loop_parameters
     if len(loop_parameters) > 1:
         loop_inputs = [list(val) for val in itertools.product(*loop_parameters.values())]
     elif len(loop_parameters) == 1:
@@ -137,7 +136,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     else:
         loop_inputs = loop_parameters.values()
 
-
+    # fault surface inputs
     if len(faultsurface_parameters) > 1:
         faultsurface_inputs = [list(val) for val in itertools.product(*faultsurface_parameters.values())]
     elif len(faultsurface_inputs) == 1:
@@ -145,10 +144,14 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     else:
         faultsurface_inputs = faultsurface_parameters.values()
 
+    # if no fault surface inputs then only need loop inputs
     if len(faultsurface_inputs) == 0:
         variablelist = loop_inputs
+    # if no non-fault surface loop inputs then only need faultsurface inputs
     elif len(loop_inputs) == 0:
         variablelist = faultsurface_inputs
+    # otherwise, need to combine the two, keeping fault surface inputs on the
+    # outermost loop
     else:
         variablelist = []
         
@@ -160,8 +163,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 else:
                     tmpline.append(val)
             variablelist.append(tmpline)
-    #print "loop_parameters",loop_parameters.keys(),"fs_parameters",faultsurface_parameters.keys(),"fixed_parameters",fixed_parameters.keys()
-#    print "loop_inputs",loop_inputs,"fs_inputs",faultsurface_inputs,"fixed_parameters",fixed_parameters
+
+
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
     fskeys = faultsurface_parameters.keys()
@@ -171,17 +174,25 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
     
+    baseparams = []
+    for paramname in ['resistivity_matrix','resistivity_fluid','permeability_matrix']:
+    if paramname in loop_inputs.keys():
+        baseparams.append(np.amin(loop_inputs[paramname]))
+    elif paramname in fixed_inputs.keys():
+        baseparams.append(np.amin(fixed_inputs[paramname]))
+    else:
+        baseparams.append(getattr(ro,paramname))
+    rm0,rf0,km0 = baseparams
+
     for fparam in ['ncells','workdir','fault_assignment','cellsize']:
-#    print nfv,len(variablelist)
-#    print variablelist
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
-            
             
     for iv,variable in enumerate(variablelist):
         offset = 0
         # initialise a dictionary
         input_dict = fixed_parameters.copy()
+        
         # add loop parameters including fault surface variables
         for k, key in enumerate(keys):
             input_dict[key] = variable[k]
@@ -221,6 +232,21 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 fs_filename = None 
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = fs_filename
+        
+        input_dict['solve_properties'] = ''
+        addcurrent = True
+        # add a parameter for what to solve
+        for paramname,baseval in [['matrix',rm0],['fluid',rf0]]:
+            if 'resistivity_' + paramname in input_dict.keys():
+                if input_dict['resistivity_' + paramname] != baseval:
+                    addcurrent = False
+        if addcurrent:
+            input_dict['solve_properties'] += 'current'
+            
+        if 'permeability_matrix' in input_dict.keys():
+            if input_dict['permeability_matrix'] == km0:
+                input_dict['solve_properties'] += 'fluid'
+        
         list_of_inputs.append(input_dict)
     return list_of_inputs
 
