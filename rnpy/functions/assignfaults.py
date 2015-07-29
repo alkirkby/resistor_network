@@ -109,7 +109,7 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
 
             fault_array[fault_mm[2,0]:fault_mm[2,1]+fvals[2],
                         fault_mm[1,0]:fault_mm[1,1]+fvals[1],
-                        fault_mm[0,0]:fault_mm[0,1]+fvals[0],i,direction] = 1.
+                        fault_mm[0,0]:fault_mm[0,1]+fvals[0],i] = 1.
     
     return fault_array
     
@@ -139,7 +139,7 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     ptot = np.sum(p)/3.
     pnorm = np.array(p)/np.sum(p)
     # initialise an array of zeros
-    fault_array = np.zeros([n[2]+1,n[1]+1,n[0]+1,3,2])
+    fault_array = np.zeros([n[2]+1,n[1]+1,n[0]+1,3])
 
     if faultlengthmax is None:
         faultlengthmax = float(max(n))
@@ -177,7 +177,7 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
         else:
             break
     # make a new larger array of nans
-    fault_array_final = np.zeros(list(np.array(np.shape(fault_array))[:-2]+1)+[3,3])
+    fault_array_final = np.zeros(list(np.array(np.shape(fault_array))[:-1]+1)+[3])
     
     # put the fault array into this array in the correct position.
     fault_array_final[1:,1:,1:] = fault_array
@@ -356,28 +356,18 @@ def assign_fault_aperture(fault_array,fault_uvw,
             b0,b1 = bb
 #            print(b0,b1)
             if direction == 0:
-                # faults perpendicular to x direction, i.e. yz plane
-                # y direction opening in x direction
-                ap_array[i,w0:w1+1,v0:v1,u0,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
-                # z direction opening in x direction
-                ap_array[i,w0:w1,v0:v1+1,u0,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+                ap_array[i,w0:w1+1,v0:v1,u0,1] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
+                ap_array[i,w0:w1,v0:v1+1,u0,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
             elif direction == 1:
-                # faults perpendicular to y direction, i.e. xz plane
-                # x direction opening in y direction
-                ap_array[i,w0:w1+1,v0,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                # z direction opening in y direction
-                ap_array[i,w0:w1,v0,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                ap_array[i,w0:w1+1,v0,u0:u1,0] += b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                ap_array[i,w0:w1,v0,u0:u1+1,2] += b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             elif direction == 2:
-                # faults perpendicular to z direction, i.e. xy plane
-                # x direction opening in z direction
-                ap_array[i,w0,v0:v1+1,u0:u1,0,2] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                # y direction opening in z direction
-                ap_array[i,w0,v0:v1,u0:u1+1,1,2] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                ap_array[i,w0,v0:v1+1,u0:u1,0] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                ap_array[i,w0,v0:v1,u0:u1+1,1] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             bvals[-1].append([bb,b0,b1])
         faultheights.append([h1,h2])
     for i in range(len(ap_array)):
         ap_array[i] *= fault_array
-        
     ap_array[(np.isfinite(ap_array))&(ap_array < 1e-50)] = 1e-50
     corr_c = ap_array[2]/ap_array[0]
     corr_f = ap_array[1]/ap_array[0]

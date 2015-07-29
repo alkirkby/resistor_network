@@ -15,13 +15,38 @@ from __future__ import division, print_function
 import numpy as np
 import rnpy.functions.faultaperture as rnfa 
     
+def get_electrical_resistivity(aperture_array,r_matrix,r_fluid,cs):
+    """
+    
+    returns a numpy array containing resistance values 
+    
+    =================================inputs====================================
+    aperture_array = array containing fault apertures
+    r_matrix, r_fluid = resistivity of matrix and fluid
+    cs = list containing cell size (length of connector) in x,y and z directions 
+    [dx,dy,dz] or float/integer if d is the same in all directions
+    
+    ===========================================================================
+    """
+    
+    res_array = np.zeros_like(aperture_array)
+    if type(cs) in [float,int]:
+        cs = [float(cs)]*3
+
+    # ln, the width normal to the cell
+    ln = [cs[2],cs[0],cs[1]]
+
+    for i in range(3):
+        res_array[:,:,:,i] = ln[i]/((ln[i]-aperture_array[:,:,:,i])/r_matrix +\
+                                           aperture_array[:,:,:,i]/r_fluid)    
+
+    return res_array    
     
 
 def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     """
     
-    returns a numpy array containing resistance values and an array containing 
-    resistivities 
+    returns a numpy array containing resistance values 
     
     =================================inputs====================================
     aperture_array = array containing fault apertures
@@ -32,31 +57,20 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     ===========================================================================
     """
     
-    resistance_array = np.zeros(np.shape(aperture_array)[:-1])
-    resistivity_array = resistance_array.copy()
+    res_array = np.zeros_like(aperture_array)
     if type(d) in [float,int]:
         d = [float(d)]*3
+        
+    # ly, the width of each cell
+    ly = [d[1],d[2],d[0]]
+    # ln, the width normal to the cell
+    ln = [d[2],d[0],d[1]]
 
     for i in range(3):
-        # the two directions perpendicular to direction of flow, indices and values
-        dpi = [dd for dd in range(3) if dd != i]
-        dp = [d[dd] for dd in dpi]
-        # cross sectional area of the cell perpendicular to flow
-        area_cell = np.product(dp)
-        area_matrix = np.product(dp)
-        for ii in range(2):
-            # subtract the area taken up by the fracture
-            area_matrix -= aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # add on the overlapping bit if there is any
-        area_matrix += aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
-        
-        # resistance is the weighted harmonic mean of the fractured bit (in the two
-        # directions along flow) and the matrix bit
+        res_array[:,:,:,i] = 1./((ln[i]-aperture_array[:,:,:,i])/r_matrix +\
+                                        aperture_array[:,:,:,i]/r_fluid)*d[i]/ly[i]
 
-        resistance_array[:,:,:,i] = d[i]/(area_matrix/r_matrix + (area_cell-area_matrix)/r_fluid)
-        resistivity_array[:,:,:,i] = area_cell/(area_matrix/r_matrix + (area_cell-area_matrix)/r_fluid)
-        
-    return resistance_array,resistivity_array
+    return res_array
 
 
 def get_permeability(aperture_array,k_matrix,d):
@@ -70,7 +84,7 @@ def get_permeability(aperture_array,k_matrix,d):
     [dx,dy,dz] or float/integer if d is the same in all directions
     ===========================================================================    
     """
-    permeability_array = np.ones(np.shape(aperture_array)[:-1])*k_matrix        
+    permeability_array = np.ones_like(aperture_array)*k_matrix        
     if type(d) in [float,int]:
         d = [float(d)]*3
 
@@ -98,36 +112,26 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     ===========================================================================
     
     """
-    hresistance = np.zeros(np.shape(aperture_array)[:-1])
-    permeability = hresistance.copy()
-    
+    hydraulic_resistance = np.ones_like(aperture_array)
+   
     if type(d) in [float,int]:
         d = [float(d)]*3
-        
-        
+
+    # ly, the width of each cell
+    ly = [d[1],d[2],d[0]]
+    # ln, the width normal to the cell
+    ln = [d[2],d[0],d[1]]
+
+
+    aperture_array[(np.isfinite(aperture_array))&(aperture_array < 1e-50)] = 1e-50
+
     for i in range(3):
-        # the two directions perpendicular to direction of flow, indices and values
-        dpi = [dd for dd in range(3) if dd != i]
-        dp = [d[dd] for dd in dpi]
-        # cross sectional area of the cell perpendicular to flow
-        area_cell = np.product(dp)
-        area_matrix = np.product(dp)
-        
-        for ii in range(2):
-            # subtract the area taken up by the fracture
-            area_matrix -= aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # add on the overlapping bit if there is any
-        area_matrix += aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
-        
-        # permeability is the weighted mean of the fractured bit (in the two
-        # directions along flow) and the matrix bit
-        hresistance[:,:,:,i] = mu*d[i]/(d[dpi[1]]*aperture_array[:,:,:,i,dpi[0]]**3/12. +\
-                                        d[dpi[0]]*aperture_array[:,:,:,i,dpi[1]]**3/12. +\
-                                        area_matrix*k_matrix)
-        permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*area_cell)
+        hydraulic_resistance[:,:,:,i] = mu*d[i]/(ly[i]*(aperture_array[:,:,:,i]**3/12.\
+                                        +k_matrix*(ln[i]-aperture_array[:,:,:,i])))
+    
+    aperture_array[(np.isfinite(aperture_array))&(aperture_array <= 1e-50)] = 0
 
-
-    return hresistance,permeability
+    return hydraulic_resistance
 
 
 def get_geometry_factor(output_array,cellsize):
