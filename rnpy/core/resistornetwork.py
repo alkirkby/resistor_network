@@ -384,7 +384,7 @@ class Rock_volume():
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)
 
-        if 'current' not in self.solve_properties:
-            self.resistivity_bulk, self.resistance_bulk = [np.ones(3)*np.nan]*2
-        if 'fluid' not in self.solve_properties:
-            self.permeability_bulk, self.hydraulic_resistance_bulk = [np.ones(3)*np.nan]*2
+#        if 'current' not in self.solve_properties:
+#            self.resistivity_bulk, self.resistance_bulk = [np.ones(3)*np.nan]*2
+#        if 'fluid' not in self.solve_properties:
+#            self.permeability_bulk, self.hydraulic_resistance_bulk = [np.ones(3)*np.nan]*2

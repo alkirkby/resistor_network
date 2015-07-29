@@ -13,7 +13,7 @@ import rnpy.functions.assignfaults as rnaf
 import os
 import os.path as op
 import time
-
+import itertools
 
 
 # arguments to put into parser:
@@ -96,7 +96,9 @@ def read_arguments(arguments, argument_names):
                 value = np.reshape(at[1],(nf,3,2))
             else:
                 value = at[1]
-            if at[0] in faultsurface_keys:
+            if at[0] in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
+                fixed_parameters[at[0]] = at[1]
+            elif at[0] in faultsurface_keys:
                 if type(value) != list:
                     value = [value]
                 if len(value) > 0:
@@ -122,7 +124,6 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     """
     make a list of run parameters
     """
-    import itertools
 
     list_of_inputs = []
     
@@ -174,15 +175,15 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
     
-    baseparams = []
-    for paramname in ['resistivity_matrix','resistivity_fluid','permeability_matrix']:
-        if paramname in loop_parameters.keys():
-            baseparams.append(np.amin(loop_parameters[paramname]))
-        elif paramname in fixed_parameters.keys():
-            baseparams.append(np.amin(fixed_parameters[paramname]))
-        else:
-            baseparams.append(getattr(ro,paramname))
-    rm0,rf0,km0 = baseparams
+#    baseparams = []
+#    for paramname in ['resistivity_matrix','resistivity_fluid','permeability_matrix']:
+#        if paramname in loop_parameters.keys():
+#            baseparams.append(np.amin(loop_parameters[paramname]))
+#        elif paramname in fixed_parameters.keys():
+#            baseparams.append(np.amin(fixed_parameters[paramname]))
+#        else:
+#            baseparams.append(getattr(ro,paramname))
+#    rm0,rf0,km0 = baseparams
 
     for fparam in ['ncells','workdir','fault_assignment','cellsize']:
         if fparam not in fixed_parameters.keys():
@@ -232,24 +233,27 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 fs_filename = None 
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = fs_filename
-        # add a parameter for what to solve
-        input_dict['solve_properties'] = ''
-        if 'permeability_matrix' in input_dict.keys():
-            print input_dict['permeability_matrix'],
-            if input_dict['permeability_matrix'] == km0:
-                input_dict['solve_properties'] += 'current'
-        else:
-            input_dict['solve_properties'] += 'current'
-
-        addflow = True
-        for paramname,baseval in [['matrix',rm0],['fluid',rf0]]:
-            if 'resistivity_' + paramname in input_dict.keys():
-                print input_dict['resistivity_' + paramname],baseval,
-                if input_dict['resistivity_' + paramname] != baseval:
-                    addflow = False
-        if addflow:
-            input_dict['solve_properties'] += 'fluid'
-        print input_dict['solve_properties'] 
+        
+        
+        
+#        # add a parameter for what to solve
+#        input_dict['solve_properties'] = ''
+#        if 'permeability_matrix' in input_dict.keys():
+#            print input_dict['permeability_matrix'],
+#            if input_dict['permeability_matrix'] == km0:
+#                input_dict['solve_properties'] += 'current'
+#        else:
+#            input_dict['solve_properties'] += 'current'
+#
+#        addflow = True
+#        for paramname,baseval in [['matrix',rm0],['fluid',rf0]]:
+#            if 'resistivity_' + paramname in input_dict.keys():
+#                print input_dict['resistivity_' + paramname],baseval,
+#                if input_dict['resistivity_' + paramname] != baseval:
+#                    addflow = False
+#        if addflow:
+#            input_dict['solve_properties'] += 'fluid'
+#        print input_dict['solve_properties'] 
         list_of_inputs.append(input_dict)
     return list_of_inputs
 
@@ -340,18 +344,30 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
 
     r = 0
     for input_dict in list_of_inputs:
-       # print "rank {}, about to initialise a rock volume".format(rank)
-        # read relevant fault surface from file
-        #print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
+
         try:
            # print "input_dict",input_dict
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
          #   print "no fault surfaces file or file does not exist"
             input_dict['fault_surfaces'] = None
+            
+        # get the resistivity and permeability repeats
+        resk_repeats = {}
+        resk_pnames = ['resistivity_fluid','resistivity_matrix','permeability_matrix']
+        for param in resk_pnames:
+            if param in input_dict.keys():
+                if type(input_dict[param]) == list:
+                    resk_repeats[param] = input_dict[param]
+                    input_dict[param] = input_dict[param][0]
+
+                else:
+                    resk_repeats[param] = [input_dict[param]]
+            else:
+                resk_repeats[param] = [np.nan]
+            
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
-       # print "ro.solve_direction",ro.solve_direction
 
         arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
         arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])
@@ -364,26 +380,55 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                             arrtosave
                             )
         t1 = time.time()
-        # solve the network
-        ro.solve_resistor_network()
-        t2 = time.time()
-        print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
-        # append result to list of r objects
-        if save_array:
-            # save only first repeat so we get an example of the runs, not enough space to save all
-            if input_dict['repeat'] == 0:
-                for prop in ['current','flowrate']:
-                    if hasattr(ro,prop):
-                        arrtosave = getattr(ro,prop)
-                        np.save(os.path.join(wd,arr_fn+'_'+prop),
-                                arrtosave
-                                )
-        if r == 0:
-            newfile = True
-        else:
-            newfile = False
-        write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
-        r += 1
+        # loop through all the permutations of res fluid, res matrix and permeability matrix
+        for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
+            # set new resistivity,permeability attributes
+            for i in range(3):
+                if np.isfinite(vals[i]):
+                    setattr(ro,resk_pnames[i],vals[i])
+                    
+            solve_flow = True
+            # only solve flow for the first permutation of resistivity considered.
+            # if the permeability is the same and only the resistivity changes
+            # we don't need to solve for fluid flow again.
+            for ii in range(2):
+                # check if either of the resistivity values are different from the first permutation
+                if vals[ii] != input_dict[resk_pnames[ii]]:
+                    # if either of the res values are different, check the permeability
+                    if vals[2] == input_dict[resk_pnames[2]]:
+                        solve_flow = False
+                        
+            # only solve for resistivity for the first permutation of permeability
+            # if resistivity is the same and only the permeability changes
+            # we don't need to solve for resistivity again.
+            solve_current = True
+            # check if the permeability is the same as the first permutation
+            if vals[2] != input_dict[resk_pnames[2]]:
+                # if it's not, check if the resistivity is different
+                if ((vals[0] == input_dict[resk_pnames[0]]) and (vals[1] == input_dict[resk_pnames[1]])):
+                    solve_current = False
+                
+            ro.solve_properties = solve_current*'current'+solve_flow*'fluid'
+            # solve the network
+            ro.solve_resistor_network()
+            t2 = time.time()
+            print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
+            # append result to list of r objects
+            if save_array:
+                # save only first repeat so we get an example of the runs, not enough space to save all
+                if input_dict['repeat'] == 0:
+                    for prop in ['current','flowrate']:
+                        if hasattr(ro,prop):
+                            arrtosave = getattr(ro,prop)
+                            np.save(os.path.join(wd,arr_fn+'_'+prop),
+                                    arrtosave
+                                    )
+            if r == 0:
+                newfile = True
+            else:
+                newfile = False
+            write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
+            r += 1
         input_dict['fault_surfaces'] = None
         
     return outfilename
