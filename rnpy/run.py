@@ -395,6 +395,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 # check if either of the resistivity values are different from the first permutation
                 if vals[ii] != input_dict[resk_pnames[ii]]:
                     # if either of the res values are different, check the permeability
+                    # if it is the same then don't need to solve for flow
                     if vals[2] == input_dict[resk_pnames[2]]:
                         solve_flow = False
                         
@@ -402,10 +403,12 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             # if resistivity is the same and only the permeability changes
             # we don't need to solve for resistivity again.
             solve_current = True
-            # check if the permeability is the same as the first permutation
-            if vals[2] != input_dict[resk_pnames[2]]:
-                # if it's not, check if the resistivity is different
-                if ((vals[0] == input_dict[resk_pnames[0]]) and (vals[1] == input_dict[resk_pnames[1]])):
+
+            # check if the resistivity is the same as the first permutation
+            if ((vals[0] == input_dict[resk_pnames[0]]) and (vals[1] == input_dict[resk_pnames[1]])):
+                # check if it's the first permutation for flow, if not then
+                # don't need to solve for current
+                if vals[2] != input_dict[resk_pnames[2]]:
                     solve_current = False
                 
             ro.solve_properties = solve_current*'current'+solve_flow*'fluid'
