@@ -123,7 +123,16 @@ class Rock_volume():
         
         if type(self.ncells) in [float,int]:
             self.ncells = np.ones(3)*self.ncells
-        
+        if type(self.cellsize) in [float,int]:
+            self.cellsize = np.ones(3)*self.cellsize
+        else:
+            if (type(self.fault_assignment) == 'single_yz') and len(self.cellsize == 3):
+                if self.cellsize[1] != self.cellsize[2]:
+                    print "y cellsize not equal to z cellsize, updating z cellsize"
+                    self.cellsize[2] = self.cellsize[1]
+                else:
+                    self.cellsize = [np.amin(self.cellsize)]*3
+
         if self.build:
        #     print "building faults"
             self.build_faults()
@@ -142,7 +151,7 @@ class Rock_volume():
         
         nx,ny,nz = self.ncells
         if self.fault_array is None:
-            fault_array = np.zeros([nz+2,ny+2,nx+2,3])
+            fault_array = np.zeros([nz+2,ny+2,nx+2,3,3])
             fault_array = rna.add_nulls(fault_array)
             fault_uvw = []
             
@@ -154,7 +163,7 @@ class Rock_volume():
                             self.fault_edges = [self.fault_edges]
                         addfaults = True
             elif self.fault_assignment == 'single_yz':
-
+                
                 nx, ny, nz = self.ncells
                 ix = int(nx/2) + 1
                 iy0, iy1 = 1, ny + 1
@@ -162,11 +171,6 @@ class Rock_volume():
                 self.fault_edges = [[[ix,ix],[iy0,iy1],[iz0,iz1]]]
                 addfaults = True
     
-            if addfaults:
-                for fedge in self.fault_edges:
-                    fault_array = rnaf.add_fault_to_array(fedge,fault_array)
-                    fuvwi = rnaf.minmax2uvw(fedge)
-                    fault_uvw.append(fuvwi)
     
             elif self.fault_assignment == 'random':
                 pc = [self.pconnectionx,self.pconnectiony,self.pconnectionz]
@@ -175,7 +179,11 @@ class Rock_volume():
                                          pc,
                                          faultlengthmax = self.fault_dict['length_max'],
                                          decayfactor = self.fault_dict['length_decay'])
-    
+            if addfaults:
+                for fedge in self.fault_edges:
+                    fault_array = rnaf.add_fault_to_array(fedge,fault_array)
+                    fuvwi = rnaf.minmax2uvw(fedge)
+                    fault_uvw.append(fuvwi)    
             else:
                 print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
                 return
@@ -184,6 +192,13 @@ class Rock_volume():
             self.fault_uvw = np.array(fault_uvw)
             
     def build_aperture(self):
+        
+        if self.fault_assignment == 'single_yz':
+            # if (and only if) all faults are along yz plane cellsize perpendicular 
+            # is allowed to be different from cell size along fault.
+            cellsize = self.cellsize[1]
+        else:
+            cellsize = np.amin(self.cellsize)
         
         if self.aperture_array is None:
             if self.fault_dict['aperture_type'] == 'random':
@@ -204,7 +219,7 @@ class Rock_volume():
                 aperture_input = {}
             #    print "getting fault pair defaults"
                 self.fault_dict['mismatch_wavelength_cutoff'], fc = \
-                rnfa.get_faultpair_defaults(self.cellsize,
+                rnfa.get_faultpair_defaults(cellsize,
                                             self.fault_dict['mismatch_wavelength_cutoff'] 
                                             )
            #     print "getting keys"
@@ -229,8 +244,10 @@ class Rock_volume():
         #print "getting fault aperture values"
         faultapvals = [self.aperture_array[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture_array[:,:,:,i]))] \
                       for i in range(3)]
+#        print "faultapvals size",[np.size(fv) for fv in faultapvals],"mean aperture",
         #print "calculating mean ap and contact area"
         self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
+#        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
         self.contact_area = []
         for i in range(3):
             if np.size(faultapvals[i]) > 0:
@@ -249,16 +266,11 @@ class Rock_volume():
 
         """
         
-        self.resistance = \
+        self.resistance,self.resistivity = \
         rnap.get_electrical_resistance(self.aperture_array*self.aperture_correction_c,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
-                                      [self.cellsize]*3)
-        self.resistivity = \
-        rnap.get_electrical_resistivity(self.aperture_array*self.aperture_correction_c,
-                                      self.resistivity_matrix,
-                                      self.resistivity_fluid,
-                                      [self.cellsize]*3)
+                                      self.cellsize)
         
         
     def initialise_permeability(self):
@@ -271,14 +283,11 @@ class Rock_volume():
             self.initialise_resistivity()
         
 
-        self.permeability = \
-        rnap.get_permeability(self.aperture_array*self.aperture_correction_f,
-                             self.permeability_matrix,
-                             [self.cellsize]*3)
-        self.hydraulic_resistance = \
+
+        self.hydraulic_resistance,self.permeability = \
         rnap.get_hydraulic_resistance(self.aperture_array*self.aperture_correction_f,
                                      self.permeability_matrix,
-                                     [self.cellsize]*3,
+                                     self.cellsize,
                                      mu = self.fluid_viscosity)
 
 
@@ -316,11 +325,19 @@ class Rock_volume():
 #                self.initialise_permeability()
             property_arrays['fluid'] = self.hydraulic_resistance 
    
-        dx,dy,dz = [self.cellsize]*3      
+        dx,dy,dz = self.cellsize
+        
+
 
         for pname in property_arrays.keys():
             nz,ny,nx = np.array(np.shape(property_arrays[pname]))[:-1] - 2
             oa = np.zeros([nz+2,ny+2,nx+2,3,3])#*np.nan
+
+            for dname, nn in [['x',nx],['y',ny],['z',nz]]:
+                if dname in self.solve_direction:
+                    if nn == 0:
+                        self.solve_direction = self.solve_direction.strip(dname)
+                        print "not solving {} as there are no resistors in this direction".format(dname)
 
             if 'x' in self.solve_direction:
                 prop = 1.*property_arrays[pname].transpose(2,1,0,3)
@@ -332,7 +349,7 @@ class Rock_volume():
                 oa[1:,1:,:,0,0] = c[-nfz:].reshape(nz+2,ny+1,nx+1).transpose(2,1,0)
                 oa[1:,1:-1,1:,0,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1).transpose(2,1,0)
                 oa[1:-1,1:,1:,0,2] = c[:nfx].reshape(nz+1,ny+1,nx).transpose(2,1,0)               
-            
+                
             if 'y' in self.solve_direction:
                 # transpose array as y direction is now locally the z direction
                 prop = 1.*property_arrays[pname].transpose(1,0,2,3)

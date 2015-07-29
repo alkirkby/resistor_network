@@ -19,7 +19,7 @@ import time
 # arguments to put into parser:
 # [longname,shortname,help,nargs,type]
 argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
-                  ['cellsize','c','cellsize, same in x,y and z direction',1,float],
+                  ['cellsize','c','cellsize in x,y and z direction',3,float],
                   ['pconnectionx','px','probability of connection in x direction','*',float],
                   ['pconnectiony','py','probability of connection in y direction','*',float],
                   ['pconnectionz','pz','probability of connection in z direction','*',float],
@@ -107,7 +107,7 @@ def read_arguments(arguments, argument_names):
                 if len(value) > 0:
                     if len(value) == 1:
                         fixed_parameters[at[0]] = value[0]
-                    elif at[0] == 'ncells':
+                    elif at[0] in ['ncells','cellsize']:
                         fixed_parameters[at[0]] = value
                     else:
                         loop_parameters[at[0]] = value
@@ -118,7 +118,7 @@ def read_arguments(arguments, argument_names):
     return fixed_parameters, loop_parameters, faultsurface_parameters
 
 
-def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters):
+def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters,rank):
     """
     make a list of run parameters
     """
@@ -160,8 +160,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 else:
                     tmpline.append(val)
             variablelist.append(tmpline)
-    print variablelist
-
+    #print "loop_parameters",loop_parameters.keys(),"fs_parameters",faultsurface_parameters.keys(),"fixed_parameters",fixed_parameters.keys()
+#    print "loop_inputs",loop_inputs,"fs_inputs",faultsurface_inputs,"fixed_parameters",fixed_parameters
     # create a list of keys for all loop inputs including faultsurface, faultsurface
     # keywords first
     fskeys = faultsurface_parameters.keys()
@@ -170,8 +170,10 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     nfv = max(len(faultsurface_inputs),1)
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
-
-    for fparam in ['ncells','workdir','fault_assignment']:
+    
+    for fparam in ['ncells','workdir','fault_assignment','cellsize']:
+#    print nfv,len(variablelist)
+#    print variablelist
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
             
@@ -198,21 +200,21 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                         hinput[inputname] = input_dict[param]
                     else:
                         hinput[inputname] = ro.fault_dict[param]
-                #print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
-                hinput['cs'] = fixed_parameters['cellsize']
+                # cellsize can be different in x direction
+                hinput['cs'] = fixed_parameters['cellsize'][1]
                 #print "hinput",hinput
-                heights = np.array([rnfa.build_fault_pair(size, **hinput)])
+                if rank == 0:
+                    heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
                 #print "fskeys",fskeys,"fs_shortnames",fs_shortnames
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
-                fs_filename = fs_filename.replace('.','')
-                ap = heights[0,1]-heights[0,0]
-                ap[ap<0.] = 0.
-                print np.shape(heights[0,0]),np.shape(heights[0,1]),np.mean(ap)
-                print len(heights[0,1,-1])
-#                np.savetxt(os.path.join(input_dict['workdir'],fs_filename+'1'),heights[0,0],fmt='%.3e')
-#                np.savetxt(os.path.join(input_dict['workdir'],fs_filename+'2'),heights[0,1],fmt='%.3e')
-                np.save(os.path.join(input_dict['workdir'],fs_filename+'.npy'),heights)
+                fs_filename = fs_filename.replace('.','')+'.npy'
+                if rank == 0:
+                    heights = np.array([rnfa.build_fault_pair(size, **hinput)])
+                    ap = heights[0,1]-heights[0,0]
+                    ap[ap<0.] = 0.
+                    print np.shape(heights[0,0]),np.shape(heights[0,1]),np.mean(ap)
+                    np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
 #                np.savez(os.path.join(input_dict['workdir'],fs_filename+'.npz'),heights)
             else:
                 heights = None
@@ -313,7 +315,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # read relevant fault surface from file
         #print op.join(input_dict['workdir'],input_dict['fault_surfaces'])
         try:
-            print "input_dict",input_dict
+           # print "input_dict",input_dict
             input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         except IOError:
          #   print "no fault surfaces file or file does not exist"
@@ -411,14 +413,15 @@ def setup_and_run_suite(arguments, argument_names):
         wd = './model_runs'
     wd2 = os.path.join(wd,'arrays')
 
-    if rank == 0:
+#    if rank == 0:
         # get inputs
     #print "getting inputs, rank {}".format(rank)
-        list_of_inputs = initialise_inputs(fixed_parameters, 
+    list_of_inputs = initialise_inputs(fixed_parameters, 
                                            loop_parameters, 
-                                           faultsurface_parameters)
-    else:
-         time.sleep(60)
+                                           faultsurface_parameters,rank)
+    #else:
+    #     list_of_inputs = None
+    #     time.sleep(60)
     time.sleep(10)
     # divide inputs
     inputs = divide_inputs(list_of_inputs,size)
