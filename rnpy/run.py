@@ -19,7 +19,7 @@ import time
 # arguments to put into parser:
 # [longname,shortname,help,nargs,type]
 argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
-                  ['cellsize','c','cellsize, same in x,y and z direction',1,float],
+                  ['cellsize','c','cellsize in x,y and z direction',3,float],
                   ['pconnectionx','px','probability of connection in x direction','*',float],
                   ['pconnectiony','py','probability of connection in y direction','*',float],
                   ['pconnectionz','pz','probability of connection in z direction','*',float],
@@ -107,7 +107,7 @@ def read_arguments(arguments, argument_names):
                 if len(value) > 0:
                     if len(value) == 1:
                         fixed_parameters[at[0]] = value[0]
-                    elif at[0] == 'ncells':
+                    elif at[0] in ['ncells','cellsize']:
                         fixed_parameters[at[0]] = value
                     else:
                         loop_parameters[at[0]] = value
@@ -171,7 +171,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     # intialise a rock volume to get the defaults from
     ro = rn.Rock_volume(build=False)
 
-    for fparam in ['ncells','workdir','fault_assignment']:
+    for fparam in ['ncells','workdir','fault_assignment','cellsize']:
         if fparam not in fixed_parameters.keys():
             fixed_parameters[fparam] = getattr(ro,fparam)
             
@@ -198,8 +198,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                         hinput[inputname] = input_dict[param]
                     else:
                         hinput[inputname] = ro.fault_dict[param]
-                #print "size {} D {} scalefactor {} lc {}".format(size,hinput['D'],hinput['scalefactor'],hinput['lc'])
-                hinput['cs'] = fixed_parameters['cellsize']
+                # cellsize can be different in x direction
+                hinput['cs'] = fixed_parameters['cellsize'][1]
                 #print "hinput",hinput
                 heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]

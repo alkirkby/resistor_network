@@ -101,10 +101,12 @@ def buildmatrix3d_potential(resistance):
     nn = get_nnodes(n)
     ncxz,ncyz = get_ncells(n)
     nc = ncxz + ncyz # number of cells
+    print(nx,ny,nz)
 
     resx = resistance[1:,1:,1:-1,0]
     resy = resistance[1:,1:-1,1:,1]
-    resz = resistance[1:-1,1:,1:,2]    
+    resz = resistance[1:-1,1:,1:,2]   
+    print(np.shape(resx))
 
     #    a. x connectors
     data2a = np.hstack([np.ones(ncxz)*resx.flatten()[:ncxz], 
