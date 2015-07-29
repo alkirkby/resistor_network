@@ -370,10 +370,11 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             # save only first repeat so we get an example of the runs, not enough space to save all
             if input_dict['repeat'] == 0:
                 for prop in ['current','flowrate']:
-                    arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,arr_fn+'_'+prop),
-                            arrtosave
-                            )
+                    if hasattr(ro,prop):
+                        arrtosave = getattr(ro,prop)
+                        np.save(os.path.join(wd,arr_fn+'_'+prop),
+                                arrtosave
+                                )
         if r == 0:
             newfile = True
         else:
