@@ -176,12 +176,12 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
     
     baseparams = []
     for paramname in ['resistivity_matrix','resistivity_fluid','permeability_matrix']:
-    if paramname in loop_inputs.keys():
-        baseparams.append(np.amin(loop_inputs[paramname]))
-    elif paramname in fixed_inputs.keys():
-        baseparams.append(np.amin(fixed_inputs[paramname]))
-    else:
-        baseparams.append(getattr(ro,paramname))
+        if paramname in loop_parameters.keys():
+            baseparams.append(np.amin(loop_parameters[paramname]))
+        elif paramname in fixed_parameters.keys():
+            baseparams.append(np.amin(fixed_parameters[paramname]))
+        else:
+            baseparams.append(getattr(ro,paramname))
     rm0,rf0,km0 = baseparams
 
     for fparam in ['ncells','workdir','fault_assignment','cellsize']:
