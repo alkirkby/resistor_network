@@ -234,18 +234,19 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
         input_dict['fault_surfaces'] = fs_filename
         
         input_dict['solve_properties'] = ''
-        addcurrent = True
+
+        if 'permeability_matrix' in input_dict.keys():
+            if input_dict['permeability_matrix'] == km0:
+                input_dict['solve_properties'] += 'current'
+
+        addflow = True
         # add a parameter for what to solve
         for paramname,baseval in [['matrix',rm0],['fluid',rf0]]:
             if 'resistivity_' + paramname in input_dict.keys():
                 if input_dict['resistivity_' + paramname] != baseval:
                     addcurrent = False
-        if addcurrent:
-            input_dict['solve_properties'] += 'current'
-            
-        if 'permeability_matrix' in input_dict.keys():
-            if input_dict['permeability_matrix'] == km0:
-                input_dict['solve_properties'] += 'fluid'
+        if addflow:
+            input_dict['solve_properties'] += 'fluid'
         
         list_of_inputs.append(input_dict)
     return list_of_inputs
