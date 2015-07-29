@@ -232,22 +232,24 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                 fs_filename = None 
         # in every case until we create a new pair, the fault surface pair is the same
         input_dict['fault_surfaces'] = fs_filename
-        
+        # add a parameter for what to solve
         input_dict['solve_properties'] = ''
-
         if 'permeability_matrix' in input_dict.keys():
+            print input_dict['permeability_matrix'],
             if input_dict['permeability_matrix'] == km0:
                 input_dict['solve_properties'] += 'current'
+        else:
+            input_dict['solve_properties'] += 'current'
 
         addflow = True
-        # add a parameter for what to solve
         for paramname,baseval in [['matrix',rm0],['fluid',rf0]]:
             if 'resistivity_' + paramname in input_dict.keys():
+                print input_dict['resistivity_' + paramname],baseval,
                 if input_dict['resistivity_' + paramname] != baseval:
-                    addcurrent = False
+                    addflow = False
         if addflow:
             input_dict['solve_properties'] += 'fluid'
-        
+        print input_dict['solve_properties'] 
         list_of_inputs.append(input_dict)
     return list_of_inputs
 
