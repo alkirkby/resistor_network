@@ -214,18 +214,15 @@ def initialise_inputs(fixed_parameters, loop_parameters, faultsurface_parameters
                         hinput[inputname] = ro.fault_dict[param]
                 # cellsize can be different in x direction
                 hinput['cs'] = fixed_parameters['cellsize'][1]
-                #print "hinput",hinput
                 if rank == 0:
                     heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                 fs_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in fskeys]
-                #print "fskeys",fskeys,"fs_shortnames",fs_shortnames
                 fs_filename = 'faultsurface_'+''.join(fs_shortnames).format(*[input_dict[key] for key in fskeys])
                 fs_filename = fs_filename.replace('.','')+'.npy'
                 if rank == 0:
                     heights = np.array([rnfa.build_fault_pair(size, **hinput)])
                     ap = heights[0,1]-heights[0,0]
                     ap[ap<0.] = 0.
-                    print np.shape(heights[0,0]),np.shape(heights[0,1]),np.mean(ap)
                     np.save(os.path.join(input_dict['workdir'],fs_filename),heights)
 #                np.savez(os.path.join(input_dict['workdir'],fs_filename+'.npz'),heights)
             else:
@@ -507,7 +504,6 @@ def setup_and_run_suite(arguments, argument_names):
 
 #    if rank == 0:
         # get inputs
-    #print "getting inputs, rank {}".format(rank)
     list_of_inputs = initialise_inputs(fixed_parameters, 
                                            loop_parameters, 
                                            faultsurface_parameters,rank)
@@ -524,15 +520,12 @@ def setup_and_run_suite(arguments, argument_names):
         wd = os.path.abspath(wd)
         if not os.path.exists(wd2):
             os.mkdir(wd2)
-       # print "inputs ready, rank {}".format(rank)
     else:
         
         list_of_inputs = None
         inputs = None
         while not os.path.exists(wd2):
             time.sleep(1)
-        #    print 'process {} waiting for wd'.format(rank)
-	#print 'wd made, rank {}'.format(rank)
     # initialise outfile
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
