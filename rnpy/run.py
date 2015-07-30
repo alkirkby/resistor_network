@@ -277,9 +277,12 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     prepare an output file for writing to
     """
     variables = vars(ro)
+    # list to contain outputs from modelling
     output_variables = []
+    # define the output variables explicitly
     for pname in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
         output_variables += [pname+ri for ri in 'xyz']
+    # list to contain all variable inputs and outputs to put in text file
     loop_input_output = loop_variables + output_variables
     
     variablekeys = []
@@ -288,15 +291,19 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
 
     for vkey in variables.keys():        
         append = False
+        # turn all non-list or array types into list
         if type(variables[vkey]) in [np.float64,float,str,int]:
             keys, values, append = [vkey], [variables[vkey]], True
+        # separate dictionary variables into keys and values
         elif type(variables[vkey]) == dict:
             keys = [kk for kk in variables[vkey].keys() if type(variables[vkey][kk]) in [np.float64,float,str]]
             values = [variables[vkey][kk] for kk in keys]
             append = True
+        # these parameters have x,y,z components so separate them out into separate variables
         elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
             keys, values, append = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
         if append:
+            # add all the variables that fit the criteria to a new dictionary
             for k,key in enumerate(keys):
                 if key in loop_input_output:
                     variablekeys.append(key)
@@ -360,7 +367,9 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 if type(input_dict[param]) == list:
                     resk_repeats[param] = input_dict[param]
                     input_dict[param] = input_dict[param][0]
-
+                    if len(resk_repeats[param]) > 1:
+                        # add to loop variable list for writing later
+                        loop_variables.append(param)
                 else:
                     resk_repeats[param] = [input_dict[param]]
             else:
@@ -379,7 +388,6 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                     np.save(os.path.join(wd,arr_fn+'_'+prop),
                             arrtosave
                             )
-        t1 = time.time()
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
             # set new resistivity,permeability attributes
@@ -410,9 +418,15 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 # don't need to solve for current
                 if vals[2] != input_dict[resk_pnames[2]]:
                     solve_current = False
-                
+            
+            if solve_flow:
+                ro.initialise_permeability()
+            if solve_current:
+                ro.initialise_electrical_resistance()
+
             ro.solve_properties = solve_current*'current'+solve_flow*'fluid'
             # solve the network
+            t1 = time.time()
             ro.solve_resistor_network()
             t2 = time.time()
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
