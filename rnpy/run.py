@@ -317,7 +317,7 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     if newfile:
         with open(outfilename, 'wb') as outfile:
             header = '# suite of resistor network simulations\n'
-            for pm in ['ncells']:
+            for pm in ['ncells','cellsize']:
                 header += '# ' + pm + ' {} {} {}\n'.format(*(getattr(ro,pm)))
             header += '### fixed parameters ###\n'
             header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'
@@ -375,16 +375,6 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
 
-        arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables]
-        arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables])
-        if save_array:
-            # save only first repeat so we get an example of the runs, not enough space to save all
-            if input_dict['repeat'] == 0:
-                for prop in ['aperture_array']:
-                    arrtosave = getattr(ro,prop)
-                    np.save(os.path.join(wd,arr_fn+'_'+prop),
-                            arrtosave
-                            )
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
             # set new resistivity,permeability attributes
@@ -415,7 +405,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 # don't need to solve for current
                 if vals[2] != input_dict[resk_pnames[2]]:
                     solve_current = False
-            
+            # re-initialise permeability and resistance if necessary  
             if solve_flow:
                 ro.initialise_permeability()
             if solve_current:
@@ -426,12 +416,16 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             t1 = time.time()
             ro.solve_resistor_network()
             t2 = time.time()
+
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
-            # append result to list of r objects
+            arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
+            arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables if key not in resk_pnames])
+            arr_fn += 'rf{}rm{}km{}'.format(*vals)
+
             if save_array:
                 # save only first repeat so we get an example of the runs, not enough space to save all
                 if input_dict['repeat'] == 0:
-                    for prop in ['current','flowrate']:
+                    for prop in ['current','flowrate','aperture_array']:
                         if hasattr(ro,prop):
                             arrtosave = getattr(ro,prop)
                             np.save(os.path.join(wd,arr_fn+'_'+prop),
