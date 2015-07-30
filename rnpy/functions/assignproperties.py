@@ -42,19 +42,26 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
         # cross sectional area of the cell perpendicular to flow
-        area_cell = np.product(dp)
         area_matrix = np.product(dp)
+        area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
             # subtract the area taken up by the fracture
-            area_matrix -= aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # add on the overlapping bit if there is any
-        area_matrix += aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
+            area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
+        # subtract the overlapping bit if there is any
+        area_fracture-= aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
         
+        # subtract fracture area from matrix area and remove any negative matrix area
+        area_matrix -= area_fracture
+        area_matrix[area_matrix<0.] = 0.
         # resistance is the weighted harmonic mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
+#        if len(area_fracture[np.isfinite(area_fracture)]) >0:
+#            print(np.amax(area_fracture[np.isfinite(area_fracture)]))
+#        else:
+#            print('\n')
+        resistance_array[:,:,:,i] = d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)
+        resistivity_array[:,:,:,i] = (area_fracture + area_matrix)/(area_matrix/r_matrix + area_fracture/r_fluid)
 
-        resistance_array[:,:,:,i] = d[i]/(area_matrix/r_matrix + (area_cell-area_matrix)/r_fluid)
-        resistivity_array[:,:,:,i] = area_cell/(area_matrix/r_matrix + (area_cell-area_matrix)/r_fluid)
         
     return resistance_array,resistivity_array
 
@@ -110,21 +117,23 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
         # cross sectional area of the cell perpendicular to flow
-        area_cell = np.product(dp)
         area_matrix = np.product(dp)
-        
+        area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
             # subtract the area taken up by the fracture
-            area_matrix -= aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # add on the overlapping bit if there is any
-        area_matrix += aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
+            area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
+        # subtract the overlapping bit if there is any
+        area_fracture-= aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
         
+        # subtract fracture area from matrix area and remove any negative matrix area
+        area_matrix -= area_fracture
+        area_matrix[area_matrix<0.] = 0.    
         # permeability is the weighted mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
         hresistance[:,:,:,i] = mu*d[i]/(d[dpi[1]]*aperture_array[:,:,:,i,dpi[0]]**3/12. +\
                                         d[dpi[0]]*aperture_array[:,:,:,i,dpi[1]]**3/12. +\
                                         area_matrix*k_matrix)
-        permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*area_cell)
+        permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*(area_fracture + area_matrix))
 
 
     return hresistance,permeability
@@ -143,7 +152,6 @@ def get_geometry_factor(output_array,cellsize):
             dx,dy,dz = [cellsize[0]]*3
             
     nz,ny,nx = np.array(np.shape(output_array))[:3] - 2
-
     
     return np.array([dz*dy*(ny+1)*(nz+1)/(dx*nx),
                      dz*dx*(nx+1)*(nz+1)/(dy*ny),
@@ -154,6 +162,7 @@ def get_flow(output_array):
     #print(np.array([np.sum(output_array[:,:,-1,0,0]),
     #                 np.sum(output_array[:,-1,:,1,1]),
     #                 np.sum(output_array[-1,:,:,2,2])]))
+
     return np.array([np.sum(output_array[:,:,-1,0,0]),
                      np.sum(output_array[:,-1,:,1,1]),
                      np.sum(output_array[-1,:,:,2,2])])
@@ -163,7 +172,6 @@ def get_bulk_resistivity(current_array,cellsize):
     
     factor = get_geometry_factor(current_array,cellsize)
     flow = get_flow(current_array)
-    
     resistance = 1./flow
     
     return factor*resistance, resistance 
