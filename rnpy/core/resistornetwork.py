@@ -259,6 +259,16 @@ class Rock_volume():
         if self.aperture_correction_c is None:
             self.aperture_correction_c = np.ones_like(self.aperture_array)
         
+        # update cellsize so it is at least as big as the largest fault aperture
+        for i in range(3):
+            api = self.aperture_array[:,:,:,:,i][np.isfinite(self.aperture_array[:,:,:,:,i])]
+            
+            if len(api) > 0:
+                apmax = np.amax(api)
+                if self.cellsize[i] < apmax:
+                    rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
+                    self.cellsize[i] = round(apmax,rounding)
+        
 
     def initialise_electrical_resistance(self):
         """
