@@ -299,8 +299,8 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
             append = True
         # these parameters have x,y,z components so separate them out into separate variables
         elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
-            keys, values, append = [vkey+directions[i] for i in range(len(directions))], \
-                                   [variables[vkey][i] for i in range(len(directions))], True
+            keys, values, append = [vkey+dd for dd in 'xyz' if dd in directions], \
+                                   [variables[vkey][i] for i in range(3) if 'xyz'[i] in directions], True
         elif vkey == 'cellsize':
             keys, values, append = ['cellsizex'],[variables['cellsize'][0]],True
                   
@@ -380,6 +380,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
+        cellsize0 = ro.cellsize
 
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
@@ -424,6 +425,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             t2 = time.time()
 
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
+            # reset cellsize
+            ro.cellsize = cellsize0
             arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
             arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables if key not in resk_pnames])
             arr_fn += 'rf{}rm{}km{}'.format(*vals)
