@@ -269,7 +269,7 @@ def divide_inputs(work_to_do,size):
     
     
 
-def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno):
+def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno, directions = 'yz'):
     """
     prepare an output file for writing to
     """
@@ -278,7 +278,8 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     output_variables = []
     # define the output variables explicitly
     for pname in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
-        output_variables += [pname+ri for ri in 'xyz']
+        output_variables += [pname+ri for ri in directions]
+    output_variables += ['cellsizex']
     # list to contain all variable inputs and outputs to put in text file
     loop_input_output = loop_variables + output_variables
     
@@ -298,7 +299,11 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
             append = True
         # these parameters have x,y,z components so separate them out into separate variables
         elif vkey in ['resistivity_bulk','permeability_bulk','aperture_mean','contact_area']:
-            keys, values, append = [vkey+'xyz'[i] for i in range(3)], [variables[vkey][i] for i in range(3)], True
+            keys, values, append = [vkey+directions[i] for i in range(len(directions))], \
+                                   [variables[vkey][i] for i in range(len(directions))], True
+        elif vkey == 'cellsize':
+            keys, values, append = ['cellsizex'],[variables['cellsize'][0]],True
+                  
         if append:
             # add all the variables that fit the criteria to a new dictionary
             for k,key in enumerate(keys):
@@ -317,8 +322,9 @@ def write_output(ro, loop_variables, outfilename, newfile, repeatno, rank, runno
     if newfile:
         with open(outfilename, 'wb') as outfile:
             header = '# suite of resistor network simulations\n'
-            for pm in ['ncells','cellsize']:
+            for pm in ['ncells']:
                 header += '# ' + pm + ' {} {} {}\n'.format(*(getattr(ro,pm)))
+            header += '# cellsizeyz {} {}\n'.format(*(variables['cellsize'][1:]))
             header += '### fixed parameters ###\n'
             header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'
             header += '### variable parameters ###\n'
