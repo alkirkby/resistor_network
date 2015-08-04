@@ -351,7 +351,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
     else:
         outfilename = outfilename + str(rank)
-
+    cellsize0 = list_of_inputs[0]['cellsize']*1
     r = 0
     for input_dict in list_of_inputs:
 
@@ -378,7 +378,12 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 resk_repeats[param] = [np.nan]
             
         # initialise random resistor network
-        ro = rn.Rock_volume(**input_dict)
+        input_dict['cellsize'] = cellsize0*1
+    #    print list_of_inputs[r]['cellsize']
+        print "cellsize before",input_dict['cellsize'],rank
+        indict = input_dict.copy()
+        ro = rn.Rock_volume(**indict)
+        print "cellsize before 2",input_dict['cellsize'],rank,"ro.cellsize",ro.cellsize
 
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
@@ -393,10 +398,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             # we don't need to solve for fluid flow again.
             for ii in range(2):
                 # check if either of the resistivity values are different from the first permutation
-                if vals[ii] != input_dict[resk_pnames[ii]]:
+                if vals[ii] != indict[resk_pnames[ii]]:
                     # if either of the res values are different, check the permeability
                     # if it is the same then don't need to solve for flow
-                    if vals[2] == input_dict[resk_pnames[2]]:
+                    if vals[2] == indict[resk_pnames[2]]:
                         solve_flow = False
                         
             # only solve for resistivity for the first permutation of permeability
@@ -405,10 +410,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             solve_current = True
 
             # check if the resistivity is the same as the first permutation
-            if ((vals[0] == input_dict[resk_pnames[0]]) and (vals[1] == input_dict[resk_pnames[1]])):
+            if ((vals[0] == indict[resk_pnames[0]]) and (vals[1] == indict[resk_pnames[1]])):
                 # check if it's the first permutation for flow, if not then
                 # don't need to solve for current
-                if vals[2] != input_dict[resk_pnames[2]]:
+                if vals[2] != indict[resk_pnames[2]]:
                     solve_current = False
             # re-initialise permeability and resistance if necessary  
             if solve_flow:
@@ -425,7 +430,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
 
             arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
-            arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables if key not in resk_pnames])
+            arr_fn = ''.join(arr_shortnames).format(*[indict[key] for key in loop_variables if key not in resk_pnames])
             arr_fn += 'rf{}rm{}km{}'.format(*vals)
 
             if save_array:
@@ -441,8 +446,9 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 newfile = True
             else:
                 newfile = False
-            write_output(ro,loop_variables,outfilename,newfile,input_dict['repeat'],rank,r)
+            write_output(ro,loop_variables,outfilename,newfile,indict['repeat'],rank,r)
             r += 1
+        print "cellsize after",ro.cellsize
         input_dict['fault_surfaces'] = None
         
     return outfilename
