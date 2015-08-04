@@ -355,12 +355,11 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
     r = 0
     for input_dict in list_of_inputs:
 
-        try:
-           # print "input_dict",input_dict
-            input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
-        except IOError:
-         #   print "no fault surfaces file or file does not exist"
-            input_dict['fault_surfaces'] = None
+#        try:
+        input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
+#        except IOError:
+#            print "no fault surfaces file or file does not exist"
+#            input_dict['fault_surfaces'] = None
             
         # get the resistivity and permeability repeats
         resk_repeats = {}
@@ -380,7 +379,6 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             
         # initialise random resistor network
         ro = rn.Rock_volume(**input_dict)
-        cellsize0 = ro.cellsize
 
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
@@ -425,8 +423,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             t2 = time.time()
 
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
-            # reset cellsize
-            ro.cellsize = cellsize0
+
             arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
             arr_fn = ''.join(arr_shortnames).format(*[input_dict[key] for key in loop_variables if key not in resk_pnames])
             arr_fn += 'rf{}rm{}km{}'.format(*vals)
