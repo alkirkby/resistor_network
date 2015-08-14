@@ -7,7 +7,7 @@ Created on Mon Aug 10 10:10:19 2015
 
 import os.path as op
 import numpy as np
-
+import itertools
 
 def read_header(wd,fn):
     """
@@ -32,15 +32,23 @@ def read_header(wd,fn):
     
         return fixed_params, pnames
 
-def read_data(wd,filelist,input_params):
+def read_data(wd,filelist,variables):
     """
     read a list of output files to get all data. Fixed parameters and property
     names are taken from the first file so need to make sure the columns match.
 
+    variables: list containing input parameters to be varied. function
+    gets out all the unique values in the data array and puts it into a 
+    dictionary input_params
+    
     
     """
     data, rnos = None, None    
-
+        
+    input_params = {}
+    for vname in variables:
+        input_params[vname] = []
+        
     fixed_params,pnames = read_header(wd,filelist[0])
     
     
@@ -75,7 +83,7 @@ def read_data(wd,filelist,input_params):
         else:
             data = data0.copy()
         
-    return data, input_params, rnos
+    return data, input_params, fixed_params, pnames, rnos
 
 def get_rratios(data,fixed_params):  
     if 'resistivity_fluid' in fixed_params.keys():
@@ -179,19 +187,41 @@ def permeability(fault_aperture, network_size, km):
     """
     return fault_aperture**3/(12*network_size) + \
            km*(1.-fault_aperture/(network_size))
+
            
-def get_xy(data,kbulk,rbulk,xparam,yparam,rm,direction):
+def get_xy(data,keys,vals,xparam,yparam,pnames,direction=None,reference_width=None):
     
+    idict = {}
+    for i, key in enumerate(keys):
+        idict[key] = vals[i]
+        
+    data1 = filter_data(data,keys,vals,pnames)
+    
+    # get ratio of matrix to fluid resistivity
+    rrat = float(idict['resistivity_matrix'])/idict['resistivity_fluid']
+
+    # get bulk parameters according to the reference width. If no reference
+    # width we are looking at the parameters of the fracture only.
+    if reference_width is None:
+        kbulk,rbulk = [data1[pname+'_bulk'+direction] for pname in ['permeability','resistivity']]
+    else:
+        kbulk,rbulk = get_bulk_properties(data1,reference_width,
+                                          idict['permeability_matrix'],
+                                          idict['resistivity_matrix'],
+                                          pname_k = 'permeability_bulk'+direction,
+                                          pname_r = 'resistivity_bulk'+direction)
     
     if 'aperture' in xparam:
-        x = data['aperture_mean'+direction]
+        x = data1['aperture_mean'+direction]
     elif 'resistivity' in xparam:
-        x = rm/rbulk
+        x = idict['resistivity_matrix']/rbulk
     if 'resistivity' in yparam:
-        y = rm/rbulk
+        y = idict['resistivity_matrix']/rbulk
     elif 'permeability' in yparam:
         y = kbulk
-    return x,y
+        
+        
+    return data1,x,y,rrat,kbulk,rbulk
            
 def sort_xy(x,y,faultsep):
     """
@@ -235,34 +265,78 @@ def get_perc_thresh(x,y,gradient_threshold,kmax = 1e-6):
                     
     return xpt,ypt
     
+def construct_outfilename(prefix,reference_width,sdmultiplier,parametername):
+    """
+    create a filename
     
-def get_gradient_threshold(wd,filelist,outfilename, variables, sdmultiplier=3.):
+    """
+    # get reference width info for title
+    if reference_width is None:
+        rw,suf = 0,''
+    else:
+        for length,suf in [[1.,'m'],[1e-3,'mm'],[1e-6,'micm']]:
+            rw = round(reference_width/length)
+            if rw > 1:
+                break
+        
+    # construct an outfile name
+    return prefix + 'rw%1i'%rw+suf + '_%1isd_'%sdmultiplier + parametername
+   
+def get_gradient_threshold(wd, filelist, outfilename = None,
+                           sdmultiplier=3., reference_width = None, direction='z'):
     """
     get gradient threshold values based on a set of model results. gradient
     threshold calculated as follows:
     
-    1. get the gradient of the resistivity-permeability curve in log space
+    1. get the gradient of the parameters in log space
     2. get the maximum gradient and take the log of this gradient
     3. repeat for all repeats for the given variables
     4. take the median and standard deviation of the maximum gradients
     5. the gradient threshold is defined as:
     10**(median(log10(maxgradient)) - sdmultiplier*sd(log10(maxgradient)))
     if sdmultiplier is 3 then this should capture
-    
-    """    
-    
-    mg = []
-    for rno in rnos:            
-        if rno in data1['repeat']:
-            x,y,fsep = [arr[data1['repeat']==rno] for arr in [xall,yall,data1['fault_separation']]]
-            x,y, indices = ort.sort_xy(x,y,fsep) 
-            mg.append(np.amax(np.log10(ort.get_gradient_log(x,y))))
 
-    threshold[i] = [rrat,np.median(mg)-4.*np.std(mg)]
-    np.savetxt(op.join(wd,thresholdfn),threshold,fmt = ['%.1f','%.3f'])
+    
+    """
+    variables = ['permeability_matrix','resistivity_matrix','resistivity_fluid']
+    parameter_names = ['resistivity','permeability']
+    
+    # get the array containing the data
+    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist,variables)
+
+
+    thresholds = []
+    # cycle through unique values
+    for vals in itertools.product(*(input_params.values())):
+        
+        # get the x and y parameters to get the percolation threshold on
+        data1,xall,yall,rrat,kbulk,rbulk = get_xy(data,input_params.keys(),
+                                                 vals,parameter_names[0],
+                                                 parameter_names[1],
+                                                 pnames,
+                                                 direction=direction, 
+                                                 reference_width=reference_width)
+        maxgrad = []
+        # go through repeats, sort by fault separation, and get out the maximum gradient in each
+        for rno in rnos:            
+            if rno in data1['repeat']:
+                x,y,fsep = [arr[data1['repeat']==rno] for arr in [xall,yall,data1['fault_separation']]]
+                x,y, indices = sort_xy(x,y,fsep)
+                mg = np.log10(get_gradient_log(x,y))
+                maxgrad.append(np.amax(mg[np.isfinite(mg)]))
+    
+        thresholds.append([rrat,np.median(maxgrad)-4.*np.std(maxgrad)])
+    prefix = 'gt_o%02i'%fixed_params['offset']
+    outfilename = construct_outfilename(prefix,reference_width,sdmultiplier,parameter_names[0])+'.dat'
+    
+    header = 'rmatrix/rfluid log10(gradient_threshold)'
+    np.savetxt(op.join(wd,outfilename),np.array(thresholds),fmt = ['%.1f','%.3f'],header=header)
+    
+    return op.join(wd,outfilename)
          
     
-def get_pt_all(filelist, outfilename, variables, thresholdgradient, kmax = 1e-6):
+def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
+               sdmultiplier=3., reference_width = None, direction='z', kmax = 1e-6):
     """
     get an array containing percolation threshold + variable parameters 
     specified and save to a 1 or more column text file.
@@ -284,7 +358,75 @@ def get_pt_all(filelist, outfilename, variables, thresholdgradient, kmax = 1e-6)
     for each combination of variables listed above
     
     """
-    return
     
+    if gradientthresholdfn is None:
+        gradientthresholdfn = get_gradient_threshold(wd, filelist, 
+                               sdmultiplier=sdmultiplier, outfilename=outfilename,
+                               reference_width = reference_width, 
+                               direction=direction)
+    gtvals = np.loadtxt(gradientthresholdfn)
     
+    parameter_names = ['resistivity','permeability']
+    variables = ['permeability_matrix','resistivity_matrix','resistivity_fluid']
+
+   
+    # get the array containing the data
+    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist,variables)
+
     
+    outputs = np.zeros([np.product([len(val) for val in input_params.values()]),len(rnos)],
+                        dtype = [('rm/rf','f64'),('km','f64'),('repeat','i5'),
+                                 ('x0','f64'),('x1','f64'),('y0','f64'),('y1','f64'),
+                                 ('cs0','f64'),('cs1','f64'),('ap0','f64'),('ap1','f64'),
+                                 ('ca0','f64'),('ca1','f64')])
+
+    
+    iv = 0
+    for vals in itertools.product(*(input_params.values())):
+        
+        
+        # get the x and y parameters to get the percolation threshold on
+        data1,xall,yall,rrat,kbulk,rbulk = get_xy(data,input_params.keys(),
+                                                  vals,parameter_names[0],
+                                                  parameter_names[1],
+                                                  pnames,
+                                                  direction=direction, 
+                                                  reference_width=reference_width)     
+        outputs['rm/rf'][iv] = rrat
+        outputs['km'][iv] = fixed_params['permeability_matrix']
+
+        ir = 0
+        for rno in rnos:
+            if rno in data1['repeat']:
+                x,y,fsep,csx,apm,ca = [arr[data1['repeat']==rno] for arr in \
+                [xall,yall,data1['fault_separation'],data1['cellsizex'],
+                 data1['aperture_mean'+direction],data1['contact_area'+direction]]]
+                x,y,indices = sort_xy(x,y,fsep)
+                csx = csx[indices]
+                apm = apm[indices]
+                ca = ca[indices]
+                xpt,ypt = get_perc_thresh(x,y,10**gtvals[gtvals[:,0]==rrat][0,1],kmax = 1e-10)
+
+                if len(xpt) > 0:
+                    outputs['repeat'][iv,ir] = rno
+                    outputs['x0'][iv,ir] = xpt[0]
+                    outputs['x1'][iv,ir] = xpt[-1]
+                    outputs['y0'][iv,ir] = ypt[0]
+                    outputs['y1'][iv,ir] = ypt[-1]
+                    outputs['cs0'][iv,ir] = csx[x==xpt[0]]
+                    outputs['cs1'][iv,ir] = csx[x==xpt[-1]]
+                    outputs['ap0'][iv,ir] = apm[x==xpt[0]]
+                    outputs['ap1'][iv,ir] = apm[x==xpt[-1]]
+                    outputs['ca0'][iv,ir] = ca[x==xpt[0]]
+                    outputs['ca1'][iv,ir] = ca[x==xpt[-1]]
+                    ir += 1
+
+        iv += 1
+    prefix = 'pt_o%02i'%fixed_params['offset']
+    outfilename = construct_outfilename(prefix,reference_width,sdmultiplier,parameter_names[0])
+
+    np.save(op.join(wd,outfilename),outputs)
+        
+    return outfilename
+        
+        
