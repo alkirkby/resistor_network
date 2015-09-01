@@ -32,7 +32,7 @@ def read_header(wd,fn):
     
         return fixed_params, pnames
 
-def read_data(wd,filelist,variables):
+def read_data(wd,filelist):
     """
     read a list of output files to get all data. Fixed parameters and property
     names are taken from the first file so need to make sure the columns match.
@@ -43,18 +43,16 @@ def read_data(wd,filelist,variables):
     
     
     """
-    data, rnos = None, None    
+    data, rnos = None, None
+    variables = ['permeability_matrix','resistivity_matrix','resistivity_fluid']
         
     input_params = {}
     for vname in variables:
         input_params[vname] = []
-        
-    fixed_params,pnames = read_header(wd,filelist[0])
-    
     
     for fn in filelist:
-        
         # read data from the whole file
+        fixed_params,pnames = read_header(wd,fn)
         data0 = np.genfromtxt(op.join(wd,fn),names=pnames)
     
         # get the special parameters defined in input_params dictionary
@@ -124,12 +122,14 @@ def get_thresholds_fromfile(wd,thresholdfn,rratios):
         
     return thresholds, get_thresholds
 
-def filter_data(data0,keys,values,pnames):
+def filter_data(data0,keys,values):
     """
     grab out data with values equal to those specified by keys and values,
     pnames is a list of property names for the array data
     
     """
+    pnames = data0.dtype.names    
+
     # define condition to select all data with parameters given by the unique
     # set of values in the list vals
     cflag = True
@@ -149,10 +149,10 @@ def filter_data(data0,keys,values,pnames):
     return data
     
     
-def get_bulk_properties(data,reference_width,km,rm,
-                        pname_k = 'permeability_bulkz',
-                        pname_r = 'resistivity_bulkz',
-                        cellsize=None):
+def get_bulk_properties(data,idict,direction=None,
+                        reference_width=None,cellsize=None):
+                            
+    
     """
     get the bulk permeabilty and resistivity for a given reference_width
     km and rm are the matrix permeability and resistivity
@@ -161,9 +161,18 @@ def get_bulk_properties(data,reference_width,km,rm,
 
     if cellsize is None:
        width = data['cellsizex']
+
     
-    kbulk = ((width)*data[pname_k] + (reference_width-width)*km)/(reference_width)
-    rbulk = (reference_width)/((width)/data[pname_r] + (reference_width-width)/rm)
+    pname_k = 'permeability_bulk'+direction
+    pname_r = 'resistivity_bulk'+direction
+    
+    # get bulk parameters according to the reference width. If no reference
+    # width we are looking at the parameters of the fracture only.
+    if reference_width is None:
+        kbulk,rbulk = [data[pname+'_bulk'+direction] for pname in ['permeability','resistivity']]
+    else:
+        kbulk = ((width)*data[pname_k] + (reference_width-width)*idict['permeability_matrix'])/(reference_width)
+        rbulk = (reference_width)/((width)/data[pname_r] + (reference_width-width)/idict['resistivity_matrix'])
     
     return kbulk, rbulk
     
@@ -188,28 +197,20 @@ def permeability(fault_aperture, network_size, km):
     return fault_aperture**3/(12*network_size) + \
            km*(1.-fault_aperture/(network_size))
 
-           
-def get_xy(data,keys,vals,xparam,yparam,pnames,direction=None,reference_width=None):
+
+
+
+def get_xy(data,keys,vals,xparam,yparam,direction=None,reference_width=None):
     
     idict = {}
     for i, key in enumerate(keys):
         idict[key] = vals[i]
         
-    data1 = filter_data(data,keys,vals,pnames)
+    data1 = filter_data(data,keys,vals)   
     
-    # get ratio of matrix to fluid resistivity
-    rrat = float(idict['resistivity_matrix'])/idict['resistivity_fluid']
-
-    # get bulk parameters according to the reference width. If no reference
-    # width we are looking at the parameters of the fracture only.
-    if reference_width is None:
-        kbulk,rbulk = [data1[pname+'_bulk'+direction] for pname in ['permeability','resistivity']]
-    else:
-        kbulk,rbulk = get_bulk_properties(data1,reference_width,
-                                          idict['permeability_matrix'],
-                                          idict['resistivity_matrix'],
-                                          pname_k = 'permeability_bulk'+direction,
-                                          pname_r = 'resistivity_bulk'+direction)
+    kbulk,rbulk = get_bulk_properties(data1,idict,
+                                      reference_width=reference_width,
+                                      direction=direction)
     
     if 'aperture' in xparam:
         x = data1['aperture_mean'+direction]
@@ -221,7 +222,7 @@ def get_xy(data,keys,vals,xparam,yparam,pnames,direction=None,reference_width=No
         y = kbulk
         
         
-    return data1,x,y,rrat,kbulk,rbulk
+    return x,y,data1,kbulk,rbulk
            
 def sort_xy(x,y,faultsep):
     """
@@ -265,6 +266,11 @@ def get_perc_thresh(x,y,gradient_threshold,kmax = 1e-6):
                     
     return xpt,ypt
     
+def get_perc_thresh2(x,y):
+    """
+    get gradient threshold using inflection point method, i.e. 
+    """
+    
 def construct_outfilename(prefix,reference_width,sdmultiplier,parametername):
     """
     create a filename
@@ -276,7 +282,7 @@ def construct_outfilename(prefix,reference_width,sdmultiplier,parametername):
     else:
         for length,suf in [[1.,'m'],[1e-3,'mm'],[1e-6,'micm']]:
             rw = round(reference_width/length)
-            if rw > 1:
+            if rw >= 1:
                 break
         
     # construct an outfile name
@@ -298,24 +304,28 @@ def get_gradient_threshold(wd, filelist, outfilename = None,
 
     
     """
-    variables = ['permeability_matrix','resistivity_matrix','resistivity_fluid']
     parameter_names = ['resistivity','permeability']
     
     # get the array containing the data
-    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist,variables)
+    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist)
 
 
     thresholds = []
     # cycle through unique values
     for vals in itertools.product(*(input_params.values())):
         
+        idict = {}
+        for i, key in enumerate(input_params.keys()):
+            idict[key] = vals[i]     
+            
         # get the x and y parameters to get the percolation threshold on
-        data1,xall,yall,rrat,kbulk,rbulk = get_xy(data,input_params.keys(),
+        xall,yall,data1,kbulk,rbulk = get_xy(data,input_params.keys(),
                                                  vals,parameter_names[0],
                                                  parameter_names[1],
-                                                 pnames,
                                                  direction=direction, 
                                                  reference_width=reference_width)
+        rrat = get_rratios(data1,fixed_params)
+
         maxgrad = []
         # go through repeats, sort by fault separation, and get out the maximum gradient in each
         for rno in rnos:            
@@ -335,8 +345,8 @@ def get_gradient_threshold(wd, filelist, outfilename = None,
     return op.join(wd,outfilename)
          
     
-def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
-               sdmultiplier=3., reference_width = None, direction='z', kmax = 1e-6):
+def get_percolation_thresholds(wd,filelist, outfilename = None, gradientthresholdfn = None,
+                               sdmultiplier=3., reference_width = None, direction='z', kmax = 1e-6):
     """
     get an array containing percolation threshold + variable parameters 
     specified and save to a 1 or more column text file.
@@ -358,6 +368,7 @@ def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
     for each combination of variables listed above
     
     """
+
     
     if gradientthresholdfn is None:
         gradientthresholdfn = get_gradient_threshold(wd, filelist, 
@@ -367,15 +378,14 @@ def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
     gtvals = np.loadtxt(gradientthresholdfn)
     
     parameter_names = ['resistivity','permeability']
-    variables = ['permeability_matrix','resistivity_matrix','resistivity_fluid']
 
    
     # get the array containing the data
-    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist,variables)
+    data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist)
 
     
     outputs = np.zeros([np.product([len(val) for val in input_params.values()]),len(rnos)],
-                        dtype = [('rm/rf','f64'),('km','f64'),('repeat','i5'),
+                        dtype = [('rm/rf','f64'),('offset','f64'),('km','f64'),('repeat','i5'),
                                  ('x0','f64'),('x1','f64'),('y0','f64'),('y1','f64'),
                                  ('cs0','f64'),('cs1','f64'),('ap0','f64'),('ap1','f64'),
                                  ('ca0','f64'),('ca1','f64')])
@@ -383,17 +393,20 @@ def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
     
     iv = 0
     for vals in itertools.product(*(input_params.values())):
-        
+    
+        idict = {}
+        for i, key in enumerate(input_params.keys()):
+            idict[key] = vals[i]     
         
         # get the x and y parameters to get the percolation threshold on
-        data1,xall,yall,rrat,kbulk,rbulk = get_xy(data,input_params.keys(),
+        xall,yall,data1,kbulk,rbulk = get_xy(data,input_params.keys(),
                                                   vals,parameter_names[0],
                                                   parameter_names[1],
-                                                  pnames,
                                                   direction=direction, 
-                                                  reference_width=reference_width)     
+                                                  reference_width=reference_width) 
+        rrat = get_rratios(data1,fixed_params)
         outputs['rm/rf'][iv] = rrat
-        outputs['km'][iv] = fixed_params['permeability_matrix']
+        outputs['km'][iv] = idict['permeability_matrix']
 
         ir = 0
         for rno in rnos:
@@ -427,6 +440,25 @@ def get_pt_all(wd,filelist, outfilename = None, gradientthresholdfn = None,
 
     np.save(op.join(wd,outfilename),outputs)
         
-    return outfilename
+    return op.join(wd,outfilename)
         
-        
+def average_perc_thresholds(ptfile,rratio_max = None,stderr=False):
+    # load the data
+    data = np.load(ptfile)
+    # get rm/rf ratios
+    rratios = np.unique(data['rm/rf'])
+    if rratio_max is not None:
+        rratios = rratios[rratios <= rratio_max]
+    # create array to contain mean and standard deviation values
+    data_median = np.zeros(len(rratios),dtype = data.dtype)
+    data_std = np.zeros(len(rratios),dtype = data.dtype)
+    # create averages for each rratio
+    for i in range(len(rratios)):
+        for dd in data.dtype.names:
+            dtoavg = data[dd][(data[dd] != 0.)&(np.isfinite(data[dd]))&(data['rm/rf'] == rratios[i])]
+            data_median[dd][i] = np.median(dtoavg)
+            data_std[dd][i] = np.std(dtoavg)
+            if stderr:
+                data_std[dd][i] = np.std(dtoavg)/(len(data_std)**0.5)
+
+    return rratios,data_median,data_std
