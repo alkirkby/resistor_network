@@ -8,6 +8,7 @@ Created on Mon Aug 10 10:10:19 2015
 import os.path as op
 import numpy as np
 import itertools
+import scipy.interpolate as si
 
 def read_header(wd,fn):
     """
@@ -266,11 +267,29 @@ def get_perc_thresh(x,y,gradient_threshold,kmax = 1e-6):
                     
     return xpt,ypt
     
-def get_perc_thresh2(x,y):
+def get_perc_thresh2(x,y,factor=0.3):
     """
-    get gradient threshold using inflection point method, i.e. 
+    get gradient threshold using inflection point method, i.e. calculate
+    second derivative
     """
+    xl,yl = np.log10(x),np.log10(y)
+    xi = np.linspace(np.percentile(xl,1),np.percentile(xl,99),50)
+    xi = np.unique(np.hstack([xi,xl]))
+    f = si.interp1d(xl,yl)
+    yi = f(xi)
     
+    dydx = (yi[1:]-yi[:-1])/(xi[1:]-xi[:-1])
+    xg = (xi[1:]+xi[:-1])/2.
+       
+    ddydxx = (dydx[1:]-dydx[:-1])/(xg[1:]-xg[:-1])
+    xgg = xi[1:-1]
+    
+
+    xpt = 10**np.array([xgg[ddydxx>=factor*np.amax(ddydxx)][0],xgg[ddydxx<=factor*np.amin(ddydxx)][-1]])
+    ypt = 10**np.array([yi[1:-1][ddydxx>=factor*np.amax(ddydxx)][0],yi[1:-1][ddydxx<=factor*np.amin(ddydxx)][-1]])
+
+    return xpt,ypt
+
 def construct_outfilename(prefix,reference_width,sdmultiplier,parametername):
     """
     create a filename
@@ -286,7 +305,13 @@ def construct_outfilename(prefix,reference_width,sdmultiplier,parametername):
                 break
         
     # construct an outfile name
-    return prefix + 'rw%1i'%rw+suf + '_%1isd_'%sdmultiplier + parametername
+    outfilename = prefix + 'rw%1i'%rw+suf+'_'
+    if sdmultiplier is not None:
+        outfilename += '_%1isd_'%sdmultiplier
+    outfilename += parametername        
+        
+        
+    return outfilename
    
 def get_gradient_threshold(wd, filelist, outfilename = None,
                            sdmultiplier=3., reference_width = None, direction='z'):
@@ -345,37 +370,41 @@ def get_gradient_threshold(wd, filelist, outfilename = None,
     return op.join(wd,outfilename)
          
     
-def get_percolation_thresholds(wd,filelist, outfilename = None, gradientthresholdfn = None,
-                               sdmultiplier=3., reference_width = None, direction='z', kmax = 1e-6):
+def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
+                               outfilename = None, gradientthresholdfn = None,
+                               sdmultiplier=3., reference_width = None, 
+                               direction='z', kmax = 1e-6):
     """
     get an array containing percolation threshold + variable parameters 
     specified and save to a 1 or more column text file.
     
     columns will contain:
     variables listed in columns
-    percolation start and end, defined as the resistivity and permeability at
-    the beginning and end of the section that has a gradient above the
-    threshold gradient.
+    resistivity, permeability, aperture, contact area, at percolation threshold
     cellsize x start and end, cellsize perpendicular to the fault plane used
     for averaging at the beginning and end of the percolation threshold
     
-    
-    variables is a list containing input variable names. e.g. if variables = 
-    resistivity_matrix then percolation thresholds will be sorted out by 
-    matrix resistivity.
-    
+    method
+    '1': picking first and last points above a gradient threshold. in this case
+         need to specify a file containing the threshold gradient
+    '2': picking first and last peaks in the second derivative. No threshold 
+         gradient required but need to specify threshold factor (fraction of
+         maximum and minimum in second derivative) for picking the peaks
+
     thresholdgradient is a 2 column text file containing threshold gradient 
     for each combination of variables listed above
     
     """
 
-    
-    if gradientthresholdfn is None:
-        gradientthresholdfn = get_gradient_threshold(wd, filelist, 
-                               sdmultiplier=sdmultiplier, outfilename=outfilename,
-                               reference_width = reference_width, 
-                               direction=direction)
-    gtvals = np.loadtxt(gradientthresholdfn)
+    if method == '1':
+        if gradientthresholdfn is None:
+            gradientthresholdfn = get_gradient_threshold(wd, filelist, 
+                                   sdmultiplier=sdmultiplier, outfilename=outfilename,
+                                   reference_width = reference_width, 
+                                   direction=direction)
+        gtvals = np.loadtxt(gradientthresholdfn)
+    else:
+        sdmultiplier = None
     
     parameter_names = ['resistivity','permeability']
 
@@ -418,29 +447,31 @@ def get_percolation_thresholds(wd,filelist, outfilename = None, gradientthreshol
                 csx = csx[indices]
                 apm = apm[indices]
                 ca = ca[indices]
-                xpt,ypt = get_perc_thresh(x,y,10**gtvals[gtvals[:,0]==rrat][0,1],kmax = 1e-10)
-
+                if method == '1':
+                    xpt,ypt = get_perc_thresh(x,y,10**gtvals[gtvals[:,0]==rrat][0,1],kmax = 1e-10)
+                elif method == '2':
+                    xpt,ypt = get_perc_thresh2(x,y,factor=factor)
                 if len(xpt) > 0:
                     outputs['repeat'][iv,ir] = rno
                     outputs['x0'][iv,ir] = xpt[0]
                     outputs['x1'][iv,ir] = xpt[-1]
                     outputs['y0'][iv,ir] = ypt[0]
                     outputs['y1'][iv,ir] = ypt[-1]
-                    outputs['cs0'][iv,ir] = csx[x==xpt[0]]
-                    outputs['cs1'][iv,ir] = csx[x==xpt[-1]]
-                    outputs['ap0'][iv,ir] = apm[x==xpt[0]]
-                    outputs['ap1'][iv,ir] = apm[x==xpt[-1]]
-                    outputs['ca0'][iv,ir] = ca[x==xpt[0]]
-                    outputs['ca1'][iv,ir] = ca[x==xpt[-1]]
+                    outputs['cs0'][iv,ir] = csx[np.abs(x-xpt[0])<1e-9]
+                    outputs['cs1'][iv,ir] = csx[np.abs(x-xpt[-1])<1e-9]
+                    outputs['ap0'][iv,ir] = apm[np.abs(x-xpt[0])<1e-9]
+                    outputs['ap1'][iv,ir] = apm[np.abs(x-xpt[-1])<1e-9]
+                    outputs['ca0'][iv,ir] = ca[np.abs(x-xpt[0])<1e-9]
+                    outputs['ca1'][iv,ir] = ca[np.abs(x-xpt[-1])<1e-9]
                     ir += 1
 
         iv += 1
-    prefix = 'pt_o%02i'%fixed_params['offset']
+    prefix = ('pt{}_o%02i'%fixed_params['offset']).format(method)
     outfilename = construct_outfilename(prefix,reference_width,sdmultiplier,parameter_names[0])
 
     np.save(op.join(wd,outfilename),outputs)
         
-    return op.join(wd,outfilename)
+    return op.join(wd,outfilename),outputs
         
 def average_perc_thresholds(ptfile,rratio_max = None,stderr=False):
     # load the data

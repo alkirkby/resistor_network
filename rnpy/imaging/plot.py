@@ -277,7 +277,7 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
     
 def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True,
                    fitindices = None, textloc = [100,2],plot_permeability=False,
-                   stderr=False,labels = None):
+                   stderr=False,labels = None,fmt='-'):
     """
     """
     if type(ptfilelist) == str:
@@ -290,9 +290,9 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
         rratios,data_median,data_std = rnro.average_perc_thresholds(ptfile,rratio_max = rratio_max,stderr=stderr)
     
         if labels is None:
-            labels = 'Percolation threshold'
+            labels = ['Percolation threshold']
         if (first or ((type(labels)==list) and (len(labels)==len(ptfilelist)))):
-            plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt ='-',c=colors[i], label = labels[i])
+            plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt =fmt,ecolor=colors[i],c=colors[i], label = labels[i])
             plt.xlabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fluid}}}$')
             plt.ylabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$')
             plt.yscale('log')
@@ -302,7 +302,7 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
             first = False
     
         else:
-            plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt = '-',c=colors[i])
+            plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt = fmt,ecolor=colors[i],c=colors[i])
             
         plt.errorbar(rratios,data_median['x1'],fmt =':',c=colors[i])#yerr=data_std['x1'],
     
