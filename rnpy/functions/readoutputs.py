@@ -230,7 +230,7 @@ def sort_xy(x,y,faultsep):
     get unique values of fault separation and sort x and y by these values.
     """
     fsepu,indices = np.unique(faultsep,return_index=True)
-    
+
     return x[indices],y[indices],indices
     
     
@@ -417,7 +417,7 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                         dtype = [('rm/rf','f64'),('offset','f64'),('km','f64'),('repeat','i5'),
                                  ('x0','f64'),('x1','f64'),('y0','f64'),('y1','f64'),
                                  ('cs0','f64'),('cs1','f64'),('ap0','f64'),('ap1','f64'),
-                                 ('ca0','f64'),('ca1','f64')])
+                                 ('ca0','f64'),('ca1','f64'),('fs0','f64'),('fs1','f64')])
 
     
     iv = 0
@@ -447,6 +447,7 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                 csx = csx[indices]
                 apm = apm[indices]
                 ca = ca[indices]
+                fsep = fsep[indices]
                 if method == '1':
                     xpt,ypt = get_perc_thresh(x,y,10**gtvals[gtvals[:,0]==rrat][0,1],kmax = 1e-10)
                 elif method == '2':
@@ -463,6 +464,8 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                     outputs['ap1'][iv,ir] = apm[np.abs(x-xpt[-1])<1e-9]
                     outputs['ca0'][iv,ir] = ca[np.abs(x-xpt[0])<1e-9]
                     outputs['ca1'][iv,ir] = ca[np.abs(x-xpt[-1])<1e-9]
+                    outputs['fs0'][iv,ir] = fsep[np.abs(x-xpt[0])<1e-9]
+                    outputs['fs1'][iv,ir] = fsep[np.abs(x-xpt[-1])<1e-9]
                     ir += 1
 
         iv += 1

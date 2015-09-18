@@ -41,7 +41,7 @@ def plot_flatplate(data1,idict,parameter_names,reference_width,rno=0,direction =
     if ((plot_mm) and ('aperture' in parameter_names[0])):
         flatplate[0] = np.array(flatplate[0])*1e3
         
-    plt.plot(flatplate[0],flatplate[1],color+'--')
+    plt.plot(flatplate[0],flatplate[1],'--',c=color)
 
 def plot_data(data, input_params, pnames, rnos, parameter_names, 
               plot_bold = None, reference_width = None, direction = 'z',plot_params = {},
@@ -116,7 +116,7 @@ def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
     ylabels = {'resistivity':'Resistivity ratio $\mathrm{\mathsf{R_{matrix}/R_{fracture}}}$',
                'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
     
-    plot_params = dict(resistivity = dict(c='b',lw=0.1),
+    plot_params = dict(resistivity = dict(c='0.5',lw=0.1),
                        permeability = dict(c='k',lw=0.1))
     
 
@@ -204,7 +204,8 @@ def scalearrow(length,centre,color='k',linewidth=1):
 
 
 def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
-                      figsize = (8,5.5)):
+                      figsize = (8,5.5),plot_aperture=True,plot_labels=True,
+                      scale = None):
     """
     plot aperture, fluid and current for a list of models along the yz plane.
     a lot is hard coded in here. will work on generalising it at some point
@@ -213,32 +214,43 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
     
     """
     
+    scaleu = dict(current=1e-5,fluid=1e-12)
+    if type(scale) is dict:
+        scaleu.update(scale)
+    
+    
     ii = 0
     amplitudes = []
     labels = 'abcdef'
-    nrows,ncols = len(searchlist),3
+    nrows = len(searchlist)
+    if plot_aperture:
+        ncols = 3
+    else:
+        ncols = 2
     subplots = np.arange(1,nrows*ncols+1)
     plt.figure(figsize=figsize)
     axes = []
     plots = []
     
     for search in searchlist:
-    
-        flist = [op.join(ff) for ff in os.listdir(wd) if search in ff]
         
-        aperture_file = [op.join(wd,ff) for ff in flist if 'aperture' in ff][0]
+        flist = [op.join(ff) for ff in os.listdir(wd) if search in ff]
+        if plot_aperture:
+            aperture_file = [op.join(wd,ff) for ff in flist if 'aperture' in ff][0]
+            aperture = np.load(aperture_file)
+            ax,ay,az = [1.*aperture[1:,1:,1,i,0] for i in range(3)]
+            
+            
         flow_file = [op.join(wd,ff) for ff in flist if 'flow' in ff][0]
         current_file = [op.join(wd,ff) for ff in flist if 'current' in ff][0]
         
-        aperture = np.load(aperture_file)
         flow = np.load(flow_file)
         current = np.load(current_file)
-    
         
-        ax,ay,az = [1.*aperture[1:,1:,1,i,0] for i in range(3)]
         uf,vf,wf = [1.*flow[:,:,1,2,i] for i in range(3)]
         uc,vc,wc = [1.*current[:,:,1,2,i] for i in range(3)]
-        n,o = np.array(np.shape(az))-1.
+
+        n,o = np.array(np.shape(wf))-2.
         x,y = np.meshgrid(np.linspace(0.,(np.shape(vf)[1]-1)*cellsize,np.shape(vf)[1]),
                           np.linspace(0.,(np.shape(vf)[0]-1)*cellsize,np.shape(vf)[0]))
                      
@@ -247,30 +259,32 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
         vf[(vf<cut)&(wf<cut)] = np.nan
         wf[np.isnan(vf)&(wf<cut)] = np.nan
         
-    
-    
         if ii == 0:
-            clima = [0.,np.percentile(az[np.isfinite(az)],100)]
+            if plot_aperture:
+                clima = [0.,np.percentile(az[np.isfinite(az)],100)]
             climc = np.percentile(np.log10(np.abs(wc[(np.isfinite(wc))&(wc>0.)])),[7.5,100])
             climf = np.percentile(np.log10(np.abs(wf[(np.isfinite(wf))&(wf>0.)])),[7.5,100])
     
-        axes.append(plt.subplot(nrows,ncols,subplots[ii]))
-        az[az==0.] = np.nan
-        plots.append(plt.imshow(az,interpolation='none',cmap=cmap,extent=[0.,(o-2.)*cellsize,0.,(n-2.)*cellsize]))
-        plt.clim(*clima)
-        set_axes(n,o,cellsize)
-        scalearrow(0.05,(0.03,0.005))
-        plt.title(labels[ii],loc='left')    
-        ii += 1
+        if plot_aperture:    
+            axes.append(plt.subplot(nrows,ncols,subplots[ii]))
+            az[az==0.] = np.nan
+            plots.append(plt.imshow(az,interpolation='none',cmap=cmap,extent=[0.,(o-2.)*cellsize,0.,(n-2.)*cellsize]))
+            plt.clim(*clima)
+            set_axes(n,o,cellsize)
+            scalearrow(0.05,(0.03,0.005))
+            if plot_labels:
+                plt.title(labels[ii],loc='left')    
+            ii += 1
         
-        for v,w,scale,clim in [[vc,wc,1e-5,climc],[vf,wf,1e-12,climf]]:
+        for v,w,scale,clim in [[vc,wc,scaleu['current'],climc],[vf,wf,scaleu['fluid'],climf]]:
             amplitudes.append(np.abs((v**2+w**2)**0.5))
             amplitudes[-1][amplitudes[-1]==0.] = np.nan
             axes.append(plt.subplot(nrows,ncols,subplots[ii]))
             plots.append(plt.quiver(x,y,v,w,np.log10(amplitudes[-1]),scale=scale,pivot='tail',cmap=cmap))
             plt.clim(*clim)
             set_axes(n,o,cellsize)
-            plt.title(labels[ii],loc='left')
+            if plot_labels:
+                plt.title(labels[ii],loc='left')
             ii += 1
     plt.subplots_adjust(wspace=0.1,hspace=0.1)
     return plots,axes
