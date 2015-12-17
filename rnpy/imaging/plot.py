@@ -94,7 +94,7 @@ def plot_data(data, input_params, pnames, rnos, parameter_names,
             
                 
 def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
-                     input_params = {}, plot_bold = None, plot_mm = True):
+                     input_params = {}, plot_bold = None, plot_mm = True, flatplate = True):
     """
     plot resistivity and permeability vs aperture
     plotxy: option to plot some xy data (format [[x0,x1,..,xn],[y10,y11,..,y1n],
@@ -133,7 +133,7 @@ def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
         ppdict = plot_params[parameter_names[1]]
         plot_data(data,input_params2,pnames,rnos,parameter_names,
                   reference_width = reference_width, direction = direction,
-                  plot_params = ppdict,
+                  plot_params = ppdict, flatplate = flatplate,
                   plot_bold = plot_bold, plot_mm = plot_mm)
         
         plt.xlim(*xlim)
@@ -150,7 +150,7 @@ def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
 
     return ax1,ax2
 
-def plot_r_vs_k(wd,filelist,reference_width = None, direction = 'z',
+def plot_r_vs_k(wd,filelist,reference_width = None, direction = 'z',flatplate = True,
                 input_params = {}, limits = None,plot_bold = None, color='k'):
     
     data, input_params2, fixed_params, pnames, rnos = rnro.read_data(wd,filelist)
@@ -167,7 +167,7 @@ def plot_r_vs_k(wd,filelist,reference_width = None, direction = 'z',
 
     plot_data(data,input_params2,pnames,rnos,parameter_names,
               reference_width = reference_width, direction = direction,
-              plot_params = plot_params,
+              plot_params = plot_params,flatplate = flatplate,
               plot_bold = plot_bold)
     ax1 = plt.gca()
     plt.xlim(*xlim)
@@ -290,7 +290,7 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
     return plots,axes
     
 def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True,
-                   fitindices = None, textloc = [100,2],plot_permeability=False,
+                   rratiofitrange = None, textloc = [100,2],plot_permeability=False,
                    stderr=False,labels = None,fmt='-'):
     """
     """
@@ -302,6 +302,7 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
     for i,ptfile in enumerate(ptfilelist):
 
         rratios,data_median,data_std = rnro.average_perc_thresholds(ptfile,rratio_max = rratio_max,stderr=stderr)
+        data = np.load(ptfile)
     
         if labels is None:
             labels = ['Percolation threshold']
@@ -321,20 +322,31 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
         plt.errorbar(rratios,data_median['x1'],fmt =':',c=colors[i])#yerr=data_std['x1'],
     
         if plot_fit:
-            if fitindices is None:
-                fitindices=[0,len(rratios)]
+            if type(rratiofitrange) == list:
+                if len(rratiofitrange) == 2:
+                    rmin,rmax = rratiofitrange
+                elif len(rratiofitrange) > 2:
+                    rmin,rmax = rratiofitrange[:2]
+                else:
+                    rmin,rmax=[np.amin(rratios),np.amax(rratios)]
             else:
-                if fitindices[0] is None:
-                    fitindices[0] = 0
-                if fitindices[1] is None:
-                    fitindices[1] = len(rratios)
-            x,y = rratios[fitindices[0]:fitindices[1]],data_median['x0'][fitindices[0]:fitindices[1]]
-            m,c = np.polyfit(np.log10(x),
-                             np.log10(y),1)
+                rmin,rmax=[np.amin(rratios),np.amax(rratios)]
+            if rmin is None:
+                rmin = np.amin(rratios)
+            if rmax is None:
+                rmax = np.amax(rratios)
+#            condition = (data['rm/rf'] >= rmin)&(data['rm/rf'] <= rmax)&(data['x0']>0.)
+#            x,y = data['rm/rf'][condition],data['x0'][condition]
+            condition = (data_median['rm/rf'] >= rmin)&(data_median['rm/rf'] <= rmax)&(data_median['x0']>0.)
+            x,y = data_median['rm/rf'][condition],data_median['x0'][condition]            
+            [m,c],cov = np.polyfit(np.log10(x),np.log10(y),1,cov=True)
+            merr = cov[0,0]**0.5
+            # need to transform c back into linear space
+            cerr = np.average([np.abs(10.**(c+cov[1,1]**0.5)-10.**c),np.abs(10.**c - 10.**(c-cov[1,1]**0.5))])
             
             plt.plot(rratios,10.**c*rratios**m,'k--',label = 'Best fit line for \npercolation threshold')
-            plt.text(textloc[0],textloc[1],'$y={:0.2f}'.format(10**c)+'x^{'+'{:.3f}'.format(m)+'}$',color='k',fontsize=14)
-                    
+            plt.text(textloc[0],textloc[1],'$y={:0.2f}\pm{:0.2f}'.format(10**c,cerr)+'x^{'+'{:.3f}\pm{:.3f}'.format(m,merr)+'}$',color='k',fontsize=14)
+
         if plot_permeability:
             x01 = np.hstack([data_median['x0'],data_median['x1']])
             y01 = np.log10(np.hstack([data_median['y0'],data_median['y1']]))

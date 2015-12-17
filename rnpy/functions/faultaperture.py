@@ -64,14 +64,14 @@ def get_faultpair_defaults(cs, lc):
     if lc is None:
         lc = 1e-3
 
-    fc = cs/lc
+    fc = 1./lc
     
 
     return lc, fc
 
 
 
-def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
+def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matchingmethod='me',beta=0.6):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
@@ -105,7 +105,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     std = scalefactor*(cs*size)**(3.-D)
     
     # get frequency components
-    pl = np.fft.fftfreq(size+1)#*1e-3/cs
+    pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
     pl[0] = 1.
     # define frequencies in 2d
     p,q = np.meshgrid(pl[:size/2+1],pl)
@@ -127,12 +127,14 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
 #    gamma[gamma<0] = 0.
 #    gamma[gamma>1] = 1.
 #    print gamma
-    gamma = f.copy()
+    f2 = f.copy()
+    # take an average of the x and y frequency magnitudes, as matching parameters measured on profiles
+    f2 = 2./(1./np.abs(p)+1./np.abs(q))
 #    k = 1./f
 #    kc = 1./fc
     fc = fc#*1e-3/cs
-    gamma = f/fc
-    gamma[f > fc] = 1.
+    gamma = f2/fc
+    gamma[f2 > fc] = 1.
 #    gamma[gamma>1] = 1.
 #    gamma[gamma<0] = 0.
 #    gamma *= 3
@@ -150,7 +152,15 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None):
     R2 = np.random.random(size=np.shape(f))
     # define fourier components
     y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
-    y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+    
+    if matchingmethod == 'Glover':
+        gamma[f2>2.*fc] = 0.
+        gamma[f2<2.*fc] = beta*(1.-(f2[f2<2.*fc]/(2.*fc)))
+        y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+    else:
+        gamma = f2/fc
+        gamma[f2 > fc] = 1.
+        y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
    
     
     # use inverse discrete fast fourier transform to get surface heights
