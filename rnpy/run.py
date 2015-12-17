@@ -436,7 +436,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             if save_array:
                 # save only first repeat so we get an example of the runs, not enough space to save all
                 if input_dict['repeat'] == 0:
-                    for prop in ['current','flowrate','aperture_array']:
+                    for prop in ['current']:
                         if hasattr(ro,prop):
                             arrtosave = getattr(ro,prop)
                             np.save(os.path.join(wd,arr_fn+'_'+prop),
@@ -448,6 +448,16 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 newfile = False
             write_output(ro,loop_variables,outfilename,newfile,indict['repeat'],rank,r)
             r += 1
+        if save_array:
+            # save only first repeat so we get an example of the runs, not enough space to save all
+            if input_dict['repeat'] == 0: 
+                for prop in ['flowrate','aperture_array']:
+                    if hasattr(ro,prop):
+                        arrtosave = getattr(ro,prop)
+                        np.save(os.path.join(wd,arr_fn+'_'+prop),
+                                arrtosave
+                                )
+
         print "cellsize after",ro.cellsize
         input_dict['fault_surfaces'] = None
         
