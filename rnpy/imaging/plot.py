@@ -93,7 +93,7 @@ def plot_data(data, input_params, pnames, rnos, parameter_names,
                            direction=direction,color = pp['c'],plot_mm=plot_mm)
             
                 
-def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
+def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',plot_params=None,
                      input_params = {}, plot_bold = None, plot_mm = True, flatplate = True):
     """
     plot resistivity and permeability vs aperture
@@ -116,8 +116,9 @@ def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',
     ylabels = {'resistivity':'Resistivity ratio $\mathrm{\mathsf{R_{matrix}/R_{fracture}}}$',
                'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
     
-    plot_params = dict(resistivity = dict(c='0.5',lw=0.1),
-                       permeability = dict(c='k',lw=0.1))
+    if plot_params is None:
+        plot_params = dict(resistivity = dict(c='0.5',lw=0.1),
+                           permeability = dict(c='k',lw=0.1))
     
 
     apmin,apmax = np.amin(data['aperture_mean'+direction]), np.amax(data['aperture_mean'+direction])
