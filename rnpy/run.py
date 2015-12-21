@@ -351,6 +351,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
     else:
         outfilename = outfilename + str(rank)
+    #print rank,list_of_inputs
+    #print list_of_inputs[0]['cellsize']
     cellsize0 = list_of_inputs[0]['cellsize']*1
     r = 0
     for input_dict in list_of_inputs:
@@ -380,10 +382,10 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         # initialise random resistor network
         input_dict['cellsize'] = cellsize0*1
     #    print list_of_inputs[r]['cellsize']
-        print "cellsize before",input_dict['cellsize'],rank
+        #print "cellsize before",input_dict['cellsize'],rank
         indict = input_dict.copy()
         ro = rn.Rock_volume(**indict)
-        print "cellsize before 2",input_dict['cellsize'],rank,"ro.cellsize",ro.cellsize
+        #print "cellsize before 2",input_dict['cellsize'],rank,"ro.cellsize",ro.cellsize
 
         # loop through all the permutations of res fluid, res matrix and permeability matrix
         for vals in itertools.product(*[resk_repeats[pname] for pname in resk_pnames]):
@@ -458,7 +460,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                                 arrtosave
                                 )
 
-        print "cellsize after",ro.cellsize
+        #print "cellsize after",ro.cellsize
         input_dict['fault_surfaces'] = None
         
     return outfilename
