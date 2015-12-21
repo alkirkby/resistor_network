@@ -175,6 +175,7 @@ def get_bulk_properties(data,idict,direction=None,
         kbulk = ((width)*data[pname_k] + (reference_width-width)*idict['permeability_matrix'])/(reference_width)
         rbulk = (reference_width)/((width)/data[pname_r] + (reference_width-width)/idict['resistivity_matrix'])
     
+    
     return kbulk, rbulk
     
     
@@ -284,7 +285,6 @@ def get_perc_thresh2(x,y,factor=0.3):
     ddydxx = (dydx[1:]-dydx[:-1])/(xg[1:]-xg[:-1])
     xgg = xi[1:-1]
     
-
     xpt = 10**np.array([xgg[ddydxx>=factor*np.amax(ddydxx)][0],xgg[ddydxx<=factor*np.amin(ddydxx)][-1]])
     ypt = 10**np.array([yi[1:-1][ddydxx>=factor*np.amax(ddydxx)][0],yi[1:-1][ddydxx<=factor*np.amin(ddydxx)][-1]])
 
@@ -373,7 +373,7 @@ def get_gradient_threshold(wd, filelist, outfilename = None,
 def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                                outfilename = None, gradientthresholdfn = None,
                                sdmultiplier=3., reference_width = None, 
-                               direction='z', kmax = 1e-6):
+                               direction='z', kmax = 1e-6,prefix=None):
     """
     get an array containing percolation threshold + variable parameters 
     specified and save to a 1 or more column text file.
@@ -411,7 +411,6 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
    
     # get the array containing the data
     data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist)
-
     
     outputs = np.zeros([np.product([len(val) for val in input_params.values()]),len(rnos)],
                         dtype = [('rm/rf','f64'),('offset','f64'),('km','f64'),('repeat','i5'),
@@ -469,7 +468,8 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                     ir += 1
 
         iv += 1
-    prefix = ('pt{}_o%02i'%fixed_params['offset']).format(method)
+    if prefix is None:
+        prefix = ('pt{}_o%02i'%fixed_params['offset']).format(method)
     outfilename = construct_outfilename(prefix,reference_width,sdmultiplier,parameter_names[0])
 
     np.save(op.join(wd,outfilename),outputs)
