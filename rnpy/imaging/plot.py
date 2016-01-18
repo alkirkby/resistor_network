@@ -113,8 +113,10 @@ def plot_rk_aperture(wd,filelist,reference_width = None, direction = 'z',plot_pa
     ylim = dict(permeability=[1e-18,1e-8])
     ylim['resistivity'] = [1,10**(np.log10(ylim['permeability'][1])-np.log10(ylim['permeability'][0]))]
 #    print xlim,ylim
-    ylabels = {'resistivity':'Resistivity ratio $\mathrm{\mathsf{R_{matrix}/R_{fracture}}}$',
-               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
+#    ylabels = {'resistivity':'Resistivity ratio $\mathrm{\mathsf{R_{matrix}/R_{fracture}}}$',
+#               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
+    ylabels = {'resistivity':'Resistivity ratio $M$',
+               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}    
     
     if plot_params is None:
         plot_params = dict(resistivity = dict(c='0.5',lw=0.1),
@@ -161,9 +163,10 @@ def plot_r_vs_k(wd,filelist,reference_width = None, direction = 'z',flatplate = 
     xlim = [1e0,1e3]
     ylim = [1e-18,1e-8]
 
-    labels = {'resistivity':r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$',
-               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
-    
+#    labels = {'resistivity':r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$',
+#               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}
+    labels = {'resistivity':'Resistivity ratio $M$',
+               'permeability':'Permeability, m$\mathrm{\mathsf{^2}}$'}    
     plot_params = dict(c=color,lw=0.1)
 
     plot_data(data,input_params2,pnames,rnos,parameter_names,
@@ -204,7 +207,7 @@ def scalearrow(length,centre,color='k',linewidth=1):
     plt.text(centre[0],centre[1]+0.002,'%1i cm'%(length*100.),ha='center')
 
 
-def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
+def plot_fluidcurrent(wd, searchlist, cellsize, cutf = 1e-19, cutc = 1e-9,  cmap = 'gray_r',
                       figsize = (8,5.5),plot_aperture=True,plot_labels=True,
                       scale = None):
     """
@@ -255,16 +258,18 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
         x,y = np.meshgrid(np.linspace(0.,(np.shape(vf)[1]-1)*cellsize,np.shape(vf)[1]),
                           np.linspace(0.,(np.shape(vf)[0]-1)*cellsize,np.shape(vf)[0]))
                      
-        y[(vf<cut)&(wf<cut)] = np.nan
-        x[(vf<cut)&(wf<cut)] = np.nan
-        vf[(vf<cut)&(wf<cut)] = np.nan
-        wf[np.isnan(vf)&(wf<cut)] = np.nan
+
         
         if ii == 0:
             if plot_aperture:
                 clima = [0.,np.percentile(az[np.isfinite(az)],100)]
-            climc = np.percentile(np.log10(np.abs(wc[(np.isfinite(wc))&(wc>0.)])),[7.5,100])
-            climf = np.percentile(np.log10(np.abs(wf[(np.isfinite(wf))&(wf>0.)])),[7.5,100])
+
+                
+#            climc = np.percentile(np.log10(np.abs(wc[(np.isfinite(wc))&(wc>0.)])),[0,100])
+#            climf = np.percentile(np.log10(np.abs(wf[(np.isfinite(wf))&(wf>0.)])),[0,100])
+            climc,climf = [np.log10([cut,np.amax(ww)]) for cut,ww in [[cutc,wc],[cutf,wf]]]
+            
+            print climc,climf
     
         if plot_aperture:    
             axes.append(plt.subplot(nrows,ncols,subplots[ii]))
@@ -277,11 +282,21 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cut = 1e-19, cmap = 'gray_r',
                 plt.title(labels[ii],loc='left')    
             ii += 1
         
-        for v,w,scale,clim in [[vc,wc,scaleu['current'],climc],[vf,wf,scaleu['fluid'],climf]]:
+        for v,w,scale,clim,cut in [[vc,wc,scaleu['current'],climc,cutc],[vf,wf,scaleu['fluid'],climf,cutf]]:
+            xp,yp = x.copy(), y.copy()
             amplitudes.append(np.abs((v**2+w**2)**0.5))
             amplitudes[-1][amplitudes[-1]==0.] = np.nan
             axes.append(plt.subplot(nrows,ncols,subplots[ii]))
-            plots.append(plt.quiver(x,y,v,w,np.log10(amplitudes[-1]),scale=scale,pivot='tail',cmap=cmap))
+            yp[(v<cut)&(w<cut)] = np.nan
+            xp[(v<cut)&(w<cut)] = np.nan
+            v[(v<cut)&(w<cut)] = np.nan
+            w[np.isnan(v)&(w<cut)] = np.nan
+            plots.append(plt.quiver(xp,yp,v,w,np.log10(amplitudes[-1]),scale=scale,pivot='tail',cmap=cmap))
+            
+
+#            if ii == 0:
+#                clim = np.percentile(np.log10(np.abs(w[(np.isfinite(w))&(w>0.)])),[50,100])
+            print clim,cut,np.amax(w[np.isfinite(w)]),np.amin(w[np.isfinite(w)])
             plt.clim(*clim)
             set_axes(n,o,cellsize)
             if plot_labels:
@@ -303,6 +318,7 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
     for i,ptfile in enumerate(ptfilelist):
 
         rratios,data_median,data_std = rnro.average_perc_thresholds(ptfile,rratio_max = rratio_max,stderr=stderr)
+        
         data = np.load(ptfile)
     
         if labels is None:
@@ -311,6 +327,8 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
             plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt =fmt,ecolor=colors[i],c=colors[i], label = labels[i])
             plt.xlabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fluid}}}$')
             plt.ylabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$')
+            plt.xlabel(r'Resistivity ratio $m$')
+            plt.ylabel(r'${M_{PT}}$')
             plt.yscale('log')
             plt.xscale('log')
             ax = plt.gca()
