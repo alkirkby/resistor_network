@@ -430,6 +430,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             t2 = time.time()
 
             print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
+            print "cellsize",ro.cellsize
 
             arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
             arr_fn = ''.join(arr_shortnames).format(*[indict[key] for key in loop_variables if key not in resk_pnames])
