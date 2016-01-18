@@ -186,7 +186,7 @@ def resistivity(fault_aperture, network_size, rhof, rhom):
     rhof = resistivity of fracture fill
     rhom = resistivity of matrix
     """
-    
+
     return network_size/(fault_aperture/rhof + (network_size-fault_aperture)/rhom)
     
     
@@ -457,14 +457,16 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
                     outputs['x1'][iv,ir] = xpt[-1]
                     outputs['y0'][iv,ir] = ypt[0]
                     outputs['y1'][iv,ir] = ypt[-1]
-                    outputs['cs0'][iv,ir] = csx[np.abs(x-xpt[0])<1e-9]
-                    outputs['cs1'][iv,ir] = csx[np.abs(x-xpt[-1])<1e-9]
-                    outputs['ap0'][iv,ir] = apm[np.abs(x-xpt[0])<1e-9]
-                    outputs['ap1'][iv,ir] = apm[np.abs(x-xpt[-1])<1e-9]
-                    outputs['ca0'][iv,ir] = ca[np.abs(x-xpt[0])<1e-9]
-                    outputs['ca1'][iv,ir] = ca[np.abs(x-xpt[-1])<1e-9]
-                    outputs['fs0'][iv,ir] = fsep[np.abs(x-xpt[0])<1e-9]
-                    outputs['fs1'][iv,ir] = fsep[np.abs(x-xpt[-1])<1e-9]
+                    cond1 = np.abs(np.abs(x-xpt[0])-np.amin(np.abs(x-xpt[0]))<1e-9)
+                    cond2 = np.abs(np.abs(x-xpt[-1])-np.amin(np.abs(x-xpt[-1]))<1e-9)
+                    outputs['cs0'][iv,ir] = csx[cond1]
+                    outputs['cs1'][iv,ir] = csx[cond2]
+                    outputs['ap0'][iv,ir] = apm[cond1]
+                    outputs['ap1'][iv,ir] = apm[cond2]
+                    outputs['ca0'][iv,ir] = ca[cond1]
+                    outputs['ca1'][iv,ir] = ca[cond2]
+                    outputs['fs0'][iv,ir] = fsep[cond1]
+                    outputs['fs1'][iv,ir] = fsep[cond2]
                     ir += 1
 
         iv += 1
