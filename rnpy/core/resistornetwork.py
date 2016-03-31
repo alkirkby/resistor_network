@@ -26,9 +26,7 @@ class Rock_volume():
     workdir = working directory
     ncells = list containing number of nodes in the x,y and z direction, 
              default is [10,10,10]
-    pconnectionx = probability of connection in the x direction if random faults, default 0.5
-    pconnectiony = probability of connection in the y direction if random faults, default 0.5
-    pconnectionz = probability of connection in the z direction if random faults, default 0.5
+    pconnection = list of probability of connection in the x,y, and z direction if random faults, default 0.5
     cellsize = size of cells, same in x,y and z directions
     res_type =  string describing how to calculate the resistivity structure;
                 options are "ones" (default; fully connected network), 
@@ -54,9 +52,7 @@ class Rock_volume():
         self.workdir = '.' # working directory
         self.ncells = [10,10,10] #ncells in x, y and z directions
         self.cellsize = 1e-3
-        self.pconnectionx = 0.5
-        self.pconnectiony = 0.5
-        self.pconnectionz = 0.5
+        self.pconnection = [0.5,0.5,0.5]
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
         self.resistivity = None
@@ -146,22 +142,39 @@ class Rock_volume():
     def build_faults(self):
         """
         initialise a faulted volume. 
+        shape is [nz+2,ny+2,nx+2,3,3]
+        
+        at point x,y,z:
+        opening in:
+      xdirection  ydirection zdirection
+       (yz plane) (xz plane) (xy plane)
+               |      |      |
+               v      v      v
+            [[0,      x(y),  x(z)], <-- x connectors
+             [y(x),   0,     y(z)], <-- y connectors
+             [z(x),   z(y),    0]]  <-- z connectors
         
         """
-        
+        # define number of cells in x, y, z directions
         nx,ny,nz = self.ncells
         if self.fault_array is None:
+            # initialise a fault array
             fault_array = np.zeros([nz+2,ny+2,nx+2,3,3])
+            # add nulls to the edges
             fault_array = rna.add_nulls(fault_array)
             fault_uvw = []
             
             addfaults = False
+
+            # option to specify fault edges as a list            
             if self.fault_assignment == 'list':
                 if self.fault_edges is not None:
                     if np.shape(self.fault_edges)[-2:] == (3,2):
                         if len(np.shape(self.fault_edges)) == 2:
                             self.fault_edges = [self.fault_edges]
                         addfaults = True
+                        
+            # option to specify a single fault in the centre of the yz plane
             elif self.fault_assignment == 'single_yz':
                 
                 nx, ny, nz = self.ncells
@@ -173,12 +186,14 @@ class Rock_volume():
     
     
             elif self.fault_assignment == 'random':
-                pc = [self.pconnectionx,self.pconnectiony,self.pconnectionz]
-                fault_array,fault_uvw = \
+                pc = self.pconnection
+                self.fault_edges = \
                 rnaf.build_random_faults(self.ncells,
                                          pc,
                                          faultlengthmax = self.fault_dict['length_max'],
                                          decayfactor = self.fault_dict['length_decay'])
+
+                addfaults = True
             if addfaults:
                 for fedge in self.fault_edges:
                     fault_array = rnaf.add_fault_to_array(fedge,fault_array)
@@ -202,19 +217,6 @@ class Rock_volume():
         
         if self.aperture_array is None:
             if self.fault_dict['aperture_type'] == 'random':
-             #   print "aperture type is none, building aperture"
-#                if self.fault_dict['fault_surfaces'] is None:
-#                    self.fault_dict['fault_surfaces'] = []
-#                    for nn in self.fault_uvw:
-#                        u0,v0,w0 = np.amin(nn, axis=(1,2))
-#                        u1,v1,w1 = np.amax(nn, axis=(1,2))
-#                        duvw = np.array([u1-u0,v1-v0,w1-w0])
-#                        size = rnaf.get_faultsize(duvw,self.fault_dict['offset'])
-#                        faultpair_inputs = dict(D=self.fault_dict['fractal_dimension'],
-#                                                std=self.fault_dict['elevation_scalefactor'],
-#                                                cs=self.cellsize[0],
-#                                                lc=self.fault_dict['mismatch_wavelength_cutoff'])
-#                        self.fault_dict['fault_surfaces'].append(rnfa.build_fault_pair(size,**faultpair_inputs))
                     
                 aperture_input = {}
             #    print "getting fault pair defaults"
@@ -308,17 +310,17 @@ class Rock_volume():
         'current','fluid' or a combination e.g. 'currentfluid'
         direction = string containing directions, 'x','y','z' or a combination
         e.g. 'xz','xyz'
-        'x' solves x y and z currents for flow in the x (horizontal) direction
-        'y' solves x y and z currents for flow in the y direction (into page)
+        'x' solves x y and z currents for flow in the x (into page) direction
+        'y' solves x y and z currents for flow in the y (horizontal) direction
         'z' solves x y and z currents for flow in the z (vertical) direction
         
         resulting current/fluid flow array:
       x currents  ycurrents  zcurrents
                |      |      |
                v      v      v
-            [[xx,    xy,    xz], <-- flow modelled in x direction
-             [yx,    yy,    yz], <-- flow y
-             [zx,    zy,    zz]] <-- flow z
+            [[xx,    xy,    xz], <-- current modelled in x direction
+             [yx,    yy,    yz], <-- current y
+             [zx,    zy,    zz]] <-- current z
         
         """
         # set kfactor to divide hydraulic conductivities by so that matrix
@@ -382,7 +384,8 @@ class Rock_volume():
                 oa[1:,1:,1:-1,2,0] = c[:nfx].reshape(nz+1,ny+1,nx)
                 oa[1:,1:-1,1:,2,1] = c[nfx:-nfz].reshape(nz+1,ny,nx+1)
                 oa[:,1:,1:,2,2] = c[-nfz:].reshape(nz+2,ny+1,nx+1)  
-            
+            self.matrix = matrix
+            self.b = b
 
             if 'current' in pname:
                 self.current = 1.*oa

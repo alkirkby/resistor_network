@@ -325,8 +325,8 @@ def plot_pt_vs_res(ptfilelist,rratio_max = None,colors = ['0.5'],plot_fit = True
             labels = ['Percolation threshold']
         if (first or ((type(labels)==list) and (len(labels)==len(ptfilelist)))):
             plt.errorbar(rratios,data_median['x0'],yerr=data_std['x0'],fmt =fmt,ecolor=colors[i],c=colors[i], label = labels[i])
-            plt.xlabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fluid}}}$')
-            plt.ylabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$')
+#            plt.xlabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fluid}}}$')
+#            plt.ylabel(r'Resistivity ratio $\mathrm{\mathsf{\rho_{matrix}/\rho_{fracture}}}$')
             plt.xlabel(r'Resistivity ratio $m$')
             plt.ylabel(r'${M_{PT}}$')
             plt.yscale('log')

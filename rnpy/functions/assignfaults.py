@@ -100,13 +100,12 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
     if direction is None:
         print("invalid fault minmax values, minimum must be same as max in one direction")
         return
-        
+
     for i in range(3):
         if i != direction:
             fvals = np.zeros(3)
             fvals[-(direction+i)] = 1.
             fvals[direction] = 1.
-
             fault_array[fault_mm[2,0]:fault_mm[2,1]+fvals[2],
                         fault_mm[1,0]:fault_mm[1,1]+fvals[1],
                         fault_mm[0,0]:fault_mm[0,1]+fvals[0],i,direction] = 1.
@@ -138,12 +137,11 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
     n = np.array(n)
     ptot = np.sum(p)/3.
     pnorm = np.array(p)/np.sum(p)
-    # initialise an array of zeros
-    fault_array = np.zeros([n[2]+1,n[1]+1,n[0]+1,3,2])
 
     if faultlengthmax is None:
         faultlengthmax = float(max(n))
     faults = []
+    volfaults = 0.    
     
     while True:
         # pick a random location for the fault x,y,z
@@ -166,26 +164,21 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
         for m in range(len(mm)):
             if mm[m,1] > n[m]:
                 mm[m,1] = n[m]
-
+                
+        volfaults += np.product(mm[:,1]-mm[:,0])/(np.product(n)*2)
         # assign fault to fault array
-        if float(np.size(fault_array[fault_array==1.])+np.product(mm[:,1]-mm[:,0]))/\
-           float(np.size(fault_array[np.isfinite(fault_array)])) < ptot:
+        # check whether percentage of volume that is fractured (with the new fault in) exceeds overall probabability of fault
+
+        if volfaults < ptot:
             mm[:,1] -= 1.
-            fault_array = add_fault_to_array(mm,fault_array,direction=fo)
-            faultuvw = minmax2uvw(mm,direction=fo)
-            faults.append(faultuvw+1.)
+
+            faults.append(mm)
         else:
             break
-    # make a new larger array of nans
-    fault_array_final = np.zeros(list(np.array(np.shape(fault_array))[:-2]+1)+[3,3])
-    
-    # put the fault array into this array in the correct position.
-    fault_array_final[1:,1:,1:] = fault_array
-    # deal with edges
-    fault_array_final = rna.add_nulls(fault_array_final)
+
 
     
-    return fault_array_final,np.array(faults)
+    return np.array(faults)#fault_array_final,
 
 def get_duvw(ncells,ftype = 'single_yz'):
     
@@ -279,7 +272,6 @@ def assign_fault_aperture(fault_array,fault_uvw,
     
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1]
     
-    # aperture array, first axis length 3 if correcting for geometry, 1 if not
     ap_array = np.array([np.ones_like(fault_array)*1e-50]*3) # yz, xz and xy directions
 #    ap_array[0] *= 1e-50
     bvals = []
@@ -309,7 +301,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         build = False
         if fault_surfaces is None:
             build = True
-            print("fault surfaces none")
+#            print("fault surfaces none")
         else:
             try:
                 h1,h2 = fault_surfaces[i]
@@ -328,7 +320,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 print("fault surfaces wrong type")
             
         if build:
-            print("building new fault surfaces")
+#            print("building new fault surfaces")
             h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
 
         if offset > 0:
@@ -362,13 +354,13 @@ def assign_fault_aperture(fault_array,fault_uvw,
             elif direction == 2:
                 # faults perpendicular to z direction, i.e. xy plane
                 # x direction opening in z direction
-                ap_array[i,w0,v0:v1+1,u0:u1,0,2] += b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                ap_array[i,w0,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
                 # y direction opening in z direction
-                ap_array[i,w0,v0:v1,u0:u1+1,1,2] += b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                ap_array[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             bvals[-1].append([bb,b0,b1])
         faultheights.append([h1,h2])
     for i in range(len(ap_array)):
-        ap_array[i] *= fault_array
+        ap_array *= fault_array
         
     ap_array[(np.isfinite(ap_array))&(ap_array < 1e-50)] = 1e-50
     corr_c = ap_array[2]/ap_array[0]

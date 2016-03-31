@@ -38,14 +38,14 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         d = [float(d)]*3
 
     for i in range(3):
-        # the two directions perpendicular to direction of flow, indices and values
+        # the two directions perpendicular to direction of flow, indices and cell sizes
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
         # cross sectional area of the cell perpendicular to flow
         area_matrix = np.product(dp)
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
-            # subtract the area taken up by the fracture
+            # define the area taken up by the fracture
             area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
         # subtract the overlapping bit if there is any
         area_fracture-= aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
