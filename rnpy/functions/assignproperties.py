@@ -14,6 +14,7 @@ fault apertures, permeability, resistivity, etc
 from __future__ import division, print_function
 import numpy as np
 import rnpy.functions.faultaperture as rnfa 
+import scipy.optimize as so
     
     
 
@@ -53,6 +54,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         # subtract fracture area from matrix area and remove any negative matrix area
         area_matrix -= area_fracture
         area_matrix[area_matrix<0.] = 0.
+        
         # resistance is the weighted harmonic mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
 #        if len(area_fracture[np.isfinite(area_fracture)]) >0:
@@ -85,8 +87,8 @@ def get_permeability(aperture_array,k_matrix,d):
     ln = [d[2],d[0],d[1]]
 
     for i in range(3):
-        permeability_array[:,:,:,i] = aperture_array[:,:,:,i]**2/12. + \
-                                      (ln[i]-aperture_array[:,:,:,i])*k_matrix
+        permeability_array[:,:,:,i] = (aperture_array[:,:,:,i]**3/12. + \
+                                      (ln[i]-aperture_array[:,:,:,i])*k_matrix)/ln[i]
    
     
     return permeability_array
@@ -116,6 +118,8 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
         # the two directions perpendicular to direction of flow, indices and values
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
+
+        
         # cross sectional area of the cell perpendicular to flow
         area_matrix = np.product(dp)
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
@@ -130,6 +134,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
         area_matrix[area_matrix<0.] = 0.    
         # permeability is the weighted mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
+        # first calculate the hydraulic resistance
         hresistance[:,:,:,i] = mu*d[i]/(d[dpi[1]]*aperture_array[:,:,:,i,dpi[0]]**3/12. +\
                                         d[dpi[0]]*aperture_array[:,:,:,i,dpi[1]]**3/12. +\
                                         area_matrix*k_matrix)
@@ -185,3 +190,47 @@ def get_bulk_permeability(flowrate_array,cellsize,fluid_viscosity):
     resistance = 1./flow
     
     return fluid_viscosity/(resistance*factor),resistance
+
+def effectiveres(b,rhoeff,rhof,rhom,width):
+    """
+    function defining effective resistivity as a function of the matrix and fluid
+    resistivities, rhom and rhof, the fault width b, and the fault volume width.
+    """
+    return 1./rhoeff - (b/rhof+(width-b)/rhom)/width  
+  
+def get_electric_aperture(width,rhoeff,rhof,rhom):
+    """
+    calculate effective aperture of a volume with effective resistivity
+    rhoeff, of width = width, and resistivity of fluid and matrix, rhof and rhom
+    in terms of a single planar fault through the centre of the volume
+    
+    """
+    if rhof > rhoeff:
+        print("can't calculate effective aperture, rhof must be < rhoeff")
+        return
+    elif ((rhoeff == 0) or np.isinf(rhoeff)):
+        print("can't calculate effective aperture, rhoeff must be finite and > 0")
+        return
+    
+    return so.newton(effectiveres,0.0,args=(rhoeff,rhof,rhom,width),maxiter=100)
+    
+def effectivek(bh,keff,km,width):
+    """
+    function defining effective permeability of a volume with a planar fracture
+    through it (flat plates) with separation bh, width of volume =width, 
+    matrix permeability km
+    """
+    return keff - (bh**3/12. - (width - bh)*km)/width
+
+def get_hydraulic_aperture(width,keff,km):
+    if km > keff:
+        print("can't calculate effective aperture, km must be < keff")
+        return km
+    elif ((keff == 0) or np.isinf(keff)):
+        print("can't calculate effective aperture, rhoeff must be finite and > 0")
+        return km
+    else:
+        # to get a starting value for bh, approximate bh << width
+        bhstart = (width*12*(keff-km))**(1./3)
+        return so.newton(effectivek,bhstart,args=(keff,km,width),maxiter=100)    
+    
