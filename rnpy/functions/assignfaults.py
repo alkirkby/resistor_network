@@ -336,7 +336,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
         if correct_aperture_for_geometry:
             bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
         else:
-            bf, bc = [np.ones_like(b[:-1,:-1])]*2
+            bf, bc = [b]*2
         for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
             b0,b1 = bb
             if direction == 0:
@@ -362,11 +362,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
     for i in range(len(ap_array)):
         ap_array *= fault_array
         
-    ap_array[(np.isfinite(ap_array))&(ap_array < 1e-50)] = 1e-50
-    corr_c = ap_array[2]/ap_array[0]
-    corr_f = ap_array[1]/ap_array[0]
+    ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
+    aperture_c = ap_array[2]
+    aperture_f = ap_array[1]
     aperture_array = ap_array[0]
-    aperture_array[(np.isfinite(aperture_array))&(aperture_array <= 2e-50)] = 0.
     
-    return aperture_array,corr_f,corr_c,faultheights
+    return aperture_array,aperture_f,aperture_c,faultheights
     
