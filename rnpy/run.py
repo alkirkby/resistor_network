@@ -454,7 +454,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         if save_array:
             # save only first repeat so we get an example of the runs, not enough space to save all
             if input_dict['repeat'] == 0: 
-                for prop in ['flowrate','aperture_array']:
+                for prop in ['flowrate','aperture']:
                     if hasattr(ro,prop):
                         arrtosave = getattr(ro,prop)
                         np.save(os.path.join(wd,arr_fn+'_'+prop),

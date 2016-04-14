@@ -72,9 +72,9 @@ class Rock_volume():
         self.fault_uvw = None                
         self.fault_edges = None
         self.fault_assignment = 'single_yz' # how to assign faults, 'random' or 'list', or 'single_yz'
-        self.aperture_array = None
-        self.aperture_correction_c = None
-        self.aperture_correction_f = None
+        self.aperture = None
+        self.aperture_electric = None
+        self.aperture_hydraulic = None
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build = True
@@ -215,7 +215,7 @@ class Rock_volume():
         else:
             cellsize = np.amin(self.cellsize)
         
-        if self.aperture_array is None:
+        if self.aperture is None:
             if self.fault_dict['aperture_type'] == 'random':
                     
                 aperture_input = {}
@@ -231,20 +231,20 @@ class Rock_volume():
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
           #      print "assigning fault aperture"
-                self.aperture_array,self.aperture_correction_f, \
-                self.aperture_correction_c,self.fault_dict['fault_surfaces'] = \
+                self.aperture,self.aperture_hydraulic, \
+                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_array,self.fault_uvw,**aperture_input)
             else:
          #       print "no need to assign new aperture array as aperture already provided"
-                self.aperture_array = self.fault_array*self.fault_dict['fault_separation']
-                self.aperture_array[(self.aperture_array < 1e-50)] = 1e-50
+                self.aperture = self.fault_array*self.fault_dict['fault_separation']
+                self.aperture[(self.aperture < 1e-50)] = 1e-50
                 self.fault_dict['fault_heights'] = np.ones()
-                self.aperture_correction_f,self.aperture_correction_c = \
-                [np.ones_like(self.aperture_array)]*2
+                self.aperture_hydraulic,self.aperture_electric = \
+                [self.aperture.copy()]*2
         
         # get the aperture values from the faulted part of the volume to do some calculations on
         #print "getting fault aperture values"
-        faultapvals = [self.aperture_array[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture_array[:,:,:,i]))] \
+        faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
                       for i in range(3)]
 #        print "faultapvals size",[np.size(fv) for fv in faultapvals],"mean aperture",
         #print "calculating mean ap and contact area"
@@ -256,20 +256,22 @@ class Rock_volume():
                 self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
             else:
                 self.contact_area.append(0.) 
-        if self.aperture_correction_f is None:
-            self.aperture_correction_f = np.ones_like(self.aperture_array)
-        if self.aperture_correction_c is None:
-            self.aperture_correction_c = np.ones_like(self.aperture_array)
+        if self.aperture_hydraulic is None:
+            self.aperture_hydraulic = self.aperture.copy()
+        if self.aperture_electric is None:
+            self.aperture_electric = self.aperture.copy()
         
         # update cellsize so it is at least as big as the largest fault aperture
         for i in range(3):
-            api = self.aperture_array[:,:,:,:,i][np.isfinite(self.aperture_array[:,:,:,:,i])]
-            
-            if len(api) > 0:
-                apmax = np.amax(api)
-                if self.cellsize[i] < apmax:
-                    rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
-                    self.cellsize[i] = round(apmax,rounding)
+            apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
+            apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
+
+            for api in [apih,apie]:
+                if len(api) > 0:
+                    apmax = np.amax(api)
+                    if self.cellsize[i] < apmax:
+                        rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
+                        self.cellsize[i] = round(apmax,rounding)
         
 
     def initialise_electrical_resistance(self):
@@ -279,7 +281,7 @@ class Rock_volume():
         """
         
         self.resistance,self.resistivity = \
-        rnap.get_electrical_resistance(self.aperture_array*self.aperture_correction_c,
+        rnap.get_electrical_resistance(self.aperture_electric,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       self.cellsize)
@@ -297,7 +299,7 @@ class Rock_volume():
 
 
         self.hydraulic_resistance,self.permeability = \
-        rnap.get_hydraulic_resistance(self.aperture_array*self.aperture_correction_f,
+        rnap.get_hydraulic_resistance(self.aperture_hydraulic,
                                      self.permeability_matrix,
                                      self.cellsize,
                                      mu = self.fluid_viscosity)
@@ -435,10 +437,13 @@ class Rock_volume():
                             rhoeff = self.resistivity_bulk[i]
                             self.effective_electric_aperture [i,odir] = \
                             rnap.get_electric_aperture(width,rhoeff,rhof,rhom)
+#                            rnap.get_electric_aperture(width,rhoeff,rhof)
+
                         if 'fluid' in self.solve_properties:
                             keff = self.permeability_bulk[i]
                             self.effective_hydraulic_aperture[i,odir] = \
                             rnap.get_hydraulic_aperture(width,keff,km)
+#                            rnap.get_hydraulic_aperture(keff)
                 
         
         
