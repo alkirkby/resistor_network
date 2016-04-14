@@ -401,3 +401,46 @@ class Rock_volume():
 #            self.resistivity_bulk, self.resistance_bulk = [np.ones(3)*np.nan]*2
 #        if 'fluid' not in self.solve_properties:
 #            self.permeability_bulk, self.hydraulic_resistance_bulk = [np.ones(3)*np.nan]*2
+    def get_effective_apertures(self):
+        """
+        get effective apertures for a single planar fault down the centre
+        of the volume.
+        
+        calculates a 3x3 array:
+        opening in:
+      xdirection  ydirection zdirection
+       (yz plane) (xz plane) (xy plane)
+               |      |      |
+               v      v      v
+            [[nan,    x(y),  x(z)], <-- x connectors
+             [y(x),   nan,   y(z)], <-- y connectors
+             [z(x),   z(y),   nan]]  <-- z connectors        
+        
+        """
+
+        
+        if type(self.cellsize) in [int,float]:
+            self.cellsize = [self.cellsize]*3
+        rhof,rhom = self.resistivity_fluid,self.resistivity_matrix
+        km = self.permeability_matrix
+        
+        self.effective_hydraulic_aperture = np.ones((3,3))*np.nan
+        self.effective_electric_aperture = np.ones((3,3))*np.nan
+        for i in range(3):
+            if 'xyz'[i] in self.solve_direction:
+                for odir in range(3):
+                    if odir != i:
+                        width = self.cellsize[odir]*(self.ncells[odir]+1.)
+                        if 'current' in self.solve_properties:
+                            rhoeff = self.resistivity_bulk[i]
+                            self.effective_electric_aperture [i,odir] = \
+                            rnap.get_electric_aperture(width,rhoeff,rhof,rhom)
+                        if 'fluid' in self.solve_properties:
+                            keff = self.permeability_bulk[i]
+                            self.effective_hydraulic_aperture[i,odir] = \
+                            rnap.get_hydraulic_aperture(width,keff,km)
+                
+        
+        
+        
+        
