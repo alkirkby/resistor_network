@@ -112,6 +112,8 @@ def add_fault_to_array(fault_mm,fault_array,direction=None):
     
     return fault_array
     
+
+    
     
     
 def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
@@ -147,9 +149,9 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
         # pick a random location for the fault x,y,z
         centre = [np.random.randint(0,nn) for nn in n]
         # pick random x,y,z extents for the fault
-        d = faultlengthmax*np.exp(-decayfactor*np.random.random(3))
+        d = faultlengthmax*np.exp(-decayfactor*np.random.random())
         # no faults smaller than one cell
-        d[d<1.] = 1.
+        d[d<1.] = 0.
         # pick orientation for the fault according to relative probability p
         fo = np.random.choice(np.arange(3),p=pnorm)
         # reset width (normal to plane of fault)
@@ -179,6 +181,7 @@ def build_random_faults(n, p, faultlengthmax = None, decayfactor=5.):
 
     
     return np.array(faults)#fault_array_final,
+
 
 def get_duvw(ncells,ftype = 'single_yz'):
     
@@ -279,18 +282,21 @@ def assign_fault_aperture(fault_array,fault_uvw,
 
     for i, nn in enumerate(fault_uvw):
         bvals.append([])
-        u0,v0,w0 = np.amin(nn, axis=(1,2))
-        u1,v1,w1 = np.amax(nn, axis=(1,2))
+        # get minimum and maximum x,y and z coordinates
+        u0,v0,w0 = np.amin(nn, axis=(0,1))
+        u1,v1,w1 = np.amax(nn, axis=(0,1))
+        # size in the x, y and z directions
         duvw = np.array([u1-u0,v1-v0,w1-w0])
         du,dv,dw = (duvw*0.5).astype(int)
 
         # define size, add some padding to account for edge effects and make 
-        # the fault square as I am not sure if fft is working properly for non-
+        # the fault square as I am not sure if fft works properly for non-
         # square geometries
         size = get_faultsize(duvw,offset)
         
         # define direction normal to fault
         direction = list(duvw).index(0)
+        # get fault pair inputs as a dictionary
         faultpair_inputs = get_faultpair_inputs(fractal_dimension,
                                                 elevation_scalefactor,
                                                 mismatch_wavelength_cutoff,

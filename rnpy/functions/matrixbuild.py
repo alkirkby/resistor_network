@@ -231,3 +231,67 @@ def build_matrix3d(resistance):
     b[nn+nc-1:-1] = 1.
     
     return mc,b
+
+def get_dinverse(D):
+    
+    return sparse.diags(1./D,0)
+
+
+def buildmatrix(C,dx,dy,dz):
+    # build the matrix. Setting the values in order x (left-right), z (top-bottom), y (in-out of page)
+    # so conductivity array needs to be structured in this order.
+    ny,nz,nx = np.array(C.l.shape) - 1
+    D = (C.l[:,1:-1].flatten() + C.r[:,1:-1].flatten())/dx**2 + \
+        (C.u[:,1:-1].flatten() + C.d[:,1:-1].flatten())/dz**2 + \
+        (C.i[:,1:-1].flatten() + C.o[:,1:-1].flatten())/dy**2
+    inner = -C.l[:,1:-1].flatten()[1:]/dx**2
+    outer1 = -C.u[:,2:]/dz**2
+    outer1[:,-1] = 0.
+    outer1 = outer1.flatten()[:-(nx+1)]
+    outer2 = -C.o[1:,1:-1].flatten()/dy**2
+    A = sparse.diags([outer2,outer1,inner,D,inner,outer1,outer2],[-(nx+1)*(nz-1),-(nx+1),-1,0,1,nx+1,(nx+1)*(nz-1)])
+    A = sparse.csc_matrix(A)
+#    print len(D)
+    
+    return A,D
+
+def buildb(C,dz,Vsurf,Vbase):
+    ny,nz,nx = np.array(C.l.shape) - 1
+    # length of b is number of free parameters, since voltages at top and bottom 
+    # are fixed we exclude these
+    # to make assignment of parameters easier, first reshape to sort by layers
+    b = np.zeros((ny+1,nz-1,nx+1))
+    # "top" and "bottom" layer has fixed voltage
+    b[:,0] = Vsurf * C.u[:,1]/dz**2
+    b[:,-1] = Vbase * C.u[:,-1]/dz**2
+    
+    return b.flatten()
+
+
+class Conductivity():
+    def __init__(self,Res):
+
+        R = Res.copy()
+        con = 1./R
+        # change nulls to zeros (infinite resistance) for computation
+        con[np.isnan(con)] = 0.
+        # transpose - as we will be setting array in order x (left-right) then
+        # z (up-down) then y (into the page)
+        self.u = con[:-1,1:,1:,2].transpose(1,0,2)
+        self.d = con[1:,1:,1:,2].transpose(1,0,2)
+        self.o = con[1:,:-1,1:,1].transpose(1,0,2)
+        self.i = con[1:,1:,1:,1].transpose(1,0,2)
+        self.l = con[1:,1:,:-1,0].transpose(1,0,2)
+        self.r = con[1:,1:,1:,0].transpose(1,0,2)
+
+        
+def residual(dx,dy,dz,V,C):
+    r = (C.d[1:-1,1:-1,1:-1]*(V[1:-1,2:,1:-1] - V[1:-1,1:-1,1:-1]) \
+      + C.u[1:-1,1:-1,1:-1]*(V[1:-1,:-2,1:-1] - V[1:-1,1:-1,1:-1]))/dz**2 \
+      + (C.i[1:-1,1:-1,1:-1]*(V[2:,1:-1,1:-1] - V[1:-1,1:-1,1:-1]) \
+      + C.o[1:-1,1:-1,1:-1]*(V[:-2,1:-1,1:-1] - V[1:-1,1:-1,1:-1]))/dy**2 \
+      + (C.r[1:-1,1:-1,1:-1]*(V[1:-1,1:-1,2:] - V[1:-1,1:-1,1:-1]) \
+      + C.l[1:-1,1:-1,1:-1]*(V[1:-1,1:-1,:-2] - V[1:-1,1:-1,1:-1]))/dx**2
+    r = np.abs(r)
+    
+    return r

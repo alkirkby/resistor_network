@@ -9,9 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import os
-import rnpy.functions.assignfaults as rnaf
+import rnpy.functions.assignfaults_new as rnaf
 import rnpy.functions.assignproperties as rnap
 import rnpy.functions.matrixbuild as rnmb
+
 import rnpy.functions.matrixsolve as rnms
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
@@ -61,15 +62,17 @@ class Rock_volume():
         self.fault_dict = dict(fractal_dimension=2.5,
                                fault_separation = 1e-4,
                                offset = 0,
-                               length_max = 10.,
-                               length_decay = 5.,
+                               faultlength_max = np.amax(self.cellsize)*np.amax(self.ncells),
+                               faultlength_min = np.amax(self.cellsize),
+                               alpha = 10.,
+                               a = 3.5,
                                mismatch_wavelength_cutoff = None,
                                elevation_scalefactor = 1e-3,
                                aperture_type = 'random',
                                fault_surfaces = None,
-                               correct_aperture_for_geometry = True)
-        self.fault_array = None
-        self.fault_uvw = None                
+                               correct_aperture_for_geometry = True,
+                               fault_spacing = 2)
+        self.fault_array = None      
         self.fault_edges = None
         self.fault_assignment = 'single_yz' # how to assign faults, 'random' or 'list', or 'single_yz'
         self.aperture = None
@@ -157,54 +160,76 @@ class Rock_volume():
         """
         # define number of cells in x, y, z directions
         nx,ny,nz = self.ncells
+        
+        # first check the shape and see that it conforms to correct dimensions
+        # if it doesn't, create a new array with the correct dimensions
+        if self.fault_array is not None:
+            if self.fault_array.shape != (nz,ny,nx,3,3):
+                print "Fault array does not conform to dimensions of network, creating a new array!"
+                self.fault_array= None
+                
+        
         if self.fault_array is None:
+            print "initialising a new array"
             # initialise a fault array
-            fault_array = np.zeros([nz+2,ny+2,nx+2,3,3])
+            self.fault_array = np.zeros([nz+2,ny+2,nx+2,3,3])
             # add nulls to the edges
-            fault_array = rna.add_nulls(fault_array)
-            fault_uvw = []
+            self.fault_array = rna.add_nulls(self.fault_array)
             
             addfaults = False
 
-            # option to specify fault edges as a list            
+            # option to specify fault edges as a list
             if self.fault_assignment == 'list':
                 if self.fault_edges is not None:
-                    if np.shape(self.fault_edges)[-2:] == (3,2):
-                        if len(np.shape(self.fault_edges)) == 2:
-                            self.fault_edges = [self.fault_edges]
+                    # check the dimensions of the fault edges
+                    if np.shape(self.fault_edges)[-2:] == (2,2,3):
+                        if len(np.shape(self.fault_edges)) == 3:
+                            self.fault_edges = np.array([self.fault_edges])
                         addfaults = True
+                    
                         
             # option to specify a single fault in the centre of the yz plane
-            elif self.fault_assignment == 'single_yz':
-                
-                nx, ny, nz = self.ncells
+            if self.fault_assignment == 'single_yz':
                 ix = int(nx/2) + 1
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
-                self.fault_edges = [[[ix,ix],[iy0,iy1],[iz0,iz1]]]
+                self.fault_edges = np.array([[[ix,iy0,iz0],[ix,iy1,iz0]],
+                                             [[ix,iy0,iz1],[ix,iy1,iz1]]])
                 addfaults = True
+            
+            elif self.fault_assignment == 'multiple_yz':
+                if self.fault_dict['fault_spacing'] > ny/2:
+                    self.fault_dict['fault_spacing'] = ny/2
+                self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
+                iy0, iy1 = 1, ny + 1
+                iz0, iz1 = 1, nz + 1
+                self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(1,nx + 1,self.fault_dict['fault_spacing'])])
+                addfaults = True                
     
     
             elif self.fault_assignment == 'random':
-                pc = self.pconnection
-                self.fault_edges = \
-                rnaf.build_random_faults(self.ncells,
-                                         pc,
-                                         faultlengthmax = self.fault_dict['length_max'],
-                                         decayfactor = self.fault_dict['length_decay'])
+                # get log10 of minimum and maximum fault length
+                lmin,lmax = [np.log10(self.fault_dict['faultlength_{}'.format(mm)]) for mm in ['min','max']]
+                # get number of bins for assigning faults of different length, 20 per order of magnitude
+                nbins = int((lmax-lmin)*20.)
+                # define bins
+                lvals = np.logspace(lmin,lmax,nbins)
+                # define network size
+                networksize = np.array(self.cellsize) * np.array(self.ncells)
+                # define probability of connection and normalise
+                pxyz = np.array(self.pconnection)/float(sum(self.pconnection))
+                # get fault edges
+                fracturecoords = rnaf.get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,a=3.5,alpha=10.)
+                self.fault_edges = rnaf.coords2indices(fracturecoords,networksize,[nx,ny,nz])
 
                 addfaults = True
             if addfaults:
-                for fedge in self.fault_edges:
-                    fault_array = rnaf.add_fault_to_array(fedge,fault_array)
-                    fuvwi = rnaf.minmax2uvw(fedge)
-                    fault_uvw.append(fuvwi)    
+                rnaf.add_faults_to_array(self.fault_array,self.fault_edges)
             else:
                 print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
                 return
-    
-            self.fault_array = fault_array
-            self.fault_uvw = np.array(fault_uvw)
+
             
     def build_aperture(self):
         
@@ -233,7 +258,7 @@ class Rock_volume():
           #      print "assigning fault aperture"
                 self.aperture,self.aperture_hydraulic, \
                 self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_array,self.fault_uvw,**aperture_input)
+                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
             else:
          #       print "no need to assign new aperture array as aperture already provided"
                 self.aperture = self.fault_array*self.fault_dict['fault_separation']
@@ -262,17 +287,20 @@ class Rock_volume():
             self.aperture_electric = self.aperture.copy()
         
         # update cellsize so it is at least as big as the largest fault aperture
-        for i in range(3):
-            apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
-            apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
-
-            for api in [apih,apie]:
-                if len(api) > 0:
-                    apmax = np.amax(api)
-                    if self.cellsize[i] < apmax:
-                        rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
-                        self.cellsize[i] = round(apmax,rounding)
-        
+        # but only if it's a 2d network or there are only faults in one direction
+        if (('yz' in self.fault_assignment) or (min(self.ncells)==0) or \
+            (np.count_nonzero(self.pconnection) == 1)):
+            for i in range(3):
+                apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
+                apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
+    
+                for api in [apih,apie]:
+                    if len(api) > 0:
+                        apmax = np.amax(api)
+                        if self.cellsize[i] < apmax:
+                            rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
+                            self.cellsize[i] = round(apmax,rounding)
+            
 
     def initialise_electrical_resistance(self):
         """
@@ -303,6 +331,7 @@ class Rock_volume():
                                      self.permeability_matrix,
                                      self.cellsize,
                                      mu = self.fluid_viscosity)
+
 
 
     def solve_resistor_network(self):
@@ -399,10 +428,107 @@ class Rock_volume():
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)
 
-#        if 'current' not in self.solve_properties:
-#            self.resistivity_bulk, self.resistance_bulk = [np.ones(3)*np.nan]*2
-#        if 'fluid' not in self.solve_properties:
-#            self.permeability_bulk, self.hydraulic_resistance_bulk = [np.ones(3)*np.nan]*2
+    
+    def solve_resistor_network2(self, Vstart=None, Vsurf=0., Vbase=1., 
+                                method = 'direct', itstep=100, tol=0.1,
+                                solve_properties=None):
+        """
+        generate and solve a random resistor network using the relaxation method
+        properties = string or list containing properties to solve for,
+        'current','fluid' or a combination e.g. 'currentfluid'
+        direction = string containing directions, 'x','y','z' or a combination
+        e.g. 'xz','xyz'
+        'x' solves x y and z currents for flow in the x (into page) direction
+        'y' solves x y and z currents for flow in the y (horizontal) direction
+        'z' solves x y and z currents for flow in the z (vertical) direction
+        
+        resulting current/fluid flow array:
+      x currents  ycurrents  zcurrents
+               |      |      |
+               v      v      v
+            [[xx,    xy,    xz], <-- current modelled in x direction
+             [yx,    yy,    yz], <-- current y
+             [zx,    zy,    zz]] <-- current z
+        
+        """
+        if solve_properties is not None:
+            self.solve_properties = solve_properties
+
+        property_arrays = {}
+        if 'current' in self.solve_properties:
+            property_arrays['current'] = self.resistivity
+        if 'fluid' in self.solve_properties:
+            property_arrays['fluid'] = rnap.get_hydraulic_resistivity(self.hydraulic_resistance,self.cellsize)
+   
+        dx,dy,dz = self.cellsize
+        nx,ny,nz = self.ncells
+
+        for pname in property_arrays.keys():
+            output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
+
+            for sd in self.solve_direction:
+                R = property_arrays[pname]
+                # transpose and reorder the conductivity arrays. Default solve
+                # direction is z, if it's x or y we need to transpose and 
+                # reorder the array
+                if sd == 'x':
+                    Rx = R.copy().transpose(2,1,0,3)[:,:,:,::-1]
+                    C = rnmb.Conductivity(Rx)
+                    lnz,lny,lnx = np.array(Rx.shape[:-1])-2
+                    ldx,ldy,ldz = dz,dy,dx
+                elif sd == 'y':
+                    Ry = R.copy().transpose(1,0,2,3)
+                    # swap y and z in the array
+                    Ry[:,:,:,-2:] = Ry[:,:,:,-2:][:,:,:,::-1]
+                    C = rnmb.Conductivity(Ry)
+                    # "local" nx, ny, nz now that we've transposed the array
+                    lnz,lny,lnx = np.array(Ry.shape[:-1])-2
+                    ldx,ldy,ldz = dx,dz,dy
+                elif sd == 'z':
+                    C = rnmb.Conductivity(R)
+                    lnz,lny,lnx = np.array(R.shape[:-1])-2
+                    ldx,ldy,ldz = dx,dy,dz
+                # initialise a default starting array if needed
+                if Vstart is None:
+                    Vo = np.zeros((lnx+1,lny+1,lnz+1))
+                    Vo[:,:,:] = np.linspace(Vsurf,Vbase,lnz+1)
+                    # transpose so that array is ordered by y, then z, then x
+                    Vo = Vo.transpose(1,2,0)
+                else:
+                    Vo = Vstart.copy()
+            
+                A,D = rnmb.buildmatrix(C,ldx,ldy,ldz)
+                b = rnmb.buildb(C,ldz,Vsurf,Vbase)
+                
+                Vn = rnms.solve_matrix2(Vo,C,A,D,b,[lnx,lny,lnz],[ldx,ldy,ldz], 
+                                        method=method,tol = tol, w = 1.3, itstep=itstep)
+                if sd == 'x':
+                    Vn = Vn.transpose(2,1,0)
+                    i = 0
+                if sd == 'y':
+                    Vn = Vn.transpose(1,0,2)
+                    i = 1
+                elif sd == 'z':
+                    i = 2
+                output_array[1:-1,1:,1:,i,2] = (Vn[1:]-Vn[:-1])*dx*dy/(R[1:-1,1:,1:,2]*dz)
+                output_array[1:,1:-1,1:,i,1] = (Vn[:,1:]-Vn[:,:-1])*dx*dz/(R[1:,1:-1,1:,1]*dy)
+                output_array[1:,1:,1:-1,i,0] = (Vn[:,:,1:]-Vn[:,:,:-1])*dy*dz/(R[1:,1:,1:-1,0]*dx)
+                
+                for i1,i2 in [[0,1],[-1,-2]]:
+                    output_array[i1,:,:,2,2] = output_array[i2,:,:,2,2]
+                    output_array[:,i1,:,1,1] = output_array[:,i2,:,1,1]
+                    output_array[:,:,i1,0,0] = output_array[:,:,i2,0,0]
+
+            if pname == 'current':
+                self.current = output_array*1.
+                self.resistivity_bulk, self.resistance_bulk = \
+                rnap.get_bulk_resistivity(self.current,self.cellsize)
+            elif pname == 'fluid':
+                self.flowrate = output_array*1.
+                self.permeability_bulk, self.hydraulic_resistance_bulk  = \
+                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)                
+        
+
     def get_effective_apertures(self):
         """
         get effective apertures for a single planar fault down the centre

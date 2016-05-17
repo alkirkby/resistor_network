@@ -144,6 +144,26 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     return hresistance,permeability
 
 
+def get_hydraulic_resistivity(hresistance,cellsize):
+    """
+    get hydraulic resistivity (equivalent to electrical resistivity) for
+    putting into solver
+    
+    hresistance = hydraulic resistance array
+    cellsize = tuple,list or array containing cellsize in x, y and z direction
+    
+    """
+    # initialise new array, keeping nulls in correct spots    
+    hresistivity = hresistance*0.
+    
+    for i in range(3):
+        dpi = [cellsize[dd] for dd in range(3) if dd != i]
+        hresistivity[:,:,:,i] = hresistance[:,:,:,i]*np.product(dpi)/cellsize[i]
+
+        
+    return hresistivity
+
+
 def get_geometry_factor(output_array,cellsize):
     """
     
@@ -223,14 +243,15 @@ def effectivek(bh,keff,km,width):
     return keff - (bh**3/12. - (width - bh)*km)/width
 
 def get_hydraulic_aperture(width,keff,km):
-    if km > keff:
-        print("can't calculate effective aperture, km must be < keff")
-        return km
-    elif ((keff == 0) or np.isinf(keff)):
-        print("can't calculate effective aperture, rhoeff must be finite and > 0")
-        return km
+    # need to set a threshold because python is retarded and thinks that 1e-18 < 1e-18
+    
+    if keff <= km:
+        print("keff is %.3e which is < km (%.3e), setting effective aperture to 0.0"%(keff,km))
+        return 0.0
+    if np.isinf(keff):
+        print("can't calculate effective aperture, keff must be finite, setting to 0.0")
+        return 0.0
     else:
         # to get a starting value for bh, approximate bh << width
         bhstart = (width*12*(keff-km))**(1./3)
         return so.newton(effectivek,bhstart,args=(keff,km,width),maxiter=100)    
-    
