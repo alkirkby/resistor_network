@@ -241,15 +241,30 @@ def buildmatrix(C,dx,dy,dz):
     # build the matrix. Setting the values in order x (left-right), z (top-bottom), y (in-out of page)
     # so conductivity array needs to be structured in this order.
     ny,nz,nx = np.array(C.l.shape) - 1
-    D = (C.l[:,1:-1].flatten() + C.r[:,1:-1].flatten())/dx**2 + \
-        (C.u[:,1:-1].flatten() + C.d[:,1:-1].flatten())/dz**2 + \
-        (C.i[:,1:-1].flatten() + C.o[:,1:-1].flatten())/dy**2
-    inner = -C.l[:,1:-1].flatten()[1:]/dx**2
-    outer1 = -C.u[:,2:]/dz**2
-    outer1[:,-1] = 0.
-    outer1 = outer1.flatten()[:-(nx+1)]
-    outer2 = -C.o[1:,1:-1].flatten()/dy**2
-    A = sparse.diags([outer2,outer1,inner,D,inner,outer1,outer2],[-(nx+1)*(nz-1),-(nx+1),-1,0,1,nx+1,(nx+1)*(nz-1)])
+    # initialise a diagonal
+    D = C.l[:,1:-1].flatten()*0.
+    inner, outer1, outer2 = None, None, None
+    if nx > 1:
+        D += (C.l[:,1:-1].flatten() + C.r[:,1:-1].flatten())/dx**2
+        inner = -C.l[:,1:-1].flatten()[1:]/dx**2
+    if ny > 1:
+        D += (C.i[:,1:-1].flatten() + C.o[:,1:-1].flatten())/dy**2
+        outer2 = -C.o[1:,1:-1].flatten()/dy**2
+    if nz > 1:
+        D += (C.u[:,1:-1].flatten() + C.d[:,1:-1].flatten())/dz**2
+        outer1 = -C.u[:,2:]/dz**2
+        outer1[:,-1] = 0.
+        outer1 = outer1.flatten()[:-(nx+1)]
+
+
+    diags,offsets = [D],[0]
+    for ni, arr, offset in [[nx,inner,1],[ny,outer2,(nx+1)*(nz-1)],[nz,outer1,nx+1]]:
+        if ni > 1:
+            diags.insert(0,arr)
+            diags.append(arr)
+            offsets.insert(0,-offset)
+            offsets.append(offset)
+    A = sparse.diags(diags,offsets)
     A = sparse.csc_matrix(A)
 #    print len(D)
     

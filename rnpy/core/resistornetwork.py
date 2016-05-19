@@ -81,6 +81,8 @@ class Rock_volume():
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build = True
+        self.properties_definedon = ['nodes','midpoint']# nodes or midpoint of flat plate, default both
+        
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
@@ -120,6 +122,8 @@ class Rock_volume():
                 except:
                     continue 
         
+        if type(self.properties_definedon) == str:
+            self.properties_definedon = [self.properties_definedon]
         if type(self.ncells) in [float,int]:
             self.ncells = np.ones(3)*self.ncells
         if type(self.cellsize) in [float,int]:
@@ -164,7 +168,7 @@ class Rock_volume():
         # first check the shape and see that it conforms to correct dimensions
         # if it doesn't, create a new array with the correct dimensions
         if self.fault_array is not None:
-            if self.fault_array.shape != (nz,ny,nx,3,3):
+            if self.fault_array.shape != (nz+2,ny+2,nx+2,3,3):
                 print "Fault array does not conform to dimensions of network, creating a new array!"
                 self.fault_array= None
                 
@@ -182,7 +186,7 @@ class Rock_volume():
             if self.fault_assignment == 'list':
                 if self.fault_edges is not None:
                     # check the dimensions of the fault edges
-                    if np.shape(self.fault_edges)[-2:] == (2,2,3):
+                    if np.shape(self.fault_edges)[-3:] == (2,2,3):
                         if len(np.shape(self.fault_edges)) == 3:
                             self.fault_edges = np.array([self.fault_edges])
                         addfaults = True
@@ -193,8 +197,8 @@ class Rock_volume():
                 ix = int(nx/2) + 1
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
-                self.fault_edges = np.array([[[ix,iy0,iz0],[ix,iy1,iz0]],
-                                             [[ix,iy0,iz1],[ix,iy1,iz1]]])
+                self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]]])
                 addfaults = True
             
             elif self.fault_assignment == 'multiple_yz':
@@ -255,10 +259,20 @@ class Rock_volume():
                             'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
-          #      print "assigning fault aperture"
-                self.aperture,self.aperture_hydraulic, \
-                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
+                                
+                if 'nodes' in self.properties_definedon:
+#                    aperture_input['evaluation_point'] = 'nodes'
+              #      print "assigning fault aperture"
+                    self.aperture,self.aperture_hydraulic, \
+                    self.aperture_electric,self.fault_dict['fault_surfaces'] = \
+                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
+                if 'midpoint' in self.properties_definedon:
+                    pass
+#                    aperture_input['evaluation_point'] = 'midpoint'
+#              #      print "assigning fault aperture"
+#                    self.aperture_mp,self.aperture_hydraulic_mp, \
+#                    self.aperture_electric_mp,temp = \
+#                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)                    
             else:
          #       print "no need to assign new aperture array as aperture already provided"
                 self.aperture = self.fault_array*self.fault_dict['fault_separation']
@@ -266,6 +280,7 @@ class Rock_volume():
                 self.fault_dict['fault_heights'] = np.ones()
                 self.aperture_hydraulic,self.aperture_electric = \
                 [self.aperture.copy()]*2
+
         
         # get the aperture values from the faulted part of the volume to do some calculations on
         #print "getting fault aperture values"
@@ -313,6 +328,10 @@ class Rock_volume():
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       self.cellsize)
+#        if (('midpoint' in self.properties_definedon) and (self.fault_dict['aperture_type'] == 'random')):
+#            self.resistance_mp        
+                             
+                                      
         
         
     def initialise_permeability(self):
@@ -521,6 +540,7 @@ class Rock_volume():
 
             if pname == 'current':
                 self.current = output_array*1.
+                self.voltage = Vn
                 self.resistivity_bulk, self.resistance_bulk = \
                 rnap.get_bulk_resistivity(self.current,self.cellsize)
             elif pname == 'fluid':

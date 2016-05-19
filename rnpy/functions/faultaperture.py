@@ -176,7 +176,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     return h1, h2
 
 
-def correct_aperture_geometry(faultsurface_1,aperture,dl):
+def correct_aperture_geometry(faultsurface_1,aperture,dl,evaluation_point='nodes'):
     """
     correct an aperture array for geometry, e.g. tapered plates or sloping
     plates
@@ -201,16 +201,19 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     
     aperture[aperture<1e-50] = 1e-50    
     
-    # aperture and height values at nodes
+    # height values at nodes
     s1n = [np.mean([s1[:-1],s1[1:]],axis=0),
            np.mean([s1[:,:-1],s1[:,1:]],axis=0)]
            
     # mean vertical hydraulic aperture, defined based on the cube of the aperture as 
-    # fluid flow is defined based on the cube
+    # fluid flow is defined based on the cube, in x and y directions
     bnf = [np.mean([aperture[:-1]**3.,aperture[1:]**3.],axis=0)**(1./3.),
           np.mean([aperture[:,:-1]**3.,aperture[:,1:]**3.],axis=0)**(1./3.)]
+    # mean vertical electric aperture
     bnc = [np.mean([aperture[:-1],aperture[1:]],axis=0),
           np.mean([aperture[:,:-1],aperture[:,1:]],axis=0)]
+    
+    # height of surface 2 at nodes
     s2n = [s1n[i] + bnf[i] for i in range(2)]
     s2nc = [s1n[i] + bnc[i] for i in range(2)]
 
@@ -222,13 +225,13 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     rzp = [dl/((np.average([rz[1:,:-1],rz[1:,1:]],axis=0)-np.average([rz[:-1,:-1],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5,
            dl/((np.average([rz[1:,:-1],rz[:-1,:-1]],axis=0)-np.average([rz[1:,1:],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5]    
     
-    # aperture at plane between nodes
+    # aperture at centre of plane between nodes, defined for flow in x and y directions
     bpf = [np.mean([bnf[0][:,:-1],bnf[0][:,1:]],axis=0),
           np.mean([bnf[1][:-1],bnf[1][1:]],axis=0)]
     bpc = [np.mean([bnc[0][:,:-1],bnc[0][:,1:]],axis=0),
           np.mean([bnc[1][:-1],bnc[1][1:]],axis=0)]
     
-    # distance between node points, slightly > dl
+    # distance between node points, slightly > dl if the plates are sloping
 #    print(rzn)
     dr = [((dl)**2 + (rzn[0][:,:-1]-rzn[0][:,1:])**2)**0.5,
           ((dl)**2 + (rzn[1][:-1,:]-rzn[1][1:,:])**2)**0.5]
@@ -241,7 +244,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     nzc = [dl/drc[0],
            dl/drc[1]]
     
-    # beta - correction factor when applying harmonic mean, for current it is equal to kappa
+    # beta - correction factor when applying harmonic mean
     betaf = [nz[i]**3.*dl/dr[i] for i in range(2)]
     betac = [nzc[i]*dl/drc[i] for i in range(2)]
 
@@ -262,21 +265,32 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
                     np.log(bnc[1][j+1-hv,i]/bpc[1][j,i]))*betac[1][j,i]
                 else:
                     bchv[1,hv,j,i] = bpc[1][j,i]*betac[1][j,i]
-    bc = np.ones((2,ny-1,nx-1))
-    # x values
-    # first column, only one half volume
-    bc[0,:,0] = bchv[0,1,:,0]#/rzp[0][:,0]
-    # remaining columns, harmonic mean of 2 adjacent columns
-    bc[0,:,1:] = stats.hmean([bchv[0,1,:,1:],bchv[0,0,:,:-1]],axis=0)
 
-    # y values
-    # first row, only one half volume (second half volume)
-    bc[1,0] = bchv[1,1,0]#/rzp[1][0]
     
-    bc[bc < 1e-50] = 1e-50
-
-    # remaining rows, harmonic mean of 2 adjacent rows
-    bc[1,1:] = stats.hmean([bchv[1,1,1:],bchv[1,0,:-1]],axis=0)    
+    if evaluation_point == 'nodes':
+        # initialise a corrected array for current
+        bc = np.ones((2,ny-1,nx-1))
+        # x values
+        # first column, only one half volume
+        bc[0,:,0] = bchv[0,1,:,0]#/rzp[0][:,0]
+        # remaining columns, harmonic mean of 2 adjacent columns
+        bc[0,:,1:] = stats.hmean([bchv[0,1,:,1:],bchv[0,0,:,:-1]],axis=0)
+    
+        # y values
+        # first row, only one half volume (second half volume)
+        bc[1,0] = bchv[1,1,0]#/rzp[1][0]
+        
+        bc[bc < 1e-50] = 1e-50
+    
+        # remaining rows, harmonic mean of 2 adjacent rows
+        bc[1,1:] = stats.hmean([bchv[1,1,1:],bchv[1,0,:-1]],axis=0)
+    elif evaluation_point == 'midpoint':
+        # initialise a corrected array for current
+        bc = np.ones((2,ny-1,nx-1))
+        # x values
+        bc[0] = stats.hmean([bchv[0,1],bchv[0,0]],axis=0)
+        # y values
+        bc[1] = stats.hmean([bchv[1,1],bchv[1,0]],axis=0)
 
     # theta, relative angle of tapered plates for correction, defined in x and y directions
     theta = np.abs(np.array([np.arctan((s1n[0][:,:-1]-s1n[0][:,1:])/dl) -\
@@ -302,21 +316,28 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     bf3beta[np.isnan(bf3beta)] = 1e-150
     bf3beta[bf3beta < 1e-50] = 1e-50
 
-    # initialise array to contain averaged bf**3 and bc values
-    bf3 = np.ones((2,ny-1,nx-1))
+
+    if evaluation_point == 'nodes':
+        # initialise array to contain averaged bf**3 and bc values
+        bf3 = np.ones((2,ny-1,nx-1))
+        # x values
+        # first column, only one half volume
+        bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
+        # remaining columns, harmonic mean of 2 adjacent columns
+        bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
     
-    # x values
-    # first column, only one half volume
-    bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
-    # remaining columns, harmonic mean of 2 adjacent columns
-    bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
-
-    # y values
-    # first row, only one half volume (second half volume)
-    bf3[1,0] = bf3beta[1,1,0]#/rzp[1][0]
-
-    # remaining rows, harmonic mean of 2 adjacent rows
-    bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
+        # y values
+        # first row, only one half volume (second half volume)
+        bf3[1,0] = bf3beta[1,1,0]#/rzp[1][0]
+    
+        # remaining rows, harmonic mean of 2 adjacent rows
+        bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
+    elif evaluation_point == 'midpoint':
+        bf3 = np.ones((2,ny-1,nx-1))
+        # x values
+        bf3[0] = stats.hmean([bf3beta[0,1],bf3beta[0,0]],axis=0)
+        # y values
+        bf3[1] = stats.hmean([bf3beta[1,1],bf3beta[1,0]],axis=0)
 
     bf = bf3**(1./3.)
 

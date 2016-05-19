@@ -254,4 +254,6 @@ def get_hydraulic_aperture(width,keff,km):
     else:
         # to get a starting value for bh, approximate bh << width
         bhstart = (width*12*(keff-km))**(1./3)
-        return so.newton(effectivek,bhstart,args=(keff,km,width),maxiter=100)    
+        return so.newton(effectivek,bhstart,args=(keff,km,width),maxiter=100)
+        
+
