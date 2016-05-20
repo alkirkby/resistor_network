@@ -279,7 +279,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                           mismatch_wavelength_cutoff = None, 
                           elevation_scalefactor = None,
                           correct_aperture_for_geometry = True,
-#                          properties_definedon=['nodes']
+                          evaluation_point=['nodes']
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -325,10 +325,9 @@ def assign_fault_aperture(fault_array,fault_uvw,
     fault_array = rna.add_nulls(fault_array)
 
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] - 2
-    print nx,ny,nz
     
     ap_array = np.array([np.ones_like(fault_array)*1e-50]*3) # yz, xz and xy directions
-    ap_array_mp = np.zeros((3,nx+1,ny+1,nz+1,3,3))
+    ap_array_mp = np.zeros((2,nx+2,ny+2,nz+2,3,3))
 #    ap_array[0] *= 1e-50
     bvals = []
     faultheights = []
@@ -428,38 +427,28 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 ap_array[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             bvals[-1].append([bb,b0,b1])
         faultheights.append([h1,h2])
-#        if 'midpoint' in properties_definedon:
-#            bfm,bcm = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs,evaluation_point='midpoint')
-#            for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
-#                    if w0 > 0:
-#                        w0 -= 1
-#                        dw += 1
-#                        
-#                    if v0 > 0:
-#                        v0 -= 1
-#                        dv += 1
-#                    if u0 > 0:
-#                        u0 -= 1
-#                        du += 1
-#                    b0,b1 = bb
-#                    if direction == 0:
-#                        # faults perpendicular to x direction, i.e. yz plane
-#                        # y direction opening in x direction
-#                        ap_array_mp[i,w0:w1+1,v0:v1,u0,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
-#                        # z direction opening in x direction
-#                        ap_array_mp[i,w0:w1,v0:v1+1,u0,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
-#                    elif direction == 1:
-#                        # faults perpendicular to y direction, i.e. xz plane
-#                        # x direction opening in y direction
-#                        ap_array_mp[i,w0:w1+1,v0,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-#                        # z direction opening in y direction
-#                        ap_array_mp[i,w0:w1,v0,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
-#                    elif direction == 2:
-#                        # faults perpendicular to z direction, i.e. xy plane
-#                        # x direction opening in z direction
-#                        ap_array_mp[i,w0,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-#                        # y direction opening in z direction
-#                        ap_array_mp[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]           
+        if 'midpoint' in evaluation_point:
+            bfm,bcm = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs,evaluation_point='midpoint')
+            for i,bb in enumerate([bfm,bcm]):
+                b0,b1 = bb
+                if direction == 0:
+                    # faults perpendicular to x direction, i.e. yz plane
+                    # y direction opening in x direction
+                    ap_array_mp[i,w0:w1+1,v0:v1,u0,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
+                    # z direction opening in x direction
+                    ap_array_mp[i,w0:w1,v0:v1+1,u0,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+                elif direction == 1:
+                    # faults perpendicular to y direction, i.e. xz plane
+                    # x direction opening in y direction
+                    ap_array_mp[i,w0:w1+1,v0,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                    # z direction opening in y direction
+                    ap_array_mp[i,w0:w1,v0,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                elif direction == 2:
+                    # faults perpendicular to z direction, i.e. xy plane
+                    # x direction opening in z direction
+                    ap_array_mp[i,w0,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
+                    # y direction opening in z direction
+                    ap_array_mp[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]           
     ap_array[i] *= fault_array
         
     ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
@@ -467,4 +456,9 @@ def assign_fault_aperture(fault_array,fault_uvw,
     aperture_f = ap_array[1]
     aperture_array = ap_array[0]
     
-    return aperture_array,aperture_f,aperture_c,faultheights
+    if 'midpoint' in evaluation_point:
+        ap_array_mp[(np.isfinite(ap_array_mp))&(ap_array_mp < 2e-50)] = 0.
+        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,1:,1:],ap_array_mp[1,:-1,1:,1:],faultheights
+#        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,:-1,:-1],ap_array_mp[1,:-1,:-1,:-1],faultheights
+    else:
+        return aperture_array,aperture_f,aperture_c,faultheights
