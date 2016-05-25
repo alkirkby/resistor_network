@@ -193,21 +193,21 @@ def get_flow(output_array):
                      np.sum(output_array[-1,:,:,2,2])])
 
 
-def get_bulk_resistivity(current_array,cellsize):
+def get_bulk_resistivity(current_array,cellsize,deltaV):
     
     factor = get_geometry_factor(current_array,cellsize)
     flow = get_flow(current_array)
-    resistance = 1./flow
+    resistance = deltaV/flow
     
     return factor*resistance, resistance 
 
 
-def get_bulk_permeability(flowrate_array,cellsize,fluid_viscosity):
+def get_bulk_permeability(flowrate_array,cellsize,fluid_viscosity,deltaP):
 
     factor = get_geometry_factor(flowrate_array,cellsize)
     flow = get_flow(flowrate_array)   
 
-    resistance = 1./flow
+    resistance = deltaP/flow
     
     return fluid_viscosity/(resistance*factor),resistance
 

@@ -278,6 +278,10 @@ class Rock_volume():
 #                self.fault_dict['fault_heights'] = np.ones()
                 self.aperture_hydraulic,self.aperture_electric = \
                 [self.aperture.copy()]*2
+                self.aperture_hydraulic_mp,self.aperture_electric_mp =\
+                [self.aperture[:-1,:-1,:-1]]*2
+                self.aperture_electric_mp[np.isnan(self.aperture_electric_mp)] = 1e-50
+                self.aperture_hydraulic_mp[np.isnan(self.aperture_hydraulic_mp)] = 1e-50
 
         
         # get the aperture values from the faulted part of the volume to do some calculations on
@@ -326,7 +330,7 @@ class Rock_volume():
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       self.cellsize)
-        if (('midpoint' in self.properties_definedon) and (self.fault_dict['aperture_type'] == 'random')):
+        if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
             self.resistance_mp,self.resistivity_mp = \
             rnap.get_electrical_resistance(self.aperture_electric_mp,
                                           self.resistivity_matrix,
@@ -351,7 +355,7 @@ class Rock_volume():
                                      self.permeability_matrix,
                                      self.cellsize,
                                      mu = self.fluid_viscosity)
-        if (('midpoint' in self.properties_definedon) and (self.fault_dict['aperture_type'] == 'random')):
+        if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
             self.hydraulic_resistance_mp,self.permeability_mp = \
             rnap.get_hydraulic_resistance(self.aperture_hydraulic_mp,
                                          self.permeability_matrix,
@@ -446,12 +450,12 @@ class Rock_volume():
             if 'current' in pname:
                 self.current = 1.*oa
                 self.resistivity_bulk, self.resistance_bulk = \
-                rnap.get_bulk_resistivity(self.current,self.cellsize)
+                rnap.get_bulk_resistivity(self.current,self.cellsize,1.)
     
             if 'fluid' in pname:
                 self.flowrate=1.*oa
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
-                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)
+                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,1.)
 
     
     def solve_resistor_network2(self, Vstart=None, Vsurf=0., Vbase=1., 
@@ -495,38 +499,21 @@ class Rock_volume():
                 R = property_arrays[pname]
                 # transpose and reorder the conductivity arrays. Default solve
                 # direction is z, if it's x or y we need to transpose and 
-                # reorder the array
+                # reorder the array. Call the transposed array Rm.
                 if sd == 'x':
-                    Rx = R.copy().transpose(2,1,0,3)[:,:,:,::-1]
-                    C = rnmb.Conductivity(Rx)
-                    lnz,lny,lnx = np.array(Rx.shape[:-1])-2
-                    ldx,ldy,ldz = dz,dy,dx
+                    # transpose, and swap x and z in the array by reversing the order
+                    Rm = R.copy().transpose(2,1,0,3)[:,:,:,::-1]
                 elif sd == 'y':
-                    Ry = R.copy().transpose(1,0,2,3)
-                    # swap y and z in the array
-                    Ry[:,:,:,-2:] = Ry[:,:,:,-2:][:,:,:,::-1]
-                    C = rnmb.Conductivity(Ry)
+                    Rm = R.copy().transpose(1,0,2,3)
+                    # swap the order of y and z in the array
+                    Rm[:,:,:,-2:] = Rm[:,:,:,-2:][:,:,:,::-1]
                     # "local" nx, ny, nz now that we've transposed the array
-                    lnz,lny,lnx = np.array(Ry.shape[:-1])-2
-                    ldx,ldy,ldz = dx,dz,dy
                 elif sd == 'z':
-                    C = rnmb.Conductivity(R)
-                    lnz,lny,lnx = np.array(R.shape[:-1])-2
-                    ldx,ldy,ldz = dx,dy,dz
-                # initialise a default starting array if needed
-                if Vstart is None:
-                    Vo = np.zeros((lnx+1,lny+1,lnz+1))
-                    Vo[:,:,:] = np.linspace(Vsurf,Vbase,lnz+1)
-                    # transpose so that array is ordered by y, then z, then x
-                    Vo = Vo.transpose(1,2,0)
-                else:
-                    Vo = Vstart.copy()
-            
-                A,D = rnmb.buildmatrix(C,ldx,ldy,ldz)
-                b = rnmb.buildb(C,ldz,Vsurf,Vbase)
+                    Rm = R.copy()
+
                 
-                Vn = rnms.solve_matrix2(Vo,C,A,D,b,[lnx,lny,lnz],[ldx,ldy,ldz], 
-                                        method=method,tol = tol, w = 1.3, itstep=itstep)
+                Vn = rnms.solve_matrix2(R,self.cellsize,Vsurf=Vsurf,Vbase=Vbase,Vstart=Vstart,
+                                        method=method,tol = tol, itstep=itstep)
                 if sd == 'x':
                     Vn = Vn.transpose(2,1,0)
                     i = 0
@@ -548,12 +535,12 @@ class Rock_volume():
                 self.current = output_array*1.
                 self.voltage = Vn
                 self.resistivity_bulk, self.resistance_bulk = \
-                rnap.get_bulk_resistivity(self.current,self.cellsize)
+                rnap.get_bulk_resistivity(self.current,self.cellsize,Vbase-Vsurf)
             elif pname == 'fluid':
                 self.pressure = Vn
                 self.flowrate = output_array*1.
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
-                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity)                
+                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,Vbase-Vsurf)                
         
 
     def get_effective_apertures(self):

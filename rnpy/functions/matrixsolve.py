@@ -15,10 +15,26 @@ def solve_matrix(A,b):
     return slinalg.spsolve(A,b)
 
 
-def solve_matrix2(Vo,C,A,D,b,ncells,cellsize,method='direct',tol = 0.1, w = 1.3, itstep=100):
 
-    nx,ny,nz = ncells
+
+def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
+                  tol = 0.1, w = 1.3, itstep=100, return_termination = False):
+
     dx,dy,dz = cellsize
+    C = rnmb.Conductivity(R)
+    nz,ny,nx = np.array(R.shape[:-1])-2
+
+    # initialise a default starting array if needed
+    if Vstart is None:
+        Vo = np.zeros((nx+1,ny+1,nz+1))
+        Vo[:,:,:] = np.linspace(Vsurf,Vbase,nz+1)
+        # transpose so that array is ordered by y, then z, then x
+        Vo = Vo.transpose(1,2,0)
+    else:
+        Vo = Vstart.copy()
+
+    A,D = rnmb.buildmatrix(C,dx,dy,dz)
+    b = rnmb.buildb(C,dz,Vsurf,Vbase)
 
     
     if method == 'direct':
@@ -54,28 +70,52 @@ def solve_matrix2(Vo,C,A,D,b,ncells,cellsize,method='direct',tol = 0.1, w = 1.3,
             mult,cst = ilid.dot((1.-w)*Dmd + w*Ud), w*ilid.dot(b)
             
         print "mult, cst calculated"
-
-
+        r = np.abs(rnmb.residual(dx,dy,dz,Vn,C))/Vn[1:-1,1:-1,1:-1]
+        vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
         while 1:
 
             Vnf = np.array(mult.dot(Vof)).flatten() + cst
 
     
-            if c == 1e5:
-                print 'Reached maximum number of iterations'
+            if c == 1e6:
+                print 'Reached maximum number of iterations','mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r)
                 r = rnmb.residual(dx,dy,dz,Vn,C)
+                termination = 0
                 break
             
             if c % itstep == 0:
                 Vn[:,1:-1] = Vnf.reshape(ny+1,nz-1,nx+1)
-                r = rnmb.residual(dx,dy,dz,Vn,C)                
+                rnew = np.abs(rnmb.residual(dx,dy,dz,Vn,C))/Vn[1:-1,1:-1,1:-1]
+                rnew[np.isinf(rnew)] = 0.
+#                print rnew
+#                rchange = np.abs(np.nanmean(rnew)-np.nanmean(r))/(np.nanmean(r)*itstep)
 
+#                rchange = np.abs(np.nanmax(rnew)-np.nanmax(r))/(np.nanmax(r)*itstep)
+#                print rchange
+#                print "residual",
+                # change, as a fraction of previous iteration
+#                change = np.mean(2.*np.abs(Vnf-Vof)/(np.abs(Vnf)+np.abs(Vof)))
+#                print np.nanmean(r)
 #                print ' %.6f'%(np.amax(r))
-                if np.amax(r) < tol:
-                 
-                    print ' Completed in %i iterations,'%c,'max residual %1e'%np.amax(r)
-                    break    
+#                if change < tol:
+#                    print change
     
+
+                dvchange = np.abs((((Vn[1:]-Vn[:-1])*C.u[1:]).sum()-vsum)/vsum)/itstep
+                print "sum of last row",((Vn[1:]-Vn[:-1])*C.u[1:]).sum(),'% change',dvchange*100,"residual",np.nanmean(rnew)
+                vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
+#                if ((np.nanmean(r) < tol) or (rchange < tol)):
+                if ((np.nanmean(rnew) < tol) or (dvchange < tol)):
+                    print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r),
+
+                    if np.nanmean(r) < tol:
+                        print "reached tol"
+                    else:
+                        print "change less than threshold"
+                    termination = 1
+                    break
+                r = rnew
+
             Vof = Vnf
             c = c + 1
 
@@ -84,4 +124,7 @@ def solve_matrix2(Vo,C,A,D,b,ncells,cellsize,method='direct',tol = 0.1, w = 1.3,
 
     Vn = Vn.transpose(1,0,2)
     
-    return Vn
+    if return_termination:
+        return Vn,termination
+    else:
+        return Vn

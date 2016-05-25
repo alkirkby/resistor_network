@@ -432,23 +432,48 @@ def assign_fault_aperture(fault_array,fault_uvw,
             for i,bb in enumerate([bfm,bcm]):
                 b0,b1 = bb
                 if direction == 0:
-                    # faults perpendicular to x direction, i.e. yz plane
-                    # y direction opening in x direction
-                    ap_array_mp[i,w0:w1+1,v0:v1,u0,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
-                    # z direction opening in x direction
-                    ap_array_mp[i,w0:w1,v0:v1+1,u0,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
+                    if u0 > 0:
+                        if v0 > 0:
+                            dv0 = -1
+#                            v1 -= 1
+                            dvm = 1
+                        else:
+                            dv0 = 0
+#                            v1 -= 1
+                            dvm = 0
+                        # faults perpendicular to x direction, i.e. yz plane
+                        # y direction opening in x direction
+                        ap_array_mp[i,w0:w1+1,v0+dv0:v1,u0-1,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+dvm]
+                        # z direction opening in x direction
+                        ap_array_mp[i,w0:w1,v0+dv0:v1+1,u0-1,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1+dvm]
                 elif direction == 1:
-                    # faults perpendicular to y direction, i.e. xz plane
-                    # x direction opening in y direction
-                    ap_array_mp[i,w0:w1+1,v0,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                    # z direction opening in y direction
-                    ap_array_mp[i,w0:w1,v0,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
+                    if v0 > 0:
+                        if u0 > 0:
+                            u0 -= 1
+                            u1 -= 1
+                            dum = 0
+                        else:
+                            u1 -= 1
+                            dum = -1
+                        # faults perpendicular to y direction, i.e. xz plane
+                        # x direction opening in y direction
+                        ap_array_mp[i,w0:w1+1,v0-1,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+dum]
+                        # z direction opening in y direction
+                        ap_array_mp[i,w0:w1,v0-1,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1+dum]
                 elif direction == 2:
-                    # faults perpendicular to z direction, i.e. xy plane
-                    # x direction opening in z direction
-                    ap_array_mp[i,w0,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
-                    # y direction opening in z direction
-                    ap_array_mp[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]           
+                    if w0 > 0:
+                        if u0 > 0:
+                            u0 -= 1
+                            u1 -= 1
+                            dum = 0
+                        else:
+                            u1 -= 1
+                            dum = -1
+                        # faults perpendicular to z direction, i.e. xy plane
+                        # x direction opening in z direction
+                        ap_array_mp[i,w0-1,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+dum]
+                        # y direction opening in z direction
+                        ap_array_mp[i,w0-1,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1+dum]           
     ap_array[i] *= fault_array
         
     ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
@@ -458,7 +483,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
     
     if 'midpoint' in evaluation_point:
         ap_array_mp[(np.isfinite(ap_array_mp))&(ap_array_mp < 2e-50)] = 0.
-        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,1:,1:],ap_array_mp[1,:-1,1:,1:],faultheights
-#        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,:-1,:-1],ap_array_mp[1,:-1,:-1,:-1],faultheights
+#        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,1:,1:],ap_array_mp[1,:-1,1:,1:],faultheights
+        return aperture_array,aperture_f,aperture_c,ap_array_mp[0,:-1,:-1,:-1],ap_array_mp[1,:-1,:-1,:-1],faultheights
     else:
         return aperture_array,aperture_f,aperture_c,faultheights
