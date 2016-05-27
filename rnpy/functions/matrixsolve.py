@@ -87,23 +87,12 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
                 Vn[:,1:-1] = Vnf.reshape(ny+1,nz-1,nx+1)
                 rnew = np.abs(rnmb.residual(dx,dy,dz,Vn,C))/Vn[1:-1,1:-1,1:-1]
                 rnew[np.isinf(rnew)] = 0.
-#                print rnew
-#                rchange = np.abs(np.nanmean(rnew)-np.nanmean(r))/(np.nanmean(r)*itstep)
 
-#                rchange = np.abs(np.nanmax(rnew)-np.nanmax(r))/(np.nanmax(r)*itstep)
-#                print rchange
-#                print "residual",
-                # change, as a fraction of previous iteration
-#                change = np.mean(2.*np.abs(Vnf-Vof)/(np.abs(Vnf)+np.abs(Vof)))
-#                print np.nanmean(r)
-#                print ' %.6f'%(np.amax(r))
-#                if change < tol:
-#                    print change
     
-
-                dvchange = np.abs((((Vn[1:]-Vn[:-1])*C.u[1:]).sum()-vsum)/vsum)/itstep
-                print "sum of last row",((Vn[1:]-Vn[:-1])*C.u[1:]).sum(),'% change',dvchange*100,"residual",np.mean(rnew)
-                vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
+                vsumnew = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
+                dvchange = (max(vsumnew/vsum,vsum/vsumnew) - 1.)/itstep
+                print "sum of last row",vsumnew,'% change',dvchange*100,"residual",np.mean(rnew)
+                vsum = vsumnew
 #                if ((np.nanmean(r) < tol) or (rchange < tol)):
                 if ((np.mean(rnew) < tol) or (dvchange < tol)):
                     print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r),
