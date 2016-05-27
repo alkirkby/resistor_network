@@ -53,6 +53,7 @@ class Rock_volume():
         self.workdir = '.' # working directory
         self.ncells = [10,10,10] #ncells in x, y and z directions
         self.cellsize = 1e-3
+        self.update_cellsize_tf = True # option to update cellsize if fault is wider than cellsize, only works if there are only faults in one direction.
         self.pconnection = [0.5,0.5,0.5]
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
@@ -208,7 +209,7 @@ class Rock_volume():
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
                 self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
-                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(1,nx + 1,self.fault_dict['fault_spacing'])])
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(2,nx + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True                
     
     
@@ -305,6 +306,10 @@ class Rock_volume():
         
         # update cellsize so it is at least as big as the largest fault aperture
         # but only if it's a 2d network or there are only faults in one direction
+        if self.update_cellsize_tf:
+            self.update_cellsize()
+    
+    def update_cellsize(self):
         if (('yz' in self.fault_assignment) or (min(self.ncells)==0) or \
             (np.count_nonzero(self.pconnection) == 1)):
             for i in range(3):
@@ -316,7 +321,8 @@ class Rock_volume():
                         apmax = np.amax(api)
                         if self.cellsize[i] < apmax:
                             rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
-                            self.cellsize[i] = round(apmax,rounding)
+                            # need to use ceil function so it always rounds up
+                            self.cellsize[i] = np.ceil(apmax*10.**rounding)*10.**(-rounding)
             
 
     def initialise_electrical_resistance(self):
