@@ -102,13 +102,13 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
     
 
                 dvchange = np.abs((((Vn[1:]-Vn[:-1])*C.u[1:]).sum()-vsum)/vsum)/itstep
-                print "sum of last row",((Vn[1:]-Vn[:-1])*C.u[1:]).sum(),'% change',dvchange*100,"residual",np.nanmean(rnew)
+                print "sum of last row",((Vn[1:]-Vn[:-1])*C.u[1:]).sum(),'% change',dvchange*100,"residual",np.mean(rnew)
                 vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
 #                if ((np.nanmean(r) < tol) or (rchange < tol)):
-                if ((np.nanmean(rnew) < tol) or (dvchange < tol)):
+                if ((np.mean(rnew) < tol) or (dvchange < tol)):
                     print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r),
 
-                    if np.nanmean(r) < tol:
+                    if np.mean(r) < tol:
                         print "reached tol"
                     else:
                         print "change less than threshold"
