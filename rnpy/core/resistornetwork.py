@@ -271,7 +271,7 @@ class Rock_volume():
                 elif 'nodes' in self.properties_definedon:
                     self.aperture,self.aperture_hydraulic, \
                     self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)                    
+                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
             else:
          #       print "no need to assign new aperture array as aperture already provided"
                 self.aperture = self.fault_array*self.fault_dict['fault_separation']
@@ -336,6 +336,8 @@ class Rock_volume():
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
                                       self.cellsize)
+        rna.add_nulls(self.resistivity)
+        rna.add_nulls(self.resistance)
         if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
             self.resistance_mp,self.resistivity_mp = \
             rnap.get_electrical_resistance(self.aperture_electric_mp,
@@ -361,6 +363,8 @@ class Rock_volume():
                                      self.permeability_matrix,
                                      self.cellsize,
                                      mu = self.fluid_viscosity)
+        rna.add_nulls(self.permeability)
+        rna.add_nulls(self.hydraulic_resistance)
         if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
             self.hydraulic_resistance_mp,self.permeability_mp = \
             rnap.get_hydraulic_resistance(self.aperture_hydraulic_mp,
