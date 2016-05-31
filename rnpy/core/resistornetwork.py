@@ -82,7 +82,7 @@ class Rock_volume():
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build = True
-        self.properties_definedon = ['nodes','midpoint']# nodes or midpoint of flat plate, default both
+        self.properties_definedon = ['nodes']# nodes or midpoint or both of flat plate, default nodes
         
         update_dict = {}
         #correcting dictionary for upper case keys

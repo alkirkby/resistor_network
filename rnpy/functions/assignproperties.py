@@ -48,9 +48,9 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         for ii in range(2):
             # define the area taken up by the fracture
             area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # subtract the overlapping bit if there is any
-        area_fracture-= aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
-        
+        # subtract the overlapping bit if there is any, so it doesn't get counted twice
+        area_fracture-= aperture_array[:,:,:,i,dpi[0]]*aperture_array[:,:,:,i,dpi[1]]
+        area_fracture[area_fracture < 0] = 0.
         # subtract fracture area from matrix area and remove any negative matrix area
         area_matrix -= area_fracture
         area_matrix[area_matrix<0.] = 0.
@@ -127,7 +127,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
             # subtract the area taken up by the fracture
             area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
         # subtract the overlapping bit if there is any
-        area_fracture-= aperture_array[:,:,:,i,0]*aperture_array[:,:,:,i,1]
+        area_fracture-= aperture_array[:,:,:,i,dpi[ii]]*aperture_array[:,:,:,i,dpi[ii-1]]
         
         # subtract fracture area from matrix area and remove any negative matrix area
         area_matrix -= area_fracture
