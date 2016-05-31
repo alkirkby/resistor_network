@@ -35,32 +35,99 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     
     resistance_array = np.zeros(np.shape(aperture_array)[:-1])
     resistivity_array = resistance_array.copy()
+    ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]
+    
     if type(d) in [float,int]:
         d = [float(d)]*3
-
+    
+    
+    # connectors
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and cell sizes
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
+    
+        # first need to correct apertures to spread out any that are wider than the cellsize
+        # direction of opening, cycle through faults opening in x, y and z directions
+        
+        for od in dpi:
+    #        print i,od,len(aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]])
+            for k1,j1,i1 in np.array(np.where(aperture_array[:,:,:,i,od] > d[od])).T:
+                ncf = 3
+                apval = aperture_array[k1,j1,i1,i,od]
+                while ncf < ncells[od]:
+                    # check if aperture is less than ncf * cellsize, if not add 2 (spread the fault further)
+                    if apval < ncf*d[od]:
+                        break
+                    ncf += 2
+    
+                # aperture value for the side bits
+                apedge = (apval - (ncf-2)*d[od])/2.
+    
+                # set the extra bits, first the internal points just set to minres
+                ind = int(ncf/2) - 1
+                
+    
+                if od == 0:
+                    ind0,ind2 = max(1,i1-ind),min(ncells[0]+1,i1+1+ind)
+                    aperture_array[k1,j1,ind0:i1,i,od] = d[od]
+                    aperture_array[k1,j1,i1+1:ind2,i,od] = d[od]
+                    aperture_array[k1,j1,ind0-1,i,od] += apedge
+                    aperture_array[k1,j1,ind2,i,od] += apedge
+                    
+                    # update the connectors perpendicular to plane
+                    aperture_array[k1,j1,ind0-1:ind2,0,0] = d[od]
+                    if i == 1:
+                        aperture_array[k1,j1+1,ind0-1:ind2,0,0] = d[od]
+                    elif i == 2:
+                        aperture_array[k1+1,j1,ind0-1:ind2,0,0] = d[od] 
+                    
+                elif od == 1:
+                    ind0,ind2 = max(1,j1-ind),min(ncells[0]+1,j1+1+ind)
+                    aperture_array[k1,ind0:j1,i1,i,od] = d[od]
+                    aperture_array[k1,j1+1:ind2,i1,i,od] = d[od]
+                    aperture_array[k1,ind0-1,i1,i,od] += apedge
+                    aperture_array[k1,ind2,i1,i,od] += apedge
+                    
+                    # update the connectors perpendicular to plane
+                    aperture_array[k1,ind0-1:ind2,i1,1,1] = d[od]
+                    if i == 0:
+                        aperture_array[k1,ind0-1:ind2,i1+1,1,1] = d[od]
+                    elif i == 2:
+                        aperture_array[k1+1,ind0-1:ind2,i1,1,1] = d[od]
+    
+                elif od == 2:
+                    ind0,ind2 = max(1,k1-ind),min(ncells[0]+1,k1+1+ind)
+                    aperture_array[ind0:k1,j1,i1,i,od] = d[od]
+                    aperture_array[k1+1:ind2,j1,i1,i,od] = d[od]  
+                    aperture_array[ind0-1,k1,i1,i,od] += apedge
+                    aperture_array[ind2,k1,i1,i,od] += apedge 
+                    
+                    # update the connectors perpendicular to plane
+                    aperture_array[ind0-1:ind2,j1,i1,2,2] = d[od]
+                    if i == 0:
+                        aperture_array[ind0-1:ind2,j1,i1+1,2,2] = d[od]
+                    elif i == 1:
+                        aperture_array[ind0-1:ind2,j1+1,i1,2,2] = d[od]
+            
+            
+            aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]] = d[od]
+    
         # cross sectional area of the cell perpendicular to flow
         area_matrix = np.product(dp)
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
             # define the area taken up by the fracture
             area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-        # subtract the overlapping bit if there is any, so it doesn't get counted twice
+        # subtract the overlapping bit if there is any
         area_fracture-= aperture_array[:,:,:,i,dpi[0]]*aperture_array[:,:,:,i,dpi[1]]
-        area_fracture[area_fracture < 0] = 0.
+        
         # subtract fracture area from matrix area and remove any negative matrix area
         area_matrix -= area_fracture
         area_matrix[area_matrix<0.] = 0.
         
         # resistance is the weighted harmonic mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
-#        if len(area_fracture[np.isfinite(area_fracture)]) >0:
-#            print(np.amax(area_fracture[np.isfinite(area_fracture)]))
-#        else:
-#            print('\n')
         resistance_array[:,:,:,i] = d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)
         resistivity_array[:,:,:,i] = (area_fracture + area_matrix)/(area_matrix/r_matrix + area_fracture/r_fluid)
 
