@@ -99,7 +99,11 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     # correct d, if a single value is passed in
     if type(d) in [float,int]:
         d = [float(d)]*3
-    
+
+
+    for i in range(3):
+        dp = [d[dd] for dd in range(3) if dd != i]
+        resistance_array[:,:,:,i] = d[i]*r_matrix/np.product(dp)   
 
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and cell sizes
@@ -144,11 +148,24 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         area_matrix -= area_fracture
         area_matrix[area_matrix<0.] = 0.
         
+        
         # resistance is the weighted harmonic mean of the fractured bit (in the two
-        # directions along flow) and the matrix bit
-        resistance_array[:,:,:,i] = d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)
-        resistivity_array[:,:,:,i] = (area_fracture + area_matrix)/(area_matrix/r_matrix + area_fracture/r_fluid)
+        # directions along flow) and the matrix bit, but only assign if less than existing value
+        resistance_array[:,:,:,i] = np.amin([resistance_array[:,:,:,i],
+                                             d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)],
+                                             axis=0)
+        
 
+        # assign connectors in direction of opening (in the case where faults 
+        # are more than one cell width)
+        cond = aperture_array[:,:,:,i,i] > 0
+        print(d[i]*r_fluid/(aperture_array[:,:,:,i,i][cond]**2.))
+        print(resistance_array[:,:,:,i][cond])
+        resistance_array[:,:,:,i][cond] = \
+        np.amin([d[i]*r_fluid/(aperture_array[:,:,:,i,i][cond]**2.),
+                 resistance_array[:,:,:,i][cond]],axis=0)
+
+        resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.product(dp)/d[i]
         
     return resistance_array,resistivity_array
 
@@ -250,7 +267,15 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     ===========================================================================
     
     """
+    if type(d) in [float,int]:
+        d = [float(d)]*3
+        
     hresistance = np.ones(np.shape(aperture_array)[:-1])
+    
+    for i in range(3):
+        dp = [d[dd] for dd in range(3) if dd != i]
+        hresistance[:,:,:,i] = d[i]*mu/(np.product(dp)*k_matrix)
+    
     permeability = hresistance.copy()
     ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]    
     
@@ -259,8 +284,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     hydres = 12.*mu/aperture_array**2.
     hydres[hydres > mu/k_matrix] = mu/k_matrix
     
-    if type(d) in [float,int]:
-        d = [float(d)]*3
+
         
         
     for i in range(3):
@@ -350,15 +374,13 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
         # directions along flow) and the matrix bit
         # first calculate the hydraulic resistance
         hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + d1*ap0/hr0)
-        # initialise hydraulic resistance to matrix values
-        hresistance[:,:,:,i] = np.ones_like(hresistance[:,:,:,i])*d[i]*mu/(np.product(dp)*k_matrix)
-        # only assign new values if they are lower than matrix values
+        # only assign new values if they are lower than existing values
         hresistance[:,:,:,i] = np.amin([hrnew,hresistance[:,:,:,i]],axis=0)
         # assign connectors in direction of opening (in the case where faults 
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
         hresistance[:,:,:,i][cond] = \
-        np.amin([hydres[:,:,:,i,i][cond]/(d[dpi[0]]*aperture_array[:,:,:,i,i][cond]),
+        np.amin([d[i]*hydres[:,:,:,i,i][cond]/(aperture_array[:,:,:,i,i][cond]**2.),
                  hresistance[:,:,:,i][cond]],axis=0)
         # calculate permeability
         permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*np.product(dp))

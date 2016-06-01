@@ -475,4 +475,54 @@ def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1
     wz[ap[:,:,:,2] == 0.] = 0.
     quiv = mlab.quiver3d(x,y,z,uz,vz,wz,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,2],vmin=0.,vmax=vmax)
     quiv.glyph.color_mode = 'color_by_scalar'    
+
+
+def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = 1.,arrows='single'):
+    import mayavi.mlab as mlab
+    # make a copy of the array for plotting
+    arr = flow_array.copy()
     
+    # set nan and small apertures to 0.
+    arr[np.isnan(arr)] = 0.
+    arr[np.abs(arr)<thresh] = 0.
+    arrmax = np.nanmax(arr)
+    arrmin = np.nanmin(arr)
+    # get number of cells and cellsize
+    nz,ny,nx = np.array(arr.shape[:3]) - 2.
+    dx,dy,dz = cellsize
+    
+    # get x,y z points of apertures, need to transpose to get sorting by z, y and x direction in that order
+    x,y,z = [arr1.transpose(2,0,1)*1e3 for arr1 in np.meshgrid(np.linspace(0,dx*(nx+1),nx+2),
+                                                               np.linspace(0,dy*(ny+1),ny+2),
+                                                               np.linspace(0,dz*(nz+1),nz+2))]
+    
+    mlab.figure()
+    
+    if 'x' in direction:
+        ## x currents
+        vx,wx = [np.zeros_like(x)]*2
+        ux = arr[:,:,:,model_direction,0]/arrmax
+        
+    else:
+        ux = np.zeros_like(x)
+    if 'y' in direction:
+        # y connectors
+        uy,wy = [np.zeros_like(y)]*2
+        vy = arr[:,:,:,model_direction,1]/arrmax
+        
+    else:
+        vy = np.zeros_like(y)    
+    if 'z' in direction:
+        # z connectors
+        uz,vz = [np.zeros_like(z)]*2
+        wz = arr[:,:,:,model_direction,2]/arrmax
+#        quiv = 
+    else:
+        wz = np.zeros_like(z)
+    
+    if arrows == 'single':
+        mlab.quiver3d(x,y,z,ux,vy,wz,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
+    elif arrows == 'broken':
+        mlab.quiver3d(x,y,z,ux,vx,wx,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
+        mlab.quiver3d(x,y,z,uy,vy,wy,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
+        mlab.quiver3d(x,y,z,uz,vz,wz,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
