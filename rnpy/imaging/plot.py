@@ -421,5 +421,58 @@ def plot_pt_vs_offset(ptfilelist, offset_vals, rratio_values, offset_units='mm',
     return ax
 
     
+def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1e-20):
+    """
+    plot connectors from a resistor network in 3d. can plot aperture, resistance
+    or permeability
     
+    Inputs:
+    **connector_array** array containing connectors. shape (nz+2,ny+2,nx+2,3,3) if
+    the connector_type is aperture, otherwise shape (nz+2,ny+2,nx+2,3)
+    **cellsize** list, tuple or array containing cellsize in x,y and z directions
+    **connector_type** string, either 'aperture', 'resistance' (hydraulic or electric),
+    or 'permeability'
+    
+    
+    """
+    import mayavi.mlab as mlab
+    # make a copy of the array for plotting, if we're plotting apertures then sum the two directions
+    if connector_type == 'aperture':
+        ap = connector_array.sum(axis=4)
+    elif connector_type == 'resistance':
+        ap = 1./connector_array
+    elif connector_type == 'permeability':
+        ap = connector_array.copy()
+    # set nan and small apertures to 0.
+    ap[np.isnan(ap)] = 0.
+    ap[ap<thresh] = 0.
+    
+    # get number of cells and cellsize
+    nz,ny,nx = np.array(ap.shape[:3]) - 2.
+    dx,dy,dz = cellsize
+    
+    # get x,y z points of apertures, need to transpose to get sorting by z, y and x direction in that order
+    x,y,z = [arr.transpose(2,0,1)*1e3 for arr in np.meshgrid(np.linspace(0,dx*(nx+1),nx+2),
+                                                             np.linspace(0,dy*(ny+1),ny+2),
+                                                             np.linspace(0,dz*(nz+1),nz+2))]
+    # maximum color value, same for each array
+    vmax=ap.max()
+    mlab.figure()
+    ## xconnectors
+    ux,vx,wx = [np.ones_like(x)*sc for sc in [dx*1e3,0.,0.]]
+    ux[ap[:,:,:,0] == 0.] = 0.
+    quiv = mlab.quiver3d(x,y,z,ux,vx,wx,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,0],vmin=0.,vmax=vmax)
+    quiv.glyph.color_mode = 'color_by_scalar'
+    
+    # y connectors
+    uy,vy,wy = [np.ones_like(y)*sc for sc in [0.,dy*1e3,0.]]
+    vy[ap[:,:,:,1] == 0.] = 0.
+    quiv = mlab.quiver3d(x,y,z,uy,vy,wy,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,1],vmin=0.,vmax=vmax)
+    quiv.glyph.color_mode = 'color_by_scalar'
+    
+    # z connectors
+    uz,vz,wz = [np.ones_like(z)*sc for sc in [0.,0.,dz*1e3]]
+    wz[ap[:,:,:,2] == 0.] = 0.
+    quiv = mlab.quiver3d(x,y,z,uz,vz,wz,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,2],vmin=0.,vmax=vmax)
+    quiv.glyph.color_mode = 'color_by_scalar'    
     
