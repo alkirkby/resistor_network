@@ -477,7 +477,7 @@ def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1
     quiv.glyph.color_mode = 'color_by_scalar'    
 
 
-def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = 1.,arrows='single'):
+def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = None,arrows='single'):
     import mayavi.mlab as mlab
     # make a copy of the array for plotting
     arr = flow_array.copy()
@@ -519,10 +519,13 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
 #        quiv = 
     else:
         wz = np.zeros_like(z)
-    
+    optargs = dict(mode='2darrow',vmin=arrmin,vmax=arrmax)
+    if scale_factor is not None:
+        optargs['scale_factor'] = scale_factor
     if arrows == 'single':
-        mlab.quiver3d(x,y,z,ux,vy,wz,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
+        
+        mlab.quiver3d(x,y,z,ux,vy,wz,**optargs)
     elif arrows == 'broken':
-        mlab.quiver3d(x,y,z,ux,vx,wx,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
-        mlab.quiver3d(x,y,z,uy,vy,wy,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
-        mlab.quiver3d(x,y,z,uz,vz,wz,mode='2darrow',scale_factor=scale_factor,vmin=arrmin,vmax=arrmax)
+        mlab.quiver3d(x,y,z,ux,vx,wx,**optargs)
+        mlab.quiver3d(x,y,z,uy,vy,wy,**optargs)
+        mlab.quiver3d(x,y,z,uz,vz,wz,**optargs)
