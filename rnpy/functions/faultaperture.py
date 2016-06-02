@@ -176,7 +176,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     return h1, h2
 
 
-def correct_aperture_geometry(faultsurface_1,aperture,dl,evaluation_point='nodes'):
+def correct_aperture_geometry(faultsurface_1,aperture,dl):
     """
     correct an aperture array for geometry, e.g. tapered plates or sloping
     plates
@@ -267,30 +267,30 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl,evaluation_point='nodes
                     bchv[1,hv,j,i] = bpc[1][j,i]*betac[1][j,i]
 
     
-    if evaluation_point == 'nodes':
-        # initialise a corrected array for current
-        bc = np.ones((2,ny-1,nx-1))
-        # x values
-        # first column, only one half volume
-        bc[0,:,0] = bchv[0,1,:,0]#/rzp[0][:,0]
-        # remaining columns, harmonic mean of 2 adjacent columns
-        bc[0,:,1:] = stats.hmean([bchv[0,1,:,1:],bchv[0,0,:,:-1]],axis=0)
+
+    # initialise a corrected array for current
+    bc = np.ones((2,ny-1,nx-1))
+    # x values
+    # first column, only one half volume
+    bc[0,:,0] = bchv[0,1,:,0]#/rzp[0][:,0]
+    # remaining columns, harmonic mean of 2 adjacent columns
+    bc[0,:,1:] = stats.hmean([bchv[0,1,:,1:],bchv[0,0,:,:-1]],axis=0)
+
+    # y values
+    # first row, only one half volume (second half volume)
+    bc[1,0] = bchv[1,1,0]#/rzp[1][0]
     
-        # y values
-        # first row, only one half volume (second half volume)
-        bc[1,0] = bchv[1,1,0]#/rzp[1][0]
-        
-        bc[bc < 1e-50] = 1e-50
-    
-        # remaining rows, harmonic mean of 2 adjacent rows
-        bc[1,1:] = stats.hmean([bchv[1,1,1:],bchv[1,0,:-1]],axis=0)
-    elif evaluation_point == 'midpoint':
-        # initialise a corrected array for current
-        bc = np.ones((2,ny-1,nx-1))
-        # x values
-        bc[0] = stats.hmean([bchv[0,1],bchv[0,0]],axis=0)
-        # y values
-        bc[1] = stats.hmean([bchv[1,1],bchv[1,0]],axis=0)
+    bc[bc < 1e-50] = 1e-50
+
+    # remaining rows, harmonic mean of 2 adjacent rows
+    bc[1,1:] = stats.hmean([bchv[1,1,1:],bchv[1,0,:-1]],axis=0)
+#    elif evaluation_point == 'midpoint':
+#        # initialise a corrected array for current
+#        bc = np.ones((2,ny-1,nx-1))
+#        # x values
+#        bc[0] = stats.hmean([bchv[0,1],bchv[0,0]],axis=0)
+#        # y values
+#        bc[1] = stats.hmean([bchv[1,1],bchv[1,0]],axis=0)
 
     # theta, relative angle of tapered plates for correction, defined in x and y directions
     theta = np.abs(np.array([np.arctan((s1n[0][:,:-1]-s1n[0][:,1:])/dl) -\
@@ -317,27 +317,26 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl,evaluation_point='nodes
     bf3beta[bf3beta < 1e-50] = 1e-50
 
 
-    if evaluation_point == 'nodes':
-        # initialise array to contain averaged bf**3 and bc values
-        bf3 = np.ones((2,ny-1,nx-1))
-        # x values
-        # first column, only one half volume
-        bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
-        # remaining columns, harmonic mean of 2 adjacent columns
-        bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
-    
-        # y values
-        # first row, only one half volume (second half volume)
-        bf3[1,0] = bf3beta[1,1,0]#/rzp[1][0]
-    
-        # remaining rows, harmonic mean of 2 adjacent rows
-        bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
-    elif evaluation_point == 'midpoint':
-        bf3 = np.ones((2,ny-1,nx-1))
-        # x values
-        bf3[0] = stats.hmean([bf3beta[0,1],bf3beta[0,0]],axis=0)
-        # y values
-        bf3[1] = stats.hmean([bf3beta[1,1],bf3beta[1,0]],axis=0)
+    # initialise array to contain averaged bf**3 and bc values
+    bf3 = np.ones((2,ny-1,nx-1))
+    # x values
+    # first column, only one half volume
+    bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
+    # remaining columns, harmonic mean of 2 adjacent columns
+    bf3[0,:,1:] = stats.hmean([bf3beta[0,1,:,1:],bf3beta[0,0,:,:-1]],axis=0)
+
+    # y values
+    # first row, only one half volume (second half volume)
+    bf3[1,0] = bf3beta[1,1,0]#/rzp[1][0]
+
+    # remaining rows, harmonic mean of 2 adjacent rows
+    bf3[1,1:] = stats.hmean([bf3beta[1,1,1:],bf3beta[1,0,:-1]],axis=0)
+#    elif evaluation_point == 'midpoint':
+#        bf3 = np.ones((2,ny-1,nx-1))
+#        # x values
+#        bf3[0] = stats.hmean([bf3beta[0,1],bf3beta[0,0]],axis=0)
+#        # y values
+#        bf3[1] = stats.hmean([bf3beta[1,1],bf3beta[1,0]],axis=0)
 
     bf = bf3**(1./3.)
 

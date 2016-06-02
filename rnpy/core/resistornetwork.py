@@ -82,7 +82,7 @@ class Rock_volume():
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build = True
-        self.properties_definedon = ['nodes']# nodes or midpoint or both of flat plate, default nodes
+
         
         update_dict = {}
         #correcting dictionary for upper case keys
@@ -123,8 +123,6 @@ class Rock_volume():
                 except:
                     continue 
         
-        if type(self.properties_definedon) == str:
-            self.properties_definedon = [self.properties_definedon]
         if type(self.ncells) in [float,int]:
             self.ncells = np.ones(3)*self.ncells
         if type(self.cellsize) in [float,int]:
@@ -212,6 +210,18 @@ class Rock_volume():
                                               [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(1,nx + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True                
     
+            elif self.fault_assignment == 'single_xyz':
+                # single fault in xy, yz, and xz planes
+                ix, ix0, ix1 = int(nx/2) + 1, 1, nx + 1
+                iy, iy0, iy1 = int(ny/2) + 1, 1, ny + 1
+                iz, iz0, iz1 = int(nz/2) + 1, 1, nz + 1
+                
+                self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]],
+                                             [[[ix0,iy,iz0],[ix1,iy,iz0]],
+                                              [[ix0,iy,iz1],[ix1,iy,iz1]]],
+                                             [[[ix0,iy0,iz],[ix1,iy0,iz]],
+                                              [[ix0,iy1,iz],[ix1,iy1,iz]]]])
     
             elif self.fault_assignment == 'random':
                 # get log10 of minimum and maximum fault length
@@ -260,18 +270,11 @@ class Rock_volume():
                             'mismatch_wavelength_cutoff',
                             'correct_aperture_for_geometry']:
                                 aperture_input[key] = self.fault_dict[key]
-                aperture_input['evaluation_point'] = self.properties_definedon
 
-                if 'midpoint' in self.properties_definedon:
 
-                    self.aperture, self.aperture_hydraulic, \
-                    self.aperture_electric, self.aperture_hydraulic_mp,\
-                    self.aperture_electric_mp, self.fault_dict['fault_surfaces'] = \
-                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
-                elif 'nodes' in self.properties_definedon:
-                    self.aperture,self.aperture_hydraulic, \
-                    self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                    rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
+                self.aperture,self.aperture_hydraulic, \
+                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
+                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
             else:
          #       print "no need to assign new aperture array as aperture already provided"
                 self.aperture = self.fault_array*self.fault_dict['fault_separation']
@@ -338,14 +341,7 @@ class Rock_volume():
                                       self.cellsize)
         rna.add_nulls(self.resistivity)
         rna.add_nulls(self.resistance)
-        if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
-            self.resistance_mp,self.resistivity_mp = \
-            rnap.get_electrical_resistance(self.aperture_electric_mp,
-                                          self.resistivity_matrix,
-                                          self.resistivity_fluid,
-                                          self.cellsize)                             
-                                      
-        
+
         
     def initialise_permeability(self):
         """
@@ -365,12 +361,7 @@ class Rock_volume():
                                      mu = self.fluid_viscosity)
         rna.add_nulls(self.permeability)
         rna.add_nulls(self.hydraulic_resistance)
-        if (('midpoint' in self.properties_definedon)):# and (self.fault_dict['aperture_type'] == 'random')
-            self.hydraulic_resistance_mp,self.permeability_mp = \
-            rnap.get_hydraulic_resistance(self.aperture_hydraulic_mp,
-                                         self.permeability_matrix,
-                                         self.cellsize,
-                                         mu = self.fluid_viscosity)
+
 
 
     def solve_resistor_network(self):
