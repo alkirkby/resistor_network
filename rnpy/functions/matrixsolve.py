@@ -70,8 +70,8 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
             mult,cst = ilid.dot((1.-w)*Dmd + w*Ud), w*ilid.dot(b)
             
         print "mult, cst calculated"
-        r = np.abs(rnmb.residual(dx,dy,dz,Vn,C))/Vn[1:-1,1:-1,1:-1]
-        vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
+        r = np.abs(rnmb.residual(dx,dy,dz,Vn,C))#/Vn[1:-1,1:-1,1:-1]
+        #vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
         while 1:
 
             Vnf = np.array(mult.dot(Vof)).flatten() + cst
@@ -85,19 +85,19 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
             
             if c % itstep == 0:
                 Vn[:,1:-1] = Vnf.reshape(ny+1,nz-1,nx+1)
-                rnew = np.abs(rnmb.residual(dx,dy,dz,Vn,C))/Vn[1:-1,1:-1,1:-1]
-                rnew[np.isinf(rnew)] = 0.
+                rnew = np.abs(rnmb.residual(dx,dy,dz,Vn,C))#/Vn[1:-1,1:-1,1:-1]
+                #rnew[np.isinf(rnew)] = 0.
 
     
-                vsumnew = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
-                dvchange = (max(vsumnew/vsum,vsum/vsumnew) - 1.)/itstep
-                print "sum of last row",vsumnew,'% change',dvchange*100,"residual",np.mean(rnew)
-                vsum = vsumnew
+                #vsumnew = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
+                #dvchange = (max(vsumnew/vsum,vsum/vsumnew) - 1.)/itstep
+                #print "sum of last row",vsumnew,'% change',dvchange*100,"residual",np.mean(rnew)
+                #vsum = vsumnew
 #                if ((np.nanmean(r) < tol) or (rchange < tol)):
-                if ((np.mean(rnew) < tol) or (dvchange < tol)):
-                    print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r),
+                if np.mean(rnew) < tol:# or (dvchange < tol)):
+                    print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(rnew),'median residual %1e'%np.median(rnew),
 
-                    if np.mean(r) < tol:
+                    if np.mean(rnew) < tol:
                         print "reached tol"
                     else:
                         print "change less than threshold"
