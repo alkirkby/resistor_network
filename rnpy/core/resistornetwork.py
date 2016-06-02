@@ -203,13 +203,13 @@ class Rock_volume():
                 addfaults = True
             
             elif self.fault_assignment == 'multiple_yz':
-                if self.fault_dict['fault_spacing'] > ny/2:
-                    self.fault_dict['fault_spacing'] = ny/2
+#                if self.fault_dict['fault_spacing'] > nx/2:
+#                    self.fault_dict['fault_spacing'] = nx/2
                 self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
                 self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
-                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(2,nx + 2,self.fault_dict['fault_spacing'])])
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(1,nx + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True                
     
     

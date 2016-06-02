@@ -159,8 +159,6 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         # assign connectors in direction of opening (in the case where faults 
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
-        print(d[i]*r_fluid/(aperture_array[:,:,:,i,i][cond]**2.))
-        print(resistance_array[:,:,:,i][cond])
         resistance_array[:,:,:,i][cond] = \
         np.amin([d[i]*r_fluid/(aperture_array[:,:,:,i,i][cond]**2.),
                  resistance_array[:,:,:,i][cond]],axis=0)

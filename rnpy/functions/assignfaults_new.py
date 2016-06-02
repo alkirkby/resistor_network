@@ -475,7 +475,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
 #                        ap_array_mp[i,w0-1,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+dum]
 #                        # y direction opening in z direction
 #                        ap_array_mp[i,w0-1,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1+dum]           
-    ap_array[i] *= fault_array
+        ap_array[i] *= fault_array
         
     ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
     aperture_c = ap_array[2]
