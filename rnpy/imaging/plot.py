@@ -421,7 +421,7 @@ def plot_pt_vs_offset(ptfilelist, offset_vals, rratio_values, offset_units='mm',
     return ax
 
     
-def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1e-20):
+def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None):
     """
     plot connectors from a resistor network in 3d. can plot aperture, resistance
     or permeability
@@ -436,6 +436,17 @@ def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1
     
     """
     import mayavi.mlab as mlab
+    
+    # try to guess connector type if it's not provided
+    if connector_type is None:
+        if len(np.shape(connector_array)) < 5:
+            if np.nanmax(connector_array) < 1.:
+                connector_type = 'permeability'
+            else:
+                connector_type = 'resistance'
+        else:
+            connector_type = 'aperture'
+
     # make a copy of the array for plotting, if we're plotting apertures then sum the two directions
     if connector_type == 'aperture':
         ap = connector_array.sum(axis=4)
@@ -443,9 +454,18 @@ def plot3dconnectors(connector_array,cellsize,connector_type='aperture',thresh=1
         ap = 1./connector_array
     elif connector_type == 'permeability':
         ap = connector_array.copy()
+
+    if thresh is None:
+        thresh = 1.1*np.nanmin(ap[ap>0])            
+    
     # set nan and small apertures to 0.
     ap[np.isnan(ap)] = 0.
     ap[ap<thresh] = 0.
+
+
+    
+    print 'connector_type',connector_type
+    print 'thresh',thresh
     
     # get number of cells and cellsize
     nz,ny,nx = np.array(ap.shape[:3]) - 2.
