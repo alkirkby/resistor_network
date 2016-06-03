@@ -29,6 +29,8 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         
         # update the connectors perpendicular to plane
         aperture_array[k1,j1,ind0-1:ind2,0,0] = d[od]
+#        aperture_array[k1,j1,ind0-1,0,0] = d[od]/2.
+#        aperture_array[k1,j1,ind2-1,0,0] = d[od]/2.
         if i == 1:
             aperture_array[k1,j1+1,ind0-1:ind2,0,0] = d[od]
         elif i == 2:
@@ -43,6 +45,8 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         
         # update the connectors perpendicular to plane
         aperture_array[k1,ind0-1:ind2,i1,1,1] = d[od]
+#        aperture_array[k1,ind0-1,i1,1,1] = d[od]/2.
+#        aperture_array[k1,ind2-1,i1,1,1] = d[od]/2.
         if i == 0:
             aperture_array[k1,ind0-1:ind2,i1+1,1,1] = d[od]
         elif i == 2:
@@ -57,12 +61,15 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         
         # update the connectors perpendicular to plane
         aperture_array[ind0-1:ind2,j1,i1,2,2] = d[od]
+#        aperture_array[ind0-1,j1,i1,2,2] = d[od]/2.
+#        aperture_array[ind2-1,j1,i1,2,2] = d[od]/2.
+        
         if i == 0:
             aperture_array[ind0-1:ind2,j1,i1+1,2,2] = d[od]
         elif i == 1:
             aperture_array[ind0-1:ind2,j1+1,i1,2,2] = d[od]
-    
-    return ind0,ind2
+
+    return aperture_array,ind0,ind2
     
 
 def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
@@ -89,7 +96,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     
     ===========================================================================
     """
-    
+
     # initialise new arrays to contain resistance and resistivity
     resistance_array = np.zeros(np.shape(aperture_array)[:-1])
     resistivity_array = resistance_array.copy()
@@ -129,7 +136,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
                 # set the extra bits, first the internal points just set to minres
                 ind = int(ncf/2) - 1
                 
-                ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
+                aperture_array,ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
 
             
             aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]] = d[od]
@@ -155,12 +162,13 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
                                              d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)],
                                              axis=0)
         
-
+    for i in range(3):
         # assign connectors in direction of opening (in the case where faults 
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
         resistance_array[:,:,:,i][cond] = \
-        np.amin([d[i]*r_fluid/(aperture_array[:,:,:,i,i][cond]**2.),
+        np.amin([r_fluid*aperture_array[:,:,:,i,i][cond]/np.product(dp) +\
+                 r_matrix*(d[i] - aperture_array[:,:,:,i,i][cond])/np.product(dp),
                  resistance_array[:,:,:,i][cond]],axis=0)
 
         resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.product(dp)/d[i]
@@ -281,9 +289,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
     # by dz/(dy*dx) where dz is the direction of flow)
     hydres = 12.*mu/aperture_array**2.
     hydres[hydres > mu/k_matrix] = mu/k_matrix
-    
 
-        
         
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and values
@@ -308,9 +314,12 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
                 apedge = (apval - (ncf-2.)*d[od])/2.
                 # set the extra bits, first the internal points just set to minres
                 ind = int(ncf/2) - 1
+
+  
                 
                 # update the apertures based on the location of the cell and the fault width at that point
-                ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
+                aperture_array,ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
+                
                 # hydraulic resistivity for the aperture in question
                 rhoh = 12.*mu/apval**2.
                 # update the hydraulic resistivity values in a similar way to the aperture
@@ -338,47 +347,33 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
                         hydres[ind0-1:ind2,j1,i1+1,2,2] = rhoh
                     elif i == 1:
                         hydres[ind0-1:ind2,j1+1,i1,2,2] = rhoh
-    
+            aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]] = d[od]
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and values
         dpi = [dd for dd in range(3) if dd != i]
         dp = [d[dd] for dd in dpi]
-        # cross sectional area of the cell perpendicular to flow
-        area_matrix = np.product(dp)
-        area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
-        for ii in range(2):
-            # add the area taken up by the fracture
-            area_fracture += aperture_array[:,:,:,i,dpi[ii]]*d[dpi[1-ii]]
-    
-    
+
         hr0,hr1 = hydres[:,:,:,i,dpi[0]],hydres[:,:,:,i,dpi[1]]
         ap0,ap1 = aperture_array[:,:,:,i,dpi[0]],aperture_array[:,:,:,i,dpi[1]]
+
         # need to subtract the aperture from one of these so the overlapping area isn't counted twice
-        d0,d1 = dp[0]-ap1,dp[1]-ap1*0
-        # if aperture is greater than cellsize then set d0,d1 to cellsize, and set d1,d0 to 0.
-        d0[d0 < 0] = 0.
-        d0[d1 > dp[1]] = 0.
-        d1[d1 > dp[1]] = dp[1]
-        d1[d0 > dp[0]] = 0.
-        d0[d0 > dp[0]] = dp[0]
-    
-        # subtract the overlapping bit from fracture area if there is any
-        area_fracture-= ap0*ap1
-        
+        d0,d1 = dp[0],dp[1]
+
         # subtract fracture area from matrix area and remove any negative matrix area
-        area_matrix -= area_fracture
-        area_matrix[area_matrix<0.] = 0.    
+        area_matrix = np.product(dp) - (ap0*d1 + ap1*d0 - ap0*ap1)
+        
         # permeability is the weighted mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
-        # first calculate the hydraulic resistance
-        hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + d1*ap0/hr0)
+        # first calculate the hydraulic resistance, subtracting the overlap bit
+        hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + d1*ap0/hr0 - ap0*ap1/np.amax([hr0,hr1],axis=0))
         # only assign new values if they are lower than existing values
         hresistance[:,:,:,i] = np.amin([hrnew,hresistance[:,:,:,i]],axis=0)
         # assign connectors in direction of opening (in the case where faults 
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
         hresistance[:,:,:,i][cond] = \
-        np.amin([d[i]*hydres[:,:,:,i,i][cond]/(aperture_array[:,:,:,i,i][cond]**2.),
+        np.amin([hydres[:,:,:,i,i][cond]*aperture_array[:,:,:,i,i][cond]/np.product(dp)+\
+                 mu*(d[i] - aperture_array[:,:,:,i,i][cond])/(np.product(dp)*k_matrix),
                  hresistance[:,:,:,i][cond]],axis=0)
         # calculate permeability
         permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*np.product(dp))

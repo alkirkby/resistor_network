@@ -236,7 +236,9 @@ def add_faults_to_array(faultarray,fractureind):
 
         for ii in i1:
             faultarray[z0:z1,y0:y1,x0:x1,ii,perp] = 1.
+
     
+
     faultarray = rna.add_nulls(faultarray)
     
     return faultarray
@@ -278,7 +280,8 @@ def assign_fault_aperture(fault_array,fault_uvw,
                           fractal_dimension = 2.5, 
                           mismatch_wavelength_cutoff = None, 
                           elevation_scalefactor = None,
-                          correct_aperture_for_geometry = True
+                          correct_aperture_for_geometry = True,
+                          aperture_type = 'random'
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -300,7 +303,8 @@ def assign_fault_aperture(fault_array,fault_uvw,
                   shape (nx,ny,nz,3), created using initialise_faults
     fault_uvw = array or list containing u,v,w extents of faults
     cs = cellsize in metres, has to be same in x and y directions
-    fault_separation, float = fault separation normal to fault surface, in metres
+    fault_separation, float = array containing fault separation values normal to fault surface,
+                              length same as fault_uvw
     fault_surfaces = list or array of length the same as fault_uvw, each item containing 
                      2 numpy arrays, containing fault surface elevations, if 
                      None then random fault aperture is built
@@ -316,9 +320,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                                      scales correctly.
     correct_aperture_for_geometry, True/False, whether or not to correct aperture for
                                       geometry
-    cellsize = size in metres of the cells, used to calculate a sensible default
-               for mismatch cutoff frequency, only needed if
-               mismatch_wavelength_cutoff not provided
+    aperture_type, 'random' or 'constant' - random (variable) or constant aperture
     ===========================================================================    
     """
     fault_array = rna.add_nulls(fault_array)
@@ -326,7 +328,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] - 2
     
     ap_array = np.array([np.ones_like(fault_array)*1e-50]*3) # yz, xz and xy directions
-    ap_array_mp = np.zeros((2,nx+2,ny+2,nz+2,3,3))
+
 #    ap_array[0] *= 1e-50
     bvals = []
     faultheights = []
@@ -387,51 +389,66 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 print("fault surfaces wrong type")
             
         if build:
-#            print("building new fault surfaces")
-            h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
+            if aperture_type == 'random':
+                h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
+            else:
+                h1,h2 = [np.zeros((size,size))]*2
 
         if offset > 0:
-            b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation
+            b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
         else:
-            b = h1 - h2 + fault_separation
+            b = h1 - h2 + fault_separation[i]
             
         # set zero values to really low value to allow averaging
         b[b <= 1e-50] = 1e-50
         # centre indices of array b
         cb = (np.array(np.shape(b))*0.5).astype(int)
         
-        if correct_aperture_for_geometry:
-            bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+        if aperture_type == 'random':
+            if correct_aperture_for_geometry:
+                bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+            else:
+                bf, bc = [np.array([b[:-1,:-1]]*3)]*2
         else:
-            bf, bc = [b]*2
-        for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
-            b0,b1 = bb
+            bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+        print np.shape(b),np.shape(bf), np.shape(bc)
+            
+        for i,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
+            b0,b1,b2 = bb
             if direction == 0:
                 # faults perpendicular to x direction, i.e. yz plane
+                ap_array[i,w0:w1+1,v0:v1+1,u0-1,0,0] = b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
+                ap_array[i,w0:w1+1,v0:v1+1,u0,0,0] = b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
                 # y direction opening in x direction
                 ap_array[i,w0:w1+1,v0:v1,u0,1,0] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2]
                 # z direction opening in x direction
                 ap_array[i,w0:w1,v0:v1+1,u0,2,0] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]
             elif direction == 1:
                 # faults perpendicular to y direction, i.e. xz plane
+                ap_array[i,w0:w1+1,v0-1,u0:u1+1,1,1] = b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
+                ap_array[i,w0:w1+1,v0,u0:u1+1,1,1] = b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                 # x direction opening in y direction
                 ap_array[i,w0:w1+1,v0,u0:u1,0,1] = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
                 # z direction opening in y direction
                 ap_array[i,w0:w1,v0,u0:u1+1,2,1] = b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             elif direction == 2:
                 # faults perpendicular to z direction, i.e. xy plane
+                ap_array[i,w0-1,v0:v1+1,u0:u1+1,2,2] = b2[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
+                ap_array[i,w0,v0:v1+1,u0:u1+1,2,2] = b2[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                 # x direction opening in z direction
                 ap_array[i,w0,v0:v1+1,u0:u1,0,2] = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2]
                 # y direction opening in z direction
                 ap_array[i,w0,v0:v1,u0:u1+1,1,2] = b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1]
             bvals[-1].append([bb,b0,b1])
+            rna.add_nulls(ap_array[i])
         faultheights.append([h1,h2])
           
-        ap_array[i] *= fault_array
+#        ap_array[i] *= fault_array
         
     ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
     aperture_c = ap_array[2]
     aperture_f = ap_array[1]
     aperture_array = ap_array[0]
+    
     
     return aperture_array,aperture_f,aperture_c,faultheights

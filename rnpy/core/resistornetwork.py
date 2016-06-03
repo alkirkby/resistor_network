@@ -199,19 +199,56 @@ class Rock_volume():
                 self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
                                               [[ix,iy0,iz1],[ix,iy1,iz1]]]])
                 addfaults = True
+                        
+            # option to specify a single fault in the centre of the xz plane
+            elif self.fault_assignment == 'single_xz':
+                iy = int(ny/2) + 1
+                ix0, ix1 = 1, nx + 1
+                iz0, iz1 = 1, nz + 1
+                self.fault_edges = np.array([[[[ix0,iy,iz0],[ix1,iy,iz0]],
+                                              [[ix0,iy,iz1],[ix1,iy,iz1]]]])
+                addfaults = True            
+                        
+            # option to specify a single fault in the centre of the xy plane
+            elif self.fault_assignment == 'single_xy':
+                iz = int(nz/2) + 1
+                iy0, iy1 = 1, ny + 1
+                ix0, ix1 = 1, nz + 1
+                self.fault_edges = np.array([[[[ix0,iy0,iz],[ix0,iy1,iz]],
+                                              [[ix1,iy0,iz],[ix1,iy1,iz]]]])
+                addfaults = True
+
             
             elif self.fault_assignment == 'multiple_yz':
-#                if self.fault_dict['fault_spacing'] > nx/2:
-#                    self.fault_dict['fault_spacing'] = nx/2
                 self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
                 self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
-                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] for ix in range(1,nx + 2,self.fault_dict['fault_spacing'])])
+                                              [[ix,iy0,iz1],[ix,iy1,iz1]]] \
+                                              for ix in range(1,nx + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True                
-    
+
+            elif self.fault_assignment == 'multiple_xz':
+                self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
+                ix0, ix1 = 1, nx + 1
+                iz0, iz1 = 1, nz + 1
+                self.fault_edges = np.array([[[[ix0,iy,iz0],[ix1,iy,iz0]],
+                                              [[ix0,iy,iz1],[ix1,iy,iz1]]] \
+                                              for iy in range(1,ny + 2,self.fault_dict['fault_spacing'])])
+                addfaults = True
+                
+            elif self.fault_assignment == 'multiple_xy':
+                self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
+                iy0, iy1 = 1, ny + 1
+                ix0, ix1 = 1, nx + 1
+                self.fault_edges = np.array([[[[ix0,iy0,iz],[ix0,iy1,iz]],
+                                              [[ix1,iy0,iz],[ix1,iy1,iz]]] \
+                                              for iz in range(1,nz + 2,self.fault_dict['fault_spacing'])])
+                addfaults = True       
+                
+                
+            # single fault in each of the xy, yz, and xz planes
             elif self.fault_assignment == 'single_xyz':
-                # single fault in xy, yz, and xz planes
                 ix, ix0, ix1 = int(nx/2) + 1, 1, nx + 1
                 iy, iy0, iy1 = int(ny/2) + 1, 1, ny + 1
                 iz, iz0, iz1 = int(nz/2) + 1, 1, nz + 1
@@ -244,6 +281,10 @@ class Rock_volume():
             else:
                 print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
                 return
+                
+            # make fault separation into an array with length same as fault edges
+            if type(self.fault_dict['fault_separation']) in [float,int]:
+                self.fault_dict['fault_separation'] *= np.ones(len(self.fault_edges))
 
             
     def build_aperture(self):
@@ -255,45 +296,33 @@ class Rock_volume():
         else:
             cellsize = np.amin(self.cellsize)
         
-        if self.aperture is None:
-            if self.fault_dict['aperture_type'] == 'random':
-                    
-                aperture_input = {}
-            #    print "getting fault pair defaults"
-                self.fault_dict['mismatch_wavelength_cutoff'], fc = \
-                rnfa.get_faultpair_defaults(cellsize,
-                                            self.fault_dict['mismatch_wavelength_cutoff'] 
-                                            )
-           #     print "getting keys"
-                for key in ['fractal_dimension','fault_separation','offset',
-                            'elevation_scalefactor', 'fault_surfaces',
-                            'mismatch_wavelength_cutoff',
-                            'correct_aperture_for_geometry']:
-                                aperture_input[key] = self.fault_dict[key]
-
-
-                self.aperture,self.aperture_hydraulic, \
-                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
-            else:
-         #       print "no need to assign new aperture array as aperture already provided"
-                self.aperture = self.fault_array*self.fault_dict['fault_separation']
-                self.aperture[(self.aperture < 1e-50)] = 1e-50
-#                self.fault_dict['fault_heights'] = np.ones()
-                self.aperture_hydraulic,self.aperture_electric = \
-                [self.aperture.copy()]*2
-                self.aperture_hydraulic_mp,self.aperture_electric_mp =\
-                [self.aperture[:-1,:-1,:-1]]*2
-                self.aperture_electric_mp[np.isnan(self.aperture_electric_mp)] = 1e-50
-                self.aperture_hydraulic_mp[np.isnan(self.aperture_hydraulic_mp)] = 1e-50
-
+                
         
+        
+
+                    
+        aperture_input = {}
+        
+        self.fault_dict['mismatch_wavelength_cutoff'], fc = \
+        rnfa.get_faultpair_defaults(cellsize,
+                                    self.fault_dict['mismatch_wavelength_cutoff'] 
+                                    )
+
+        for key in ['fractal_dimension','fault_separation','offset',
+                    'elevation_scalefactor', 'fault_surfaces',
+                    'mismatch_wavelength_cutoff','aperture_type',
+                    'correct_aperture_for_geometry']:
+                        aperture_input[key] = self.fault_dict[key]
+
+
+        self.aperture,self.aperture_hydraulic, \
+        self.aperture_electric,self.fault_dict['fault_surfaces'] = \
+        rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,**aperture_input)
+
         # get the aperture values from the faulted part of the volume to do some calculations on
-        #print "getting fault aperture values"
         faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
                       for i in range(3)]
-#        print "faultapvals size",[np.size(fv) for fv in faultapvals],"mean aperture",
-        #print "calculating mean ap and contact area"
+
         self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
 #        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
         self.contact_area = []
@@ -461,7 +490,7 @@ class Rock_volume():
     
     def solve_resistor_network2(self, Vstart=None, Vsurf=0., Vbase=1., 
                                 method = 'direct', itstep=100, tol=0.1,
-                                solve_properties=None):
+                                solve_properties=None,solve_direction=None):
         """
         generate and solve a random resistor network using the relaxation method
         properties = string or list containing properties to solve for,
@@ -483,6 +512,8 @@ class Rock_volume():
         """
         if solve_properties is not None:
             self.solve_properties = solve_properties
+        if solve_direction is not None:
+            self.solve_direction = solve_direction
 
         property_arrays = {}
         if 'current' in self.solve_properties:
@@ -497,23 +528,26 @@ class Rock_volume():
             output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
 
             for sd in self.solve_direction:
-                R = property_arrays[pname]
+                R = property_arrays[pname].copy()
                 # transpose and reorder the conductivity arrays. Default solve
                 # direction is z, if it's x or y we need to transpose and 
                 # reorder the array. Call the transposed array Rm.
                 if sd == 'x':
                     # transpose, and swap x and z in the array by reversing the order
                     Rm = R.copy().transpose(2,1,0,3)[:,:,:,::-1]
+                    if Vstart is not None:
+                        Vstart = Vstart.transpose(2,1,0)
                 elif sd == 'y':
                     Rm = R.copy().transpose(1,0,2,3)
                     # swap the order of y and z in the array
                     Rm[:,:,:,-2:] = Rm[:,:,:,-2:][:,:,:,::-1]
-                    # "local" nx, ny, nz now that we've transposed the array
+                    if Vstart is not None:
+                        Vstart = Vstart.transpose(1,0,2)
                 elif sd == 'z':
                     Rm = R.copy()
-
                 
-                Vn = rnms.solve_matrix2(R,self.cellsize,Vsurf=Vsurf,Vbase=Vbase,Vstart=Vstart,
+                
+                Vn = rnms.solve_matrix2(Rm,self.cellsize,Vsurf=Vsurf,Vbase=Vbase,Vstart=Vstart,
                                         method=method,tol = tol, itstep=itstep)
                 if sd == 'x':
                     Vn = Vn.transpose(2,1,0)

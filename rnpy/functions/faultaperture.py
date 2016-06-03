@@ -269,7 +269,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     
 
     # initialise a corrected array for current
-    bc = np.ones((2,ny-1,nx-1))
+    bc = np.ones((3,ny-1,nx-1))
     # x values
     # first column, only one half volume
     bc[0,:,0] = bchv[0,1,:,0]#/rzp[0][:,0]
@@ -291,6 +291,9 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
 #        bc[0] = stats.hmean([bchv[0,1],bchv[0,0]],axis=0)
 #        # y values
 #        bc[1] = stats.hmean([bchv[1,1],bchv[1,0]],axis=0)
+
+    # assign connectors perpendicular to fault
+    bc[2] = np.mean([aperture[:-1,:-1],aperture[:-1,1:],aperture[1:,:-1],aperture[1:,1:]],axis=0)    
 
     # theta, relative angle of tapered plates for correction, defined in x and y directions
     theta = np.abs(np.array([np.arctan((s1n[0][:,:-1]-s1n[0][:,1:])/dl) -\
@@ -318,7 +321,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
 
 
     # initialise array to contain averaged bf**3 and bc values
-    bf3 = np.ones((2,ny-1,nx-1))
+    bf3 = np.ones((3,ny-1,nx-1))
     # x values
     # first column, only one half volume
     bf3[0,:,0] = bf3beta[0,1,:,0]#/rzp[0][:,0]
@@ -339,5 +342,8 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
 #        bf3[1] = stats.hmean([bf3beta[1,1],bf3beta[1,0]],axis=0)
 
     bf = bf3**(1./3.)
+    
+    # assign connectors perpendicular to fault
+    bf[2] = np.mean([aperture[:-1,:-1],aperture[:-1,1:],aperture[1:,:-1],aperture[1:,1:]],axis=0)    
 
     return bf, bc
