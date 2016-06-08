@@ -56,8 +56,8 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         ind0,ind2 = max(1,k1-ind),min(ncells[0]+1,k1+1+ind)
         aperture_array[ind0:k1,j1,i1,i,od] = d[od]
         aperture_array[k1+1:ind2,j1,i1,i,od] = d[od]  
-        aperture_array[ind0-1,k1,i1,i,od] += apedge
-        aperture_array[ind2,k1,i1,i,od] += apedge 
+        aperture_array[ind0-1,j1,i1,i,od] += apedge
+        aperture_array[ind2,j1,i1,i,od] += apedge 
         
         # update the connectors perpendicular to plane
         aperture_array[ind0-1:ind2,j1,i1,2,2] = d[od]
@@ -124,6 +124,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
             for k1,j1,i1 in np.array(np.where(aperture_array[:,:,:,i,od] > d[od])).T:
                 ncf = 3
                 apval = aperture_array[k1,j1,i1,i,od]
+            
                 while ncf < ncells[od]:
                     # check if aperture is less than ncf * cellsize, if not add 2 (spread the fault further)
                     if apval < ncf*d[od]:
