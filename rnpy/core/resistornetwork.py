@@ -221,29 +221,41 @@ class Rock_volume():
             
             elif self.fault_assignment == 'multiple_yz':
                 self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
+                if nx > 1:
+                    start = 2
+                else:
+                    start = 1
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
                 self.fault_edges = np.array([[[[ix,iy0,iz0],[ix,iy1,iz0]],
                                               [[ix,iy0,iz1],[ix,iy1,iz1]]] \
-                                              for ix in range(1,nx + 2,self.fault_dict['fault_spacing'])])
+                                              for ix in range(start,nx + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True                
 
             elif self.fault_assignment == 'multiple_xz':
                 self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
+                if ny > 1:
+                    start = 2
+                else:
+                    start = 1
                 ix0, ix1 = 1, nx + 1
                 iz0, iz1 = 1, nz + 1
                 self.fault_edges = np.array([[[[ix0,iy,iz0],[ix1,iy,iz0]],
                                               [[ix0,iy,iz1],[ix1,iy,iz1]]] \
-                                              for iy in range(1,ny + 2,self.fault_dict['fault_spacing'])])
+                                              for iy in range(start,ny + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True
                 
             elif self.fault_assignment == 'multiple_xy':
+                if nz > 1:
+                    start = 2
+                else:
+                    start = 1
                 self.fault_dict['fault_spacing'] = int(self.fault_dict['fault_spacing'])
                 iy0, iy1 = 1, ny + 1
                 ix0, ix1 = 1, nx + 1
                 self.fault_edges = np.array([[[[ix0,iy0,iz],[ix0,iy1,iz]],
                                               [[ix1,iy0,iz],[ix1,iy1,iz]]] \
-                                              for iz in range(1,nz + 2,self.fault_dict['fault_spacing'])])
+                                              for iz in range(start,nz + 2,self.fault_dict['fault_spacing'])])
                 addfaults = True       
                 
                 
