@@ -27,21 +27,28 @@ class Rock_volume():
     workdir = working directory
     ncells = list containing number of nodes in the x,y and z direction, 
              default is [10,10,10]
-    pconnection = list of probability of connection in the x,y, and z direction if random faults, default 0.5
-    cellsize = size of cells, same in x,y and z directions
-    res_type =  string describing how to calculate the resistivity structure;
-                options are "ones" (default; fully connected network), 
-                            "random" (random network with some high resistivity bonds
-                                      assigned according to px,py,pz),
-                            "array" (resistivity network given as a numpy array)
-                            "file" !!!! not yet implemented !!!! (network given by file) 
+    cellsize = cellsize for network. Generally this needs to be the same in
+               each direction. The exception is where faults of only one
+               direction exist in the network, in which case cells perpendicular
+               to the fault can have a different size (to accommodate wide faults)
+    update_cellsize_tf = True or False, determines whether to update the cellsize
+                         in the direction perp to fault, only updates if 
+                         there is only one orientation of faults in the network
+    pconnection = list of probability of connection in the x,y, and z direction 
+                  if fault_assignment is random, default [0.5,0.5,0.5]
     resistivity_matrix = resistivity of the low conductivity matrix
     resistivity_fluid = resistivity of the high conductivity fluid. Used with 
                         fracture diameter to calculate the resistance of 
                         connected bonds
-    resistivity = if res_type above is array, provide the resistivity array
+    resistivity = option to provide the resistivity array, if it is not provided
+                  then it is calculated from the aperture
     permeability_matrix = permeability of low electrical conductivity matrix
-    fracture_diameter = diameter of fractures for connected cells
+    fractal_dimension = fractal dimension of fault surfaces, float
+    fault_separation = separation value for faults, float, or array or list, if
+                       array or list is provided then needs to be same length 
+                       as fault_edges
+    
+    
     fluid_viscosity = fluid viscosity, default for freshwater at 20 degrees
     faultlength_max = maximum fault length if res_type is "random"
     faultlength_decay = decay factor to describe shape of fault length
