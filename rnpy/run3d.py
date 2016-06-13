@@ -45,7 +45,12 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                   ['outfile','o','output file name',1,str],
                   ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
                   ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
-                  ['solve_method','sm','solver method, direct or iterative (relaxation)',1,str]
+                  ['solve_method','sm','solver method, direct or iterative (relaxation)',1,str],
+                  ['vsurf','vs','voltage at top of volume for modelling',1,float],
+                  ['vbase','vb','voltage at top of volume for modelling',1,float],
+                  ['psurf','ps','pressure at top of volume for modelling',1,float],
+                  ['pbase','pb','pressure at top of volume for modelling',1,float],
+                  ['tolerance','tol','tolerance for the iterative solver',1,float],
                   ['repeats','r','how many times to repeat each permutation',1,int]]
 
 
@@ -122,6 +127,10 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
     """
     
     input_list = []
+    solveproperties = []
+    for prop in ['current','fluid']:
+        if prop in input_dict['solve_properties']:
+            solveproperties.append(prop)
     
     kmvals,rmvals,rfvals = [loop_parameters[key] for key in \
     ['permeability_matrix','resistivity_matrix','resistivity_fluid']]
@@ -131,6 +140,10 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         fename,fsname = 'fault_edges%2i.dat'%r, 'fault_surfaces%2i.dat'%r
         input_dict = {}
         input_dict.update(fixed_parameters)
+        if 'solve_direction' in input_dict.keys():
+            solvedirections = input_dict['solve_direction']
+        else:
+            'solve_direction' = 'xyz'
         input_dict['repeat'] = r
         # create a rock volume and get the fault surfaces and fault edges
         ro = rn.Rock_volume(**input_dict)
@@ -140,24 +153,28 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         # set the variables to the file name
         input_dict['fault_edges'] == fename
         input_dict['fault_surfaces'] == fsname
-        # loop through current and fluid
-        for prop in ['current','fluid']:
-            input_dict['solve_properties'] = prop
-            if prop == 'fluid':
-                for km in kmvals:
-                    input_dict['permeability_matrix'] = km
-                    input_list.append([])
-                    for fs in loop_parameters['fault_separation']:
-                        input_dict['fault_separation'] = fs
-                        input_list[-1].append(input_dict)
-            elif prop == 'current':
-                for rm,rf in itertools.product(rmvals,rfvals):
-                    input_dict['resistivity_matrix'] = rm
-                    input_dict['resistivity_fluid'] = rf
-                    input_list.append([])
-                    for fs in loop_parameters['fault_separation']:
-                        input_dict['fault_separation'] = fs
-                        input_list[-1].append(input_dict)
+        # loop through solve directions        
+        for i,sd in enumerate(solvedirections):
+            # update input dict so we deal with one solve direction at a time
+            input_dict['solve_direction'] = sd
+            # loop through current and fluid
+            for prop in solveproperties:
+                input_dict['solve_properties'] = prop
+                if prop == 'fluid':
+                    for km in kmvals:
+                        input_dict['permeability_matrix'] = km
+                        input_list.append([])
+                        for fs in loop_parameters['fault_separation']:
+                            input_dict['fault_separation'] = fs
+                            input_list[-1].append(input_dict)
+                elif prop == 'current':
+                    for rm,rf in itertools.product(rmvals,rfvals):
+                        input_dict['resistivity_matrix'] = rm
+                        input_dict['resistivity_fluid'] = rf
+                        input_list.append([])
+                        for fs in loop_parameters['fault_separation']:
+                            input_dict['fault_separation'] = fs
+                            input_list[-1].append(input_dict)
                         
     return input_list
     
@@ -211,8 +228,24 @@ def divide_inputs(work_to_do,size):
 
     return chunks
 
+def get_boundary_conditions(ro,input_dict,sdno,solveproperty):
+    # create default boundary conditions
+    bcs = [0.,ro.ncells[sdno]*ro.cellsize[sdno]]
 
-def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True);:
+    if solveproperty ==  'current':
+        prefix = 'v'
+    else:
+        prefix = 'p'
+
+
+    for i,pm in enumerate([prefix+'surf',prefix+'base']):
+        if pm in input_dict.keys():    
+            bcs[i] = input_dict[pm]
+
+    return bcs
+    
+
+def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
     
     
     ofb = op.basename(outfilename)
@@ -226,12 +259,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True);:
     
     for ii,input_dict in enumerate(list_of_inputs):
         
-#        try:
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edges']))
-#        except IOError:
-#            print "no fault surfaces file or file does not exist"
-#            input_dict['fault_surfaces'] = None
         
         # determine whether this is a new volume
         newvol = True
@@ -239,11 +268,21 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True);:
             # check if the same rock volume (as determined by repeat) as previous
             if rno == input_dict['repeat']:
                 newvol = False
+        # define rno, for next loop
         rno = input_dict['repeat']
+        # determine solve direction (integer)
+        sdno = list('xyz').index(input_dict['solve_direction'])
         
         ro = rn.Rock_volume(**input_dict)
         
-        if newvol:
-            Vstart = None
-        else:
-            Vstart = ro.voltage.copy().transpose(1,0,2)
+        Vstart = None
+        if not newvol:
+            if input_dict['solve_properties'] == 'current':
+                Vstart = ro.voltage[:,:,:,sd].copy().transpose(1,0,2)
+            elif input_dict['solve_properties'] == 'fluid':
+                Vstart = ro.current[:,:,:,sd].copy().transpose(1,0,2)
+                
+        Vsurf,Vbase = get_boundary_conditions(ro,input_dict,sdno,input_dict['solve_properties'])
+        
+        ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase)
+        

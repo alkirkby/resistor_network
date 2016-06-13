@@ -89,7 +89,12 @@ class Rock_volume():
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build = True
-
+        
+        
+        nx,ny,nz = self.ncells
+        self.voltage = np.zeros(nz+1,ny+1,nx+1,3)
+        self.pressure = np.zeros(nz+1,ny+1,nx+1,3)
+        
         
         update_dict = {}
         #correcting dictionary for upper case keys
@@ -542,6 +547,8 @@ class Rock_volume():
    
         dx,dy,dz = self.cellsize
         nx,ny,nz = self.ncells
+        
+            
 
         for pname in property_arrays.keys():
             output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
@@ -587,11 +594,11 @@ class Rock_volume():
 
             if pname == 'current':
                 self.current = output_array*1.
-                self.voltage = Vn
+                self.voltage[:,:,:,i] = Vn
                 self.resistivity_bulk, self.resistance_bulk = \
                 rnap.get_bulk_resistivity(self.current,self.cellsize,Vbase-Vsurf)
             elif pname == 'fluid':
-                self.pressure = Vn
+                self.pressure[:,:,:,i] = Vn
                 self.flowrate = output_array*1.
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,Vbase-Vsurf)                
