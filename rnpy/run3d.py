@@ -125,15 +125,25 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
     dimension given by number of fault separation values.
     
     """
+
+    for param,default in [['solve_properties','currentfluid'],
+                          ['solve_direction','xyz'],
+                          ['solve_method','direct'],
+                          ['tolerance',1e-6],
+                          ['permeability_matrix',1e-18],
+                          ['resistivity_matrix',1e3],
+                          ['resistivity_fluid',1e-1]]:
+                              fixed_parameters[param] = default
     
     input_list = []
     solveproperties = []
     for prop in ['current','fluid']:
-        if prop in input_dict['solve_properties']:
+        if prop in fixed_parameters['solve_properties']:
             solveproperties.append(prop)
     
     kmvals,rmvals,rfvals = [loop_parameters[key] for key in \
     ['permeability_matrix','resistivity_matrix','resistivity_fluid']]
+
 
     for r in range(repeats):
         # define names for fault edge and fault surface arrays to be saved
@@ -230,7 +240,7 @@ def divide_inputs(work_to_do,size):
 
 def get_boundary_conditions(ro,input_dict,sdno,solveproperty):
     # create default boundary conditions
-    bcs = [0.,ro.ncells[sdno]*ro.cellsize[sdno]]
+    bcs = [0.,ro.ncells[sdno]*ro.cellsize[sdno]*50.]
 
     if solveproperty ==  'current':
         prefix = 'v'
@@ -283,6 +293,12 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
                 Vstart = ro.current[:,:,:,sd].copy().transpose(1,0,2)
                 
         Vsurf,Vbase = get_boundary_conditions(ro,input_dict,sdno,input_dict['solve_properties'])
+                
         
-        ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase)
-        
+        if input_dict['solve_method'] == 'direct':
+            ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
+                                      method='direct')
+        elif input_dict['solve_method'] == 'relaxation':
+            ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
+                                      method='relaxation',itstep=100,
+                                      tol=input_dict['tolerance']
