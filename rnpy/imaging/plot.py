@@ -509,7 +509,10 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
     arrmin = np.nanmin(arr)
     # get number of cells and cellsize
     nz,ny,nx = np.array(arr.shape[:3]) - 2.
-    dx,dy,dz = cellsize
+    if type(cellsize) in [float,int]:
+        dx,dy,dz = [cellsize]*3
+    else:
+        dx,dy,dz = cellsize
     
     # get x,y z points of apertures, need to transpose to get sorting by z, y and x direction in that order
     x,y,z = [arr1.transpose(2,0,1)*1e3 for arr1 in np.meshgrid(np.linspace(0,dx*(nx+1),nx+2),
