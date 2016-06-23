@@ -150,7 +150,7 @@ def get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,a=3.5,alpha=10.
     networksize = tuple, array or list containing network size in x,y and z 
                   direction
     pxyz = tuple, array or list containing relative probability of a fault in 
-           x,y and z directions
+           yz,xz and yz planes
     
     """
     # get the total volume in metres**3
