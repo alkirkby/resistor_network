@@ -21,7 +21,7 @@ import time
 
 class Rock_volume():
     """
-    ***************Documentation last updated 8 October 2014*******************
+    ***************Documentation last updated 21 June 2016, not finished*******************
     
     Class to contain volumes to be modelled as a random resistor network.
     workdir = working directory
@@ -34,8 +34,9 @@ class Rock_volume():
     update_cellsize_tf = True or False, determines whether to update the cellsize
                          in the direction perp to fault, only updates if 
                          there is only one orientation of faults in the network
-    pconnection = list of probability of connection in the x,y, and z direction 
-                  if fault_assignment is random, default [0.5,0.5,0.5]
+    pconnection = list of relative probability of connection in the yz,xz, and xy plane 
+                  if fault_assignment is random, default [0.33,0.33,0.33] (input
+                  list is normalised so that the total = 1.)
     resistivity_matrix = resistivity of the low conductivity matrix
     resistivity_fluid = resistivity of the high conductivity fluid. Used with 
                         fracture diameter to calculate the resistance of 
@@ -91,9 +92,7 @@ class Rock_volume():
         self.build = True
         
         
-        nx,ny,nz = self.ncells
-        self.voltage = np.zeros(nz+1,ny+1,nx+1,3)
-        self.pressure = np.zeros(nz+1,ny+1,nx+1,3)
+
         
         
         update_dict = {}
@@ -146,6 +145,10 @@ class Rock_volume():
                     self.cellsize[2] = self.cellsize[1]
                 else:
                     self.cellsize = [np.amin(self.cellsize)]*3
+
+        nx,ny,nz = self.ncells
+        self.voltage = np.zeros((nz+1,ny+1,nx+1,3))
+        self.pressure = np.zeros((nz+1,ny+1,nx+1,3))
 
         if self.build:
        #     print "building faults"
