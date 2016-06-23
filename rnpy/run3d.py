@@ -290,7 +290,7 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             if input_dict['solve_properties'] == 'current':
                 Vstart = ro.voltage[:,:,:,sd].copy().transpose(1,0,2)
             elif input_dict['solve_properties'] == 'fluid':
-                Vstart = ro.current[:,:,:,sd].copy().transpose(1,0,2)
+                Vstart = ro.pressure[:,:,:,sd].copy().transpose(1,0,2)
                 
         Vsurf,Vbase = get_boundary_conditions(ro,input_dict,sdno,input_dict['solve_properties'])
                 
