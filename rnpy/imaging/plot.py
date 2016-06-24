@@ -469,7 +469,10 @@ def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None):
     
     # get number of cells and cellsize
     nz,ny,nx = np.array(ap.shape[:3]) - 2.
-    dx,dy,dz = cellsize
+    if type(cellsize) in [float,int]:
+        dx,dy,dz = [cellsize]*3
+    else:
+        dx,dy,dz = cellsize
     
     # get x,y z points of apertures, need to transpose to get sorting by z, y and x direction in that order
     x,y,z = [arr.transpose(2,0,1)*1e3 for arr in np.meshgrid(np.linspace(0,dx*(nx+1),nx+2),
@@ -497,7 +500,8 @@ def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None):
     quiv.glyph.color_mode = 'color_by_scalar'    
 
 
-def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = None,arrows='single'):
+def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = None,arrows='single',
+               vmin=None,vmax=None,line_width=2.):
     import mayavi.mlab as mlab
     # make a copy of the array for plotting
     arr = flow_array.copy()
@@ -505,8 +509,10 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
     # set nan and small apertures to 0.
     arr[np.isnan(arr)] = 0.
     arr[np.abs(arr)<thresh] = 0.
-    arrmax = np.nanmax(arr)
-    arrmin = np.nanmin(arr)
+    if vmax is None:
+        vmax = np.nanmax(arr)
+    if vmin is None:
+        vmin = np.nanmin(arr)
     # get number of cells and cellsize
     nz,ny,nx = np.array(arr.shape[:3]) - 2.
     if type(cellsize) in [float,int]:
@@ -524,25 +530,25 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
     if 'x' in direction:
         ## x currents
         vx,wx = [np.zeros_like(x)]*2
-        ux = arr[:,:,:,model_direction,0]/arrmax
+        ux = arr[:,:,:,model_direction,0]/vmax
         
     else:
         ux = np.zeros_like(x)
     if 'y' in direction:
         # y connectors
         uy,wy = [np.zeros_like(y)]*2
-        vy = arr[:,:,:,model_direction,1]/arrmax
+        vy = arr[:,:,:,model_direction,1]/vmax
         
     else:
         vy = np.zeros_like(y)    
     if 'z' in direction:
         # z connectors
         uz,vz = [np.zeros_like(z)]*2
-        wz = arr[:,:,:,model_direction,2]/arrmax
+        wz = arr[:,:,:,model_direction,2]/vmax
 #        quiv = 
     else:
         wz = np.zeros_like(z)
-    optargs = dict(mode='2darrow',vmin=arrmin,vmax=arrmax)
+    optargs = dict(mode='2darrow',vmin=vmin,vmax=vmax,line_width=line_width)
     if scale_factor is not None:
         optargs['scale_factor'] = scale_factor
     if arrows == 'single':
