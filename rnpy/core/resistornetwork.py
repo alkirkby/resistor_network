@@ -91,9 +91,9 @@ class Rock_volume():
         self.solve_direction = 'xyz'
         self.build = True
         
-        
+        self.resistivity_bulk = [np.nan]*3
+        self.permeability_bulk = [np.nan]*3
 
-        
         
         update_dict = {}
         #correcting dictionary for upper case keys

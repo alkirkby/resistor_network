@@ -167,7 +167,9 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         for i,sd in enumerate(solvedirections):
             # update input dict so we deal with one solve direction at a time
             input_dict['solve_direction'] = sd
-            # loop through current and fluid
+            # loop through current and then fluid
+            # solving each separately, to allow each to be done on a separate
+            # cpu.
             for prop in solveproperties:
                 input_dict['solve_properties'] = prop
                 if prop == 'fluid':
@@ -254,8 +256,82 @@ def get_boundary_conditions(ro,input_dict,sdno,solveproperty):
 
     return bcs
     
+def write_output(ro, outfilename, newfile, repeatno, rank, runno):
+    
+    # make a list containing the variable names to store
+    # start with variables with three directions (x,y and z)
+    variablekeys = [var+direction for var in \
+                   ['aperture_mean','contact_area','permeability','resistivity'] \
+                    for direction in 'xyz' ]:
+    # add single-valued variables
+    variablekeys += ['resistivity_matrix','resistivity_fluid','permeability_matrix',
+                     'fault_separation','repeat','rank','run_no']
+        
+    # output line
+    outline = np.hstack([ro.aperture_mean,ro.contact_area,
+                          ro.permeability,ro.resistivity,
+                          [ro.resistivity_matrix,ro.resistivity_fluid,
+                           ro.permeability_matrix,ro.fault_dict['fault_separation'],
+                          repeat,rank,run_no]])
+               
+    # create a dictionary containing fixed variables
+    fixeddict = {}
+    for param in ['cellsize','ncells','pconnection']:
+        fixeddict[param] = ' '.join([str(val) for val in getattr(ro,param)])
+    for param in ['workdir','fluid_viscosity','fault_assignment','offset',
+                  'fractal_dimension','faultlength_max','faultlength_min',
+                  'alpha','a','mismatch_wavelength_cutoff','aperture_type']:
+        fixeddict[param] = getattr(ro,param)
+        
+    # write to file. If newfile flag is True, then create header and make a new file
+    # otherwise append to existing file
+    if newfile:
+        with open(outfilename, 'wb') as outfile:
+            header = '# suite of resistor network simulations\n'
+            
+            header += '### fixed parameters ###\n'
+            header += '# '+'\n# '.join([' '.join([key,str(fixeddict[key])]) for key in fixeddict.keys()])+'\n'
+            header += '### variable parameters ###\n'
+            header += '# '+' '.join(variablekeys)
+            outfile.write(header)
+            outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
+    else:
+        with open(outfilename, 'ab') as outfile:
+            outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
 
-def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
+def gather_outputs(outputs_gathered, wd, outfile) :
+    """
+    gathers all the outputs written to individual files for each rank, to a 
+    master file.
+    
+    
+    """
+    outfn = outputs_gathered[0]
+    outarray = np.loadtxt(outfn)
+    outfile0 = open(outfn)
+    line = outfile0.readline()
+    header = ''
+
+    while line[0] == '#':
+        header += line
+        line = outfile0.readline()
+    header = header.strip()
+    count = 0
+    for outfn in outputs_gathered:
+        if count > 0:
+            try:
+                outarray = np.vstack([outarray,np.loadtxt(outfn)])
+            except IOError:
+                print "Failed to find file {}, skipping and moving to the next file".format(outfn)
+        count += 1
+
+    np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
+
+    for outfn in outputs_gathered:
+        if outfile not in outfn:
+            os.remove(outfn)    
+
+def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
     
     
     ofb = op.basename(outfilename)
@@ -274,10 +350,11 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         
         # determine whether this is a new volume
         newvol = True
-        if ii > 0:
-            # check if the same rock volume (as determined by repeat) as previous
-            if rno == input_dict['repeat']:
-                newvol = False
+        if input_dict['solve_method'] == 'relaxation':
+            if ii > 0:
+                # check if the same rock volume (as determined by repeat) as previous
+                if rno == input_dict['repeat']:
+                    newvol = False
         # define rno, for next loop
         rno = input_dict['repeat']
         # determine solve direction (integer)
@@ -301,4 +378,77 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
         elif input_dict['solve_method'] == 'relaxation':
             ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='relaxation',itstep=100,
-                                      tol=input_dict['tolerance']
+                                      tol=input_dict['tolerance'])
+
+        write_output(ro, outfilename, newfile, repeatno, rank, runno)
+        
+        
+        
+def setup_and_run_suite(arguments, argument_names):
+    """
+    set up and run a suite of runs in parallel using mpi4py
+    """
+    from mpi4py import MPI
+    
+    # sort out rank and size info
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    name = MPI.Get_processor_name()
+    print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
+   
+    # get inputs from the command line
+    fixed_parameters, loop_parameters, repeats = read_arguments(arguments, argument_names)
+    
+    # get workdir
+    if 'workdir' in fixed_parameters.keys():
+        wd = fixed_parameters['workdir']
+    else:
+        wd = './model_runs'
+    # define a subdirectory to store arrays
+    wd2 = os.path.join(wd,'arrays')
+
+
+    list_of_inputs = initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size)
+
+    time.sleep(10)
+    # divide inputs
+    inputs = divide_inputs(list_of_inputs,size)
+    if rank == 0:        
+        # make working directories
+        if not os.path.exists(wd):
+            os.mkdir(wd)
+        wd = os.path.abspath(wd)
+        if not os.path.exists(wd2):
+            os.mkdir(wd2)
+    else:
+        
+        list_of_inputs = None
+        inputs = None
+        # wait for rank 1 to generate folder
+        while not os.path.exists(wd2):
+            time.sleep(1)
+            
+            
+    # initialise outfile name
+    if 'outfile' in fixed_parameters.keys():
+        outfile = fixed_parameters['outfile']
+    else:
+        outfile = 'outputs.dat'
+        
+    #print "sending jobs out, rank {}".format(rank)
+    inputs_sent = comm.scatter(inputs,root=0)
+    #print "inputs have been sent", len(inputs_sent), "rank", rank
+    outfilenames = run(inputs_sent,
+                       rank,
+                       wd2,
+                       op.join(wd,outfile))
+
+    outputs_gathered = comm.gather(outfilenames,root=0)
+    
+    if rank == 0:
+        gather_outputs(outputs_gathered, wd, outfile)
+
+                   
+if __name__ == "__main__":
+    setup_and_run_suite(sys.argv,argument_names)
