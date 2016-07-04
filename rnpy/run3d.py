@@ -84,7 +84,7 @@ def read_arguments(arguments, argument_names):
 
     args = parser.parse_args(arguments[1:])
 
-    loop_parameters = {}
+    loop_parameters = {'fault_separation':[0.0]}
     # initialise fixed parameters, giving a default for workdir
     fixed_parameters = {'workdir':os.getcwd()}   
     repeats = [0]
@@ -98,7 +98,7 @@ def read_arguments(arguments, argument_names):
                 value = at[1]
                 
             if at[0] == 'repeats':
-                repeats = range(at[1][0])
+                repeats = at[1][0]
             elif at[0] in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
                 loop_parameters[at[0]] = value
             elif type(value) == list:
@@ -113,7 +113,7 @@ def read_arguments(arguments, argument_names):
                 fixed_parameters[at[0]] = value
                 
 
-
+    print "loop_parameters",loop_parameters
     return fixed_parameters, loop_parameters, repeats
 
 
@@ -133,7 +133,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
                           ['permeability_matrix',1e-18],
                           ['resistivity_matrix',1e3],
                           ['resistivity_fluid',1e-1]]:
-                              fixed_parameters[param] = default
+                              if param not in fixed_parameters.keys():
+                                  fixed_parameters[param] = default
     
     input_list = []
     solveproperties = []
@@ -147,7 +148,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
 
     for r in range(repeats):
         # define names for fault edge and fault surface arrays to be saved
-        fename,fsname = 'fault_edges%2i.dat'%r, 'fault_surfaces%2i.dat'%r
+        fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
         input_dict.update(fixed_parameters)
         if 'solve_direction' in input_dict.keys():
@@ -159,35 +160,40 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         ro = rn.Rock_volume(**input_dict)
         # save to a file so they can be accessed by all processors
         np.save(op.join(ro.workdir,fename),ro.fault_edges)
-        np.save(op.join(ro.workdir,fsname),ro.fault_surfaces)
+        np.save(op.join(ro.workdir,fsname),ro.fault_dict['fault_surfaces'])
         # set the variables to the file name
-        input_dict['fault_edges'] == fename
-        input_dict['fault_surfaces'] == fsname
+        input_dict['fault_edgesname'] = fename
+        input_dict['fault_surfacename'] = fsname
+
         # loop through solve directions        
         for i,sd in enumerate(solvedirections):
-            # update input dict so we deal with one solve direction at a time
-            input_dict['solve_direction'] = sd
-            # loop through current and then fluid
-            # solving each separately, to allow each to be done on a separate
-            # cpu.
-            for prop in solveproperties:
-                input_dict['solve_properties'] = prop
-                if prop == 'fluid':
-                    for km in kmvals:
-                        input_dict['permeability_matrix'] = km
-                        input_list.append([])
-                        for fs in loop_parameters['fault_separation']:
-                            input_dict['fault_separation'] = fs
-                            input_list[-1].append(input_dict)
-                elif prop == 'current':
-                    for rm,rf in itertools.product(rmvals,rfvals):
-                        input_dict['resistivity_matrix'] = rm
-                        input_dict['resistivity_fluid'] = rf
-                        input_list.append([])
-                        for fs in loop_parameters['fault_separation']:
-                            input_dict['fault_separation'] = fs
-                            input_list[-1].append(input_dict)
-                        
+                # update input dict so we deal with one solve direction at a time
+                input_dict['solve_direction'] = sd
+                # loop through current and then fluid
+                # solving each separately, to allow each to be done on a separate
+                # cpu.
+                for prop in solveproperties:
+                    input_dict['solve_properties'] = prop
+                    if prop == 'fluid':
+                        for km in kmvals:
+                            input_dict['permeability_matrix'] = km
+                            tmp_list = []
+                            for fs in loop_parameters['fault_separation']:
+                                input_dict['fault_separation'] = fs
+                                tmp_list.append(input_dict.copy())
+                            input_list.append(tmp_list)
+                    elif prop == 'current':
+                        for rm,rf in itertools.product(rmvals,rfvals):
+                            input_dict['resistivity_matrix'] = rm
+                            input_dict['resistivity_fluid'] = rf
+                            tmp_list = []
+                            for fs in loop_parameters['fault_separation']:
+                                input_dict['fault_separation'] = fs
+                                print "input_dict",input_dict
+                                tmp_list.append(input_dict.copy())
+                                print fs
+                            input_list.append(tmp_list)
+    print "input_list",input_list                    
     return input_list
     
 
@@ -260,19 +266,23 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     
     # make a list containing the variable names to store
     # start with variables with three directions (x,y and z)
-    variablekeys = [var+direction for var in \
-                   ['aperture_mean','contact_area','permeability','resistivity']]
+    variablekeys = ['aperture_mean','contact_area','permeability','resistivity']
     dno = 'xyz'.index(direction)
     # add single-valued variables
     variablekeys += ['resistivity_matrix','resistivity_fluid','permeability_matrix',
-                     'fault_separation','repeat','rank','run_no']
+                     'fault_separation','direction','repeat','rank','run_no']
         
     # output line
-    output_line = np.array([ro.aperture_mean[dno],ro.contact_area[dno],
-                            ro.permeability[dno],ro.resistivity[dno],
+#    print ro.aperture_mean[dno],ro.contact_area[dno],\
+#                            ro.permeability[dno],ro.resistivity[dno],\
+#                            ro.resistivity_matrix,ro.resistivity_fluid,\
+#                            ro.permeability_matrix,ro.fault_dict['fault_separation'],\
+#                            repeatno,rank,runno
+    output_line = [ro.aperture_mean[dno],ro.contact_area[dno],
+                            ro.permeability_bulk[dno],ro.resistivity_bulk[dno],
                             ro.resistivity_matrix,ro.resistivity_fluid,
                             ro.permeability_matrix,ro.fault_dict['fault_separation'],
-                            repeatno,rank,runno])
+                            dno,repeatno,rank,runno]
                
     # create a dictionary containing fixed variables
     fixeddict = {}
@@ -281,7 +291,10 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     for param in ['workdir','fluid_viscosity','fault_assignment','offset',
                   'fractal_dimension','faultlength_max','faultlength_min',
                   'alpha','a','mismatch_wavelength_cutoff','aperture_type']:
-        fixeddict[param] = getattr(ro,param)
+        if param in ro.fault_dict.keys():
+            fixeddict[param] = ro.fault_dict[param]
+        else:
+            fixeddict[param] = getattr(ro,param)
         
     # write to file. If newfile flag is True, then create header and make a new file
     # otherwise append to existing file
@@ -333,7 +346,7 @@ def gather_outputs(outputs_gathered, wd, outfile) :
             os.remove(outfn)    
 
 def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
-    
+    print "list_of_inputs",list_of_inputs
     
     ofb = op.basename(outfilename)
     ofp = op.dirname(outfilename)
@@ -342,14 +355,14 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
         outfilename = op.join(ofp, ofb[:di] + str(rank) + ofb[di:])
     else:
         outfilename = outfilename + str(rank)   
-        
-    
+       
+    newfile = True 
+    runno=1
     for ii,input_dict in enumerate(list_of_inputs):
         
-        input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
-        input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edges']))
+        input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
+        input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         rno = input_dict['repeat']
-        runno = 1
         
         # determine whether this is a new volume
         newvol = True
@@ -377,16 +390,20 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
                 
         
         if input_dict['solve_method'] == 'direct':
-            ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
+            ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='direct')
         elif input_dict['solve_method'] == 'relaxation':
-            ro.solve_resistor_network(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
+            ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
 
         write_output(ro, outfilename, newfile, rno, rank, runno, input_dict['solve_direction'])
         runno += 1
-        
+        newfile = False
+    
+    return outfilename
+ 
+
         
 def setup_and_run_suite(arguments, argument_names):
     """
@@ -438,7 +455,7 @@ def setup_and_run_suite(arguments, argument_names):
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
     else:
-        outfile = 'outputs{}.dat'.format(rank)
+        outfile = 'outputs.dat'
         
     #print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
