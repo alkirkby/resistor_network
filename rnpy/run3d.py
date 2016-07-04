@@ -153,7 +153,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         if 'solve_direction' in input_dict.keys():
             solvedirections = input_dict['solve_direction']
         else:
-            'solve_direction' = 'xyz'
+            solvedirections = 'xyz'
         input_dict['repeat'] = r
         # create a rock volume and get the fault surfaces and fault edges
         ro = rn.Rock_volume(**input_dict)
@@ -256,23 +256,23 @@ def get_boundary_conditions(ro,input_dict,sdno,solveproperty):
 
     return bcs
     
-def write_output(ro, outfilename, newfile, repeatno, rank, runno):
+def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     
     # make a list containing the variable names to store
     # start with variables with three directions (x,y and z)
     variablekeys = [var+direction for var in \
-                   ['aperture_mean','contact_area','permeability','resistivity'] \
-                    for direction in 'xyz' ]:
+                   ['aperture_mean','contact_area','permeability','resistivity']]
+    dno = 'xyz'.index(direction)
     # add single-valued variables
     variablekeys += ['resistivity_matrix','resistivity_fluid','permeability_matrix',
                      'fault_separation','repeat','rank','run_no']
         
     # output line
-    outline = np.hstack([ro.aperture_mean,ro.contact_area,
-                          ro.permeability,ro.resistivity,
-                          [ro.resistivity_matrix,ro.resistivity_fluid,
-                           ro.permeability_matrix,ro.fault_dict['fault_separation'],
-                          repeat,rank,run_no]])
+    output_line = np.array([ro.aperture_mean[dno],ro.contact_area[dno],
+                            ro.permeability[dno],ro.resistivity[dno],
+                            ro.resistivity_matrix,ro.resistivity_fluid,
+                            ro.permeability_matrix,ro.fault_dict['fault_separation'],
+                            repeatno,rank,runno])
                
     # create a dictionary containing fixed variables
     fixeddict = {}
@@ -298,6 +298,7 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno):
     else:
         with open(outfilename, 'ab') as outfile:
             outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
+
 
 def gather_outputs(outputs_gathered, wd, outfile) :
     """
@@ -347,6 +348,8 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
         
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfaces']))
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edges']))
+        rno = input_dict['repeat']
+        runno = 1
         
         # determine whether this is a new volume
         newvol = True
@@ -358,7 +361,8 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
         # define rno, for next loop
         rno = input_dict['repeat']
         # determine solve direction (integer)
-        sdno = list('xyz').index(input_dict['solve_direction'])
+        sd= input_dict['solve_direction']
+        sdno = list('xyz').index(sd)
         
         ro = rn.Rock_volume(**input_dict)
         
@@ -380,8 +384,8 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
 
-        write_output(ro, outfilename, newfile, repeatno, rank, runno)
-        
+        write_output(ro, outfilename, newfile, rno, rank, runno, input_dict['solve_direction'])
+        runno += 1
         
         
 def setup_and_run_suite(arguments, argument_names):
@@ -434,7 +438,7 @@ def setup_and_run_suite(arguments, argument_names):
     if 'outfile' in fixed_parameters.keys():
         outfile = fixed_parameters['outfile']
     else:
-        outfile = 'outputs.dat'
+        outfile = 'outputs{}.dat'.format(rank)
         
     #print "sending jobs out, rank {}".format(rank)
     inputs_sent = comm.scatter(inputs,root=0)
