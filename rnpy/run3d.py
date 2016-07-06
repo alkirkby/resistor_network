@@ -25,11 +25,8 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                   ['fault_assignment',None,'how to assign faults, random or list, '\
                                            'if list need to provide fault edges',1,str],
                   ['offset',None,'number of cells offset between fault surfaces',1,float],
-                  ['length_max',None,'maximum fault length, if specifying random faults',1,float],
-                  ['length_decay',None,'decay in fault length, if specifying random '\
-                                       'fault locations, for each fault: '\
-                                       'faultlength = length_max*exp(-length_decay*R)'\
-                                       'where R is a random number in [0,1]',1,float],
+                  ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
+                  ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
                   ['mismatch_wavelength_cutoff',None,
                   'wavelength cutoff for matching between faults',1,float],
                   ['elevation_scalefactor',None,
@@ -189,11 +186,11 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
                             tmp_list = []
                             for fs in loop_parameters['fault_separation']:
                                 input_dict['fault_separation'] = fs
-                                print "input_dict",input_dict
+                                #print "input_dict",input_dict
                                 tmp_list.append(input_dict.copy())
-                                print fs
+                                #print fs
                             input_list.append(tmp_list)
-    print "input_list",input_list                    
+    #print "input_list",input_list                    
     return input_list
     
 
@@ -346,7 +343,7 @@ def gather_outputs(outputs_gathered, wd, outfile) :
             os.remove(outfn)    
 
 def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
-    print "list_of_inputs",list_of_inputs
+    #print "list_of_inputs",list_of_inputs
     
     ofb = op.basename(outfilename)
     ofp = op.dirname(outfilename)
