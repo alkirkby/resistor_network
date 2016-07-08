@@ -25,7 +25,8 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         aperture_array[k1,j1,ind0:i1,i,od] = d[od]
         aperture_array[k1,j1,i1+1:ind2,i,od] = d[od]
         aperture_array[k1,j1,ind0-1,i,od] += apedge
-        aperture_array[k1,j1,ind2,i,od] += apedge
+        if ind2 < aperture_array.shape[2]:
+            aperture_array[k1,j1,ind2,i,od] += apedge
         
         # update the connectors perpendicular to plane
         aperture_array[k1,j1,ind0-1:ind2,0,0] = d[od]
@@ -41,7 +42,8 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
         aperture_array[k1,ind0:j1,i1,i,od] = d[od]
         aperture_array[k1,j1+1:ind2,i1,i,od] = d[od]
         aperture_array[k1,ind0-1,i1,i,od] += apedge
-        aperture_array[k1,ind2,i1,i,od] += apedge
+        if ind2 < aperture_array.shape[1]:
+            aperture_array[k1,ind2,i1,i,od] += apedge
         
         # update the connectors perpendicular to plane
         aperture_array[k1,ind0-1:ind2,i1,1,1] = d[od]
@@ -54,10 +56,12 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
 
     elif od == 2:
         ind0,ind2 = max(1,k1-ind),min(ncells[0]+1,k1+1+ind)
+#        print("ind2,j1,i1,i,od",ind2,j1,i1,i,od)
         aperture_array[ind0:k1,j1,i1,i,od] = d[od]
         aperture_array[k1+1:ind2,j1,i1,i,od] = d[od]  
         aperture_array[ind0-1,j1,i1,i,od] += apedge
-        aperture_array[ind2,j1,i1,i,od] += apedge 
+        if ind2 < aperture_array.shape[0]:
+            aperture_array[ind2,j1,i1,i,od] += apedge 
         
         # update the connectors perpendicular to plane
         aperture_array[ind0-1:ind2,j1,i1,2,2] = d[od]
@@ -174,7 +178,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
 
         resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.product(dp)/d[i]
         
-    return resistance_array,resistivity_array
+    return resistance_array,resistivity_array,aperture_array
 
 
 def get_permeability(aperture_array,k_matrix,d):

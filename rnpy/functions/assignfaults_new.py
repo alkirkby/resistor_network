@@ -272,7 +272,8 @@ def get_faultpair_inputs(fractal_dimension,elevation_scalefactor,
     
 
 
-def assign_fault_aperture(fault_array,fault_uvw, 
+def assign_fault_aperture(fault_uvw,
+                          ncells,
                           cs = 0.25e-3,
                           fault_separation=1e-4, 
                           fault_surfaces = None,
@@ -305,7 +306,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                   shape (nx,ny,nz,3), created using initialise_faults
     fault_uvw = array or list containing u,v,w extents of faults
     cs = cellsize in metres, has to be same in x and y directions
-    fault_separation, float = array containing fault separation values normal to fault surface,
+    fault_separation = array containing fault separation values normal to fault surface,
                               length same as fault_uvw
     fault_surfaces = list or array of length the same as fault_uvw, each item containing 
                      2 numpy arrays, containing fault surface elevations, if 
@@ -328,19 +329,24 @@ def assign_fault_aperture(fault_array,fault_uvw,
                  indices for the aperture array
     ===========================================================================    
     """
-    fault_array = rna.add_nulls(fault_array)
 
-    nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1] - 2
+    nx,ny,nz = ncells
+    
+    if aperture_type == 'list':
+        fill_array = True
+    
     
     if fill_array:
-        ap_array = np.array([np.ones_like(fault_array)*1e-50]*3) # yz, xz and xy directions
+        ap_array = np.array([np.ones((nz+2,ny+2,nx+2,3,3))*1e-50]*3) # yz, xz and xy directions
 
     if ((aperture_type != 'list') or (aperture_list is None)):
         aperture_list = []
         aperture_list_c = []
         aperture_list_f = []
 
-
+    if type(fault_separation) is float:
+        fault_separation = np.ones(len(fault_uvw))*fault_separation
+        
 #    ap_array[0] *= 1e-50
     bvals = []
     faultheights = []
@@ -368,27 +374,27 @@ def assign_fault_aperture(fault_array,fault_uvw,
 
         if aperture_type == 'list':
             if aperture_list is not None:
-                print w0,w1,v0,v1,u0,u1
+#                print w0,w1,v0,v1,u0,u1
                 du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
-                print dw1,dv1,du1
+#                print dw1,dv1,du1
 #                print ap_array.shape
-                
                 for iii,ap in enumerate(aperture_list):
-                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
-                    print ap[i][:dw1+1,:dv1+1].shape
+#                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
                     dperp=list(duvw).index(0)
-                    print dperp
+#                    print dperp
                     if dperp == 0:
-                        print ap[i][:dw1+1,:dv1+1].shape
-                        ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] = np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
+#                        print ap[i][:dw1+1,:dv1+1].shape
+                        ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]#np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
                     elif dperp == 1:
-                        ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u0+1] = np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u0+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
+                        ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]#np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
                     elif dperp == 2:
-                        ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] = np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
+#                        print ap[i][:,:dv1+1,:du1+1].shape
+                        ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]#np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
+
             else:
                 aperture_type = 'random'
         
-        else:
+        if aperture_type == 'random':
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
@@ -454,12 +460,12 @@ def assign_fault_aperture(fault_array,fault_uvw,
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
                     if fill_array:
                         # faults perpendicular to x direction, i.e. yz plane
-                        ap_array[ii,w0:w1+1,v0:v1+1,u0-1,0,0] = b2vals
-                        ap_array[ii,w0:w1+1,v0:v1+1,u0,0,0] = b2vals
+                        ap_array[ii,w0:w1+1,v0:v1+1,u0-1,0,0] += b2vals
+                        ap_array[ii,w0:w1+1,v0:v1+1,u0,0,0] += b2vals
                         # y direction opening in x direction
-                        ap_array[ii,w0:w1+1,v0:v1,u0,1,0] = b0vals
+                        ap_array[ii,w0:w1+1,v0:v1,u0,1,0] += b0vals
                         # z direction opening in x direction
-                        ap_array[ii,w0:w1,v0:v1+1,u0,2,0] = b1vals
+                        ap_array[ii,w0:w1,v0:v1+1,u0,2,0] += b1vals
 
                     aperture = np.zeros((w1-w0+1,v1-v0+1,2,3,3))
                     aperture[:,:,0,0,0] = b2vals
@@ -473,12 +479,12 @@ def assign_fault_aperture(fault_array,fault_uvw,
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                     if fill_array:
                         # faults perpendicular to y direction, i.e. xz plane
-                        ap_array[ii,w0:w1+1,v0-1,u0:u1+1,1,1] = b2vals
-                        ap_array[ii,w0:w1+1,v0,u0:u1+1,1,1] = b2vals
+                        ap_array[ii,w0:w1+1,v0-1,u0:u1+1,1,1] += b2vals
+                        ap_array[ii,w0:w1+1,v0,u0:u1+1,1,1] += b2vals
                         # x direction opening in y direction
-                        ap_array[ii,w0:w1+1,v0,u0:u1,0,1] = b0vals
+                        ap_array[ii,w0:w1+1,v0,u0:u1,0,1] += b0vals
                         # z direction opening in y direction
-                        ap_array[ii,w0:w1,v0,u0:u1+1,2,1] = b1vals
+                        ap_array[ii,w0:w1,v0,u0:u1+1,2,1] += b1vals
 
                     aperture = np.zeros((w1+1-w0,2,u1+1-u0,3,3))
                     aperture[:,0,:,1,1] = b2vals
@@ -492,12 +498,12 @@ def assign_fault_aperture(fault_array,fault_uvw,
                                            b2[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                     if fill_array:
                         # faults perpendicular to z direction, i.e. xy plane
-                        ap_array[ii,w0-1,v0:v1+1,u0:u1+1,2,2] = b2vals
-                        ap_array[ii,w0,v0:v1+1,u0:u1+1,2,2] = b2vals
+                        ap_array[ii,w0-1,v0:v1+1,u0:u1+1,2,2] += b2vals
+                        ap_array[ii,w0,v0:v1+1,u0:u1+1,2,2] += b2vals
                         # x direction opening in z direction
-                        ap_array[ii,w0,v0:v1+1,u0:u1,0,2] = b0vals
+                        ap_array[ii,w0,v0:v1+1,u0:u1,0,2] += b0vals
                         # y direction opening in z direction
-                        ap_array[ii,w0,v0:v1,u0:u1+1,1,2] = b1vals
+                        ap_array[ii,w0,v0:v1,u0:u1+1,1,2] += b1vals
                     
                     aperture = np.zeros((2,v1+1-v0,u1+1-u0,3,3))
                     aperture[0,:,:,2,2] = b2vals
@@ -507,8 +513,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                 
 
                 tmp_aplist.append(aperture)
-                if fill_array:
-                    rna.add_nulls(ap_array[ii])
+
                 bvals[-1].append([bb,b0,b1])
                 
             faultheights.append([h1,h2])
@@ -520,7 +525,10 @@ def assign_fault_aperture(fault_array,fault_uvw,
 
     
     if fill_array:
+        for ii in range(3):
+            rna.add_nulls(ap_array[ii])
         if aperture_type == 'list':
+            print len(aperture_list)
             aperture_list_f = aperture_list[1]
             aperture_list_c = aperture_list[2]
             aperture_list = aperture_list[0]

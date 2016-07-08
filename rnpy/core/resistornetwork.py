@@ -345,18 +345,15 @@ class Rock_volume():
                         aperture_input[key] = self.fault_dict[key]
 
         if self.build_arrays:
-#            if self.fault_dict['aperture_type'] == 'list':
+
                 ap,apc,aph,self.aperture,self.aperture_hydraulic, \
                 self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,fill_array=True,**aperture_input)
-#            else:
-#                ap,apc,aph,self.aperture,self.aperture_hydraulic, \
-#                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-#                rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,fill_array=True,**aperture_input)
+                rnaf.assign_fault_aperture(self.fault_edges,self.ncells,fill_array=True,**aperture_input)
+
                 self.fault_dict['aperture_list'] = [ap,apc,aph]  
         else:
             ap,apc,aph,self.fault_dict['fault_surfaces'] = \
-            rnaf.assign_fault_aperture(self.fault_array,self.fault_edges,fill_array=False,**aperture_input)
+            rnaf.assign_fault_aperture(self.fault_edges,self.ncells,fill_array=False,**aperture_input)
             self.fault_dict['aperture_list'] = [ap,apc,aph]            
 
         if self.aperture is not None:
@@ -372,6 +369,7 @@ class Rock_volume():
                     self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
                 else:
                     self.contact_area.append(0.) 
+                    
             if self.aperture_hydraulic is None:
                 self.aperture_hydraulic = self.aperture.copy()
             if self.aperture_electric is None:
@@ -383,8 +381,8 @@ class Rock_volume():
                 self.update_cellsize()
     
     def update_cellsize(self):
-        if (('yz' in self.fault_assignment) or (min(self.ncells)==0) or \
-            (np.count_nonzero(self.pconnection) == 1)):
+        if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
+            for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):
             for i in range(3):
                 apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
                 apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
@@ -404,7 +402,7 @@ class Rock_volume():
 
         """
         
-        self.resistance,self.resistivity = \
+        self.resistance,self.resistivity,self.aperture_electric = \
         rnap.get_electrical_resistance(self.aperture_electric,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
