@@ -91,9 +91,12 @@ class Rock_volume():
         self.solve_properties = 'currentfluid'
         self.solve_direction = 'xyz'
         self.build_arrays = True
+        self.array_buffer = 0
         
         self.resistivity_bulk = [np.nan]*3
         self.permeability_bulk = [np.nan]*3
+        
+        
 
         
         update_dict = {}
@@ -151,11 +154,26 @@ class Rock_volume():
 
 
         if self.build_arrays:
+            print "building arrays"
             if self.fault_array is None:
                 self.build_faults()
        #     print "building aperture"
             if self.aperture is None:
                 self.build_aperture()
+                
+            if self.array_buffer > 0:
+                
+                print self.fault_array.shape
+                if np.all(self.fault_array.shape[:3] > np.array(self.ncells) + 2):
+                    print "removing buffer"
+                    buf = self.array_buffer
+                    self.fault_array = self.fault_array[buf:-buf,buf:-buf,buf:-buf]
+                    self.fault_array = rna.add_nulls(self.fault_array)
+                    print self.fault_array.shape
+                if np.all(self.aperture.shape[:3] > np.array(self.ncells) + 2):
+                    buf = self.array_buffer
+                    self.aperture = self.aperture[buf:-buf,buf:-buf,buf:-buf]
+                    self.aperture = rna.add_nulls(self.aperture)
        #     print "initialising electrical resistance"
             self.initialise_electrical_resistance()
        #     print "initialising permeability"
@@ -164,6 +182,10 @@ class Rock_volume():
             self.pressure = np.zeros((nz+1,ny+1,nx+1,3))
         else:
             self.build_faults(create_array=False)
+            
+        
+        
+        
 
     def build_faults(self,create_array=True):
         """
@@ -187,7 +209,9 @@ class Rock_volume():
         # first check the shape and see that it conforms to correct dimensions
         # if it doesn't, create a new array with the correct dimensions
         if self.fault_array is not None:
-            if self.fault_array.shape != (nz+2,ny+2,nx+2,3,3):
+            if self.fault_array.shape != (nz+2 + self.array_buffer*2,
+                                          ny+2 + self.array_buffer*2,
+                                          nx+2 + self.array_buffer*2,3,3):
                 print "Fault array does not conform to dimensions of network, creating a new array!"
                 self.fault_array= None
                 
@@ -196,7 +220,11 @@ class Rock_volume():
             if create_array:
                 print "initialising a new array"
                 # initialise a fault array
-                self.fault_array = np.zeros([nz+2,ny+2,nx+2,3,3])
+                self.fault_array = np.zeros([nz+2+self.array_buffer*2,
+                                             ny+2+self.array_buffer*2,
+                                             nx+2+self.array_buffer*2,3,3])
+                if self.fault_edges is not None:
+                    self.fault_edges = np.array(self.fault_edges) + self.array_buffer
                 # add nulls to the edges
                 self.fault_array = rna.add_nulls(self.fault_array)
             
@@ -345,15 +373,16 @@ class Rock_volume():
                         aperture_input[key] = self.fault_dict[key]
 
         if self.build_arrays:
-
                 ap,apc,aph,self.aperture,self.aperture_hydraulic, \
                 self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_edges,self.ncells,fill_array=True,**aperture_input)
+                rnaf.assign_fault_aperture(self.fault_edges,
+                                           np.array(self.ncells)+self.array_buffer*2,
+                                           fill_array=True,**aperture_input)
 
                 self.fault_dict['aperture_list'] = [ap,apc,aph]  
         else:
             ap,apc,aph,self.fault_dict['fault_surfaces'] = \
-            rnaf.assign_fault_aperture(self.fault_edges,self.ncells,fill_array=False,**aperture_input)
+            rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
             self.fault_dict['aperture_list'] = [ap,apc,aph]            
 
         if self.aperture is not None:
