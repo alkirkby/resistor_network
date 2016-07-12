@@ -161,6 +161,12 @@ class Rock_volume():
             if self.aperture is None:
                 self.build_aperture()
                 
+
+       #     print "initialising electrical resistance"
+            self.initialise_electrical_resistance()
+       #     print "initialising permeability"
+            self.initialise_permeability()
+
             if self.array_buffer > 0:
                 
                 print self.fault_array.shape
@@ -174,10 +180,7 @@ class Rock_volume():
                     buf = self.array_buffer
                     self.aperture = self.aperture[buf:-buf,buf:-buf,buf:-buf]
                     self.aperture = rna.add_nulls(self.aperture)
-       #     print "initialising electrical resistance"
-            self.initialise_electrical_resistance()
-       #     print "initialising permeability"
-            self.initialise_permeability()
+
             self.voltage = np.zeros((nz+1,ny+1,nx+1,3))
             self.pressure = np.zeros((nz+1,ny+1,nx+1,3))
         else:
