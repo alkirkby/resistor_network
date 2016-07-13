@@ -157,29 +157,32 @@ class Rock_volume():
             print "building arrays"
             if self.fault_array is None:
                 self.build_faults()
-       #     print "building aperture"
+                
             if self.aperture is None:
                 self.build_aperture()
                 
 
-       #     print "initialising electrical resistance"
             self.initialise_electrical_resistance()
-       #     print "initialising permeability"
             self.initialise_permeability()
 
+            # remove array buffer
             if self.array_buffer > 0:
                 
-                print self.fault_array.shape
                 if np.all(self.fault_array.shape[:3] > np.array(self.ncells) + 2):
                     print "removing buffer"
                     buf = self.array_buffer
-                    self.fault_array = self.fault_array[buf:-buf,buf:-buf,buf:-buf]
-                    self.fault_array = rna.add_nulls(self.fault_array)
-                    print self.fault_array.shape
+                    self.fault_array = rna.add_nulls(self.fault_array[buf:-buf,buf:-buf,buf:-buf])
                 if np.all(self.aperture.shape[:3] > np.array(self.ncells) + 2):
                     buf = self.array_buffer
-                    self.aperture = self.aperture[buf:-buf,buf:-buf,buf:-buf]
-                    self.aperture = rna.add_nulls(self.aperture)
+                    self.aperture = rna.add_nulls(self.aperture[buf:-buf,buf:-buf,buf:-buf])
+                    
+                self.resistance = rna.add_nulls(self.resistance[buf:-buf,buf:-buf,buf:-buf])
+                self.resistivity = rna.add_nulls(self.resistivity[buf:-buf,buf:-buf,buf:-buf])
+                self.aperture_electric = rna.add_nulls(self.aperture_electric[buf:-buf,buf:-buf,buf:-buf])
+                
+                self.hydraulic_resistance = rna.add_nulls(self.hydraulic_resistance[buf:-buf,buf:-buf,buf:-buf])
+                self.permeability = rna.add_nulls(self.permeability[buf:-buf,buf:-buf,buf:-buf])
+                self.aperture_hydraulic = rna.add_nulls(self.aperture_hydraulic[buf:-buf,buf:-buf,buf:-buf])            
 
             self.voltage = np.zeros((nz+1,ny+1,nx+1,3))
             self.pressure = np.zeros((nz+1,ny+1,nx+1,3))
@@ -241,10 +244,12 @@ class Rock_volume():
                         if len(np.shape(self.fault_edges)) == 3:
                             self.fault_edges = np.array([self.fault_edges])
                         addfaults = True
+                    else:
+                        print "Invalid fault edges"
                     
                         
             # option to specify a single fault in the centre of the yz plane
-            if self.fault_assignment == 'single_yz':
+            elif self.fault_assignment == 'single_yz':
                 ix = int(nx/2) + 1
                 iy0, iy1 = 1, ny + 1
                 iz0, iz1 = 1, nz + 1
@@ -338,8 +343,12 @@ class Rock_volume():
                 # get fault edges
                 fracturecoords = rnaf.get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,a=3.5,alpha=10.)
                 self.fault_edges = rnaf.coords2indices(fracturecoords,networksize,[nx,ny,nz])
-
                 addfaults = True
+            else:
+                self.fault_assignment = 'none'
+                
+            
+                
             if (addfaults and create_array):
                 rnaf.add_faults_to_array(self.fault_array,self.fault_edges)
             else:
@@ -361,57 +370,64 @@ class Rock_volume():
             cellsize = np.amin(self.cellsize)
         
 
-                    
-        aperture_input = {}
-        
-        self.fault_dict['mismatch_wavelength_cutoff'], fc = \
-        rnfa.get_faultpair_defaults(cellsize,
-                                    self.fault_dict['mismatch_wavelength_cutoff'] 
-                                    )
-
-        for key in ['fractal_dimension','fault_separation','offset',
-                    'elevation_scalefactor', 'fault_surfaces',
-                    'mismatch_wavelength_cutoff','aperture_type',
-                    'correct_aperture_for_geometry','aperture_list']:
-                        aperture_input[key] = self.fault_dict[key]
-
-        if self.build_arrays:
-                ap,apc,aph,self.aperture,self.aperture_hydraulic, \
-                self.aperture_electric,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_edges,
-                                           np.array(self.ncells)+self.array_buffer*2,
-                                           fill_array=True,**aperture_input)
-
-                self.fault_dict['aperture_list'] = [ap,apc,aph]  
-        else:
-            ap,apc,aph,self.fault_dict['fault_surfaces'] = \
-            rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
-            self.fault_dict['aperture_list'] = [ap,apc,aph]            
-
-        if self.aperture is not None:
-            # get the aperture values from the faulted part of the volume to do some calculations on
-            faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
-                          for i in range(3)]
-    
-            self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
-    #        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
-            self.contact_area = []
-            for i in range(3):
-                if np.size(faultapvals[i]) > 0:
-                    self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
-                else:
-                    self.contact_area.append(0.) 
-                    
-            if self.aperture_hydraulic is None:
-                self.aperture_hydraulic = self.aperture.copy()
-            if self.aperture_electric is None:
+        if self.fault_assignment == 'none':
+            if self.fault_array is not None:
+                self.aperture = rna.add_nulls(np.zeros_like(self.fault_array))
                 self.aperture_electric = self.aperture.copy()
+                self.aperture_hydraulic = self.aperture.copy()
+
+        else:                    
+            aperture_input = {}
             
-            # update cellsize so it is at least as big as the largest fault aperture
-            # but only if it's a 2d network or there are only faults in one direction
-            if self.update_cellsize_tf:
-                self.update_cellsize()
+            self.fault_dict['mismatch_wavelength_cutoff'], fc = \
+            rnfa.get_faultpair_defaults(cellsize,
+                                        self.fault_dict['mismatch_wavelength_cutoff'] 
+                                        )
     
+            for key in ['fractal_dimension','fault_separation','offset',
+                        'elevation_scalefactor', 'fault_surfaces',
+                        'mismatch_wavelength_cutoff','aperture_type',
+                        'correct_aperture_for_geometry','aperture_list']:
+                            aperture_input[key] = self.fault_dict[key]
+    
+            if self.build_arrays:
+                    ap,apc,aph,self.aperture,self.aperture_hydraulic, \
+                    self.aperture_electric,self.fault_dict['fault_surfaces'] = \
+                    rnaf.assign_fault_aperture(self.fault_edges,
+                                               np.array(self.ncells)+self.array_buffer*2,
+                                               fill_array=True,**aperture_input)
+    
+                    self.fault_dict['aperture_list'] = [ap,apc,aph]  
+            else:
+                ap,apc,aph,self.fault_dict['fault_surfaces'] = \
+                rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
+                self.fault_dict['aperture_list'] = [ap,apc,aph]            
+    
+            if self.aperture is not None:
+                # get the aperture values from the faulted part of the volume to do some calculations on
+                faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
+                              for i in range(3)]
+        
+                self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
+        #        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
+                self.contact_area = []
+                for i in range(3):
+                    if np.size(faultapvals[i]) > 0:
+                        self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
+                    else:
+                        self.contact_area.append(0.) 
+                        
+                if self.aperture_hydraulic is None:
+                    self.aperture_hydraulic = self.aperture.copy()
+                if self.aperture_electric is None:
+                    self.aperture_electric = self.aperture.copy()
+                
+                # update cellsize so it is at least as big as the largest fault aperture
+                # but only if it's a 2d network or there are only faults in one direction
+                if self.update_cellsize_tf:
+                    self.update_cellsize()
+
+  
     def update_cellsize(self):
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
             for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):

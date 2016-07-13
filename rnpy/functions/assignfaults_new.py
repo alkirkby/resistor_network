@@ -375,42 +375,42 @@ def assign_fault_aperture(fault_uvw,
         if aperture_type == 'list':
             if aperture_list is not None:
                 du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
-                print u0,v0,w0,u1,v1,w1
+#                print u0,v0,w0,u1,v1,w1
 #                print dw1,dv1,du1
 #                print ap_array.shape
                 for iii,ap in enumerate(aperture_list):
 #                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
                     dperp=list(duvw).index(0)
-                    print ap[i].shape
+#                    print ap[i].shape
 
                     if dperp == 0:
                         try:
                             ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]#np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
                         except:
-                            print "aperture wrong shape, resetting fault extents"
+#                            print "aperture wrong shape, resetting fault extents"
                             u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:dv1+1].shape[2::-1] - np.array([2,1,1])
-                            print dperp,u0,v0,w0,u1,v1,w1
+#                            print dperp,u0,v0,w0,u1,v1,w1
                             ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]
                     elif dperp == 1:
                         try:
                             ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]#np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
                         except:
-                            print "aperture wrong shape, resetting fault extents"
+#                            print "aperture wrong shape, resetting fault extents"
                             u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:,:du1+1].shape[2::-1] - np.array([1,2,1])
-                            print dperp,u0,v0,w0,u1,v1,w1
+#                            print dperp,u0,v0,w0,u1,v1,w1
                             ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]
                     elif dperp == 2:
                         try:
                             ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]#np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
                         except:
-                            print "aperture wrong shape, resetting fault extents"
+#                            print "aperture wrong shape, resetting fault extents"
                             u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:,:dv1+1,:du1+1].shape[2::-1] - np.array([1,1,2])
-                            print dperp,u0,v0,w0,u1,v1,w1
+#                            print dperp,u0,v0,w0,u1,v1,w1
                             ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]
             else:
                 aperture_type = 'random'
         
-        if aperture_type == 'random':
+        if aperture_type in ['random','constant']:
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
