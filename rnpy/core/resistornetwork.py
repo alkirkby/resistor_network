@@ -96,7 +96,8 @@ class Rock_volume():
         self.resistivity_bulk = [np.nan]*3
         self.permeability_bulk = [np.nan]*3
         
-        
+        self.indices = None # indices of bigger volume, if the rock volume is part of a larger network
+        self.id # identification number
 
         
         update_dict = {}
