@@ -213,7 +213,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
             # x direction array
             if 'x' in directions:
                 ncells = nc.copy()
-                nc[0] -= n
+                nc[0] -= n[0]
                 romx = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='x',**inputs)
                 arr = getattr(romx,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n-1,0]
@@ -227,7 +227,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
             # y direction array
             if 'y' in directions:
                 ncells = nc.copy()
-                nc[1] -= n
+                nc[1] -= n[1]
                 romy = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='y',**inputs)
                 arr = getattr(romy,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n,1:-1,0]
@@ -241,7 +241,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
             # z direction array
             if 'z' in directions:
                 ncells = nc.copy()
-                nc[2] -= n
+                nc[2] -= n[2]
                 romz = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='z',**inputs)
                 arr = getattr(romz,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:-n,1:,1:-1,0]
@@ -604,7 +604,6 @@ def setup_and_run_segmented_volume(arguments, argument_names):
             os.mkdir(wd2)
     else:
         
-        list_of_inputs_master = None
         # wait for rank 1 to generate folder
         while not os.path.exists(wd2):
             time.sleep(1)
@@ -618,11 +617,11 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     # get list of master rock volumes. Two lists. The first has all the rock volumes
     # the second has all the solve properties and directions separated out for
     # parallel processing
+    subvolume_size = list_of_inputs_master[0]['subvolume_size']
     if rank == 0:
         ro_list, ro_list_sep = build_master(list_of_inputs_master)
-        subvolume_size = list_of_inputs_master[0]['subvolume_size']
     else:
-        ro_list, ro_list_sep,subvolume_size = None,None,None
+        ro_list, ro_list_sep = None,None
     # run comparison
     if 'bulk' in fixed_parameters['comparison_arrays']:
         run_comparison(ro_list_sep,subvolume_size,rank,size,comm,op.join(wd,'comparison_'+outfile))
