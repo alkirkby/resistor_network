@@ -17,7 +17,7 @@ import time
 import itertools
 
 argument_names = [['splitn','n','number of subvolumes in x,y and z direction',3,int],
-                  ['subvolume_size','sn','number of cells in each subvolume (3 integers for size in x, y and z directions)',3,int]
+                  ['subvolume_size','sn','number of cells in each subvolume (3 integers for size in x, y and z directions)',3,int],
                   ['cellsize','c','cellsize in x,y and z direction',3,float],
                   ['pconnection','p','probability of a fault in x, y and z direction',3,float],
                   ['resistivity_matrix','rm','',1,float],
@@ -50,7 +50,7 @@ argument_names = [['splitn','n','number of subvolumes in x,y and z direction',3,
                   ['psurf','ps','pressure at top of volume for modelling',1,float],
                   ['pbase','pb','pressure at top of volume for modelling',1,float],
                   ['tolerance','tol','tolerance for the iterative solver',1,float],
-                  ['repeats','r','how many times to repeat each permutation',1,int]
+                  ['repeats','r','how many times to repeat each permutation',1,int],
                   ['comparison_arrays','','what sort of comparison arrays to build, bulk, array, bulk_array (both), or none',1,str]]
 
 
@@ -105,7 +105,7 @@ def read_arguments(arguments, argument_names):
                     if len(value) == 1:
                         fixed_parameters[at[0]] = value[0]
                     elif at[0] in ['ncells','cellsize','subvolume_size']:
-                        fixed_parameters[at[0]] = value
+                        fixed_parameters[at[0]] = np.array(value)
                     else:
                         loop_parameters[at[0]] = value
             else:
@@ -205,16 +205,16 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
         
         inputs = dict(update_cellsize_tf=False, fault_assignment='none',
                       cellsize=rom.cellsize,solve_properties=properties)    
+        print "inputs to comparison volume",inputs 
         
-        romx = rn.Rock_volume(ncells=[nc-n,nc,nc],solve_direction='x',**inputs)
-        romy = rn.Rock_volume(ncells=[nc,nc-n,nc],solve_direction='y',**inputs)
-        romz = rn.Rock_volume(ncells=[nc,nc,nc-n],solve_direction='z',**inputs)
-        
-        for att,br in [['resistivity',boundary_res],['hydraulic_resistance',boundary_hydres]]:
+        for att,br,sp in [['resistivity',boundary_res,'current'],['hydraulic_resistance',boundary_hydres,'fluid']]:
             arrtoset = getattr(rom,att)        
             
             # x direction array
             if 'x' in directions:
+                ncells = nc.copy()
+                nc[0] -= n
+                romx = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='x',**inputs)
                 arr = getattr(romx,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n-1,0]
                 arr[1:,1:-1,1:,1] = arrtoset[1:,1:-1,1:-n,1]
@@ -226,6 +226,9 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
     
             # y direction array
             if 'y' in directions:
+                ncells = nc.copy()
+                nc[1] -= n
+                romy = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='y',**inputs)
                 arr = getattr(romy,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n,1:-1,0]
                 arr[1:,1:-1,1:,1] = arrtoset[1:,1:-n-1,1:,1]
@@ -237,6 +240,9 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
             
             # z direction array
             if 'z' in directions:
+                ncells = nc.copy()
+                nc[2] -= n
+                romz = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='z',**inputs)
                 arr = getattr(romz,att)
                 arr[1:,1:,1:-1,0] = arrtoset[1:-n,1:,1:-1,0]
                 arr[1:,1:-1,1:,1] = arrtoset[1:-n,1:-1,1:,1]
@@ -430,25 +436,29 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     initialise and run subvolumes
     
     """
-    nn = input_list[0]['subvolume_size'] 
-    directions = input_list[0]['solve_direction']
-    properties = input_list[0]['solve_properties']
+    if rank == 0:
+        nn = input_list[0]['subvolume_size'] 
+        directions = input_list[0]['solve_direction']
+        properties = input_list[0]['solve_properties']
 
-    input_list_sep = []
-    for idict in input_list:
-        directions = idict['solve_direction']
-        properties = idict['solve_properties']
-        for sd in directions:
-            di = 'xyz'.index(sd)
-            ncells = np.array([nn,nn,nn])
-            ncells[di] += 1
-            idict['ncells'] = ncells
-            for sp in properties:
-                idict['solve_direction'] = sd
-                idict['solve_properties'] = sp
-                input_list_sep.append(idict.copy())
+        input_list_sep = []
+        for idict in input_list:
+            directions = idict['solve_direction']
+            properties = idict['solve_properties']
+            for sd in directions:
+                di = 'xyz'.index(sd)
+                ncells = np.array([nn,nn,nn])
+                ncells[di] += 1
+                idict['ncells'] = ncells
+                for sp in properties:
+                    idict['solve_direction'] = sd
+                    idict['solve_properties'] = sp
+                    input_list_sep.append(idict.copy())
     
-    input_list_divided = divide_inputs(input_list_sep,size)
+        input_list_divided = divide_inputs(input_list_sep,size)
+    else:
+        input_list_divided = None
+
     inputs_sent = comm.scatter(input_list_divided,root=0)
     bulk_props = run_subvolumes(inputs_sent,return_objects=return_objects)
     outputs_gathered = comm.gather(bulk_props,root=0)
@@ -459,7 +469,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     return outputs_gathered
 
 
-def construct_array_from_subvolumes():
+#def construct_array_from_subvolumes():
 
 
 
@@ -517,7 +527,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         else:
             outarray = np.vstack([outarray,line])
         count += 1
-
+    print "saving outputs to file {}".format(outfile)
     np.savetxt(outfile,outarray,fmt='%.3e',comments='')
    
 
@@ -526,14 +536,18 @@ def write_outputs_comparison(outputs_gathered, outfile) :
 def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile):
     
     
-    
     if comm is not None:
-        rolist_divided = divide_inputs(ro_list,size)
+        print "setting up comparison volumes in parallel"
+        if rank == 0:
+            rolist_divided = divide_inputs(ro_list,size)
+        else:
+            rolist_divided = None
         inputs_sent = comm.scatter(rolist_divided,root=0)
         bulk_props = calculate_comparison_volumes(inputs_sent,subvolume_size)
         outputs_gathered = comm.gather(bulk_props,root=0)
         
         if rank == 0:
+            print "writing comparison outputs"
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
@@ -579,6 +593,7 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats)
 
     time.sleep(10)
+
     
     if rank == 0:        
         # make working directories
@@ -603,25 +618,32 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     # get list of master rock volumes. Two lists. The first has all the rock volumes
     # the second has all the solve properties and directions separated out for
     # parallel processing
-    ro_list, ro_list_sep = build_master(list_of_inputs_master)
+    if rank == 0:
+        ro_list, ro_list_sep = build_master(list_of_inputs_master)
+        subvolume_size = list_of_inputs_master[0]['subvolume_size']
+    else:
+        ro_list, ro_list_sep,subvolume_size = None,None,None
     # run comparison
     if 'bulk' in fixed_parameters['comparison_arrays']:
-        run_comparison(ro_list_sep,rank,size,comm,op.join(wd,'comparison_'+outfile))
+        run_comparison(ro_list_sep,subvolume_size,rank,size,comm,op.join(wd,'comparison_'+outfile))
 
     
     # create subvolumes
-    subvolume_input_list = []
-    for rr in range(len(ro_list)):
-        ro = ro_list[rr]
-        input_dict = list_of_inputs_master[rr]
-        faultedge_list = ro.fault_edges
-        aperture_list = ro.fault_dict['aperture_list']
-        subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
+    if rank == 0:
+        subvolume_input_list = []
+        for rr in range(len(ro_list)):
+            ro = ro_list[rr]
+            input_dict = list_of_inputs_master[rr]
+            faultedge_list = ro.fault_edges
+            aperture_list = ro.fault_dict['aperture_list']
+            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
                                                              aperture_list,
                                                              input_dict['subvolume_size'],
                                                              input_dict['splitn'],
                                                              inputdict=input_dict,
                                                              buf=4)
+    else:
+        subvolume_input_list = None
     outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
                                               size,rank,comm,
                                               outfile,

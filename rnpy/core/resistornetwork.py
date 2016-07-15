@@ -97,7 +97,7 @@ class Rock_volume():
         self.permeability_bulk = [np.nan]*3
         
         self.indices = None # indices of bigger volume, if the rock volume is part of a larger network
-        self.id # identification number
+        self.id =None # identification number
 
         
         update_dict = {}
@@ -227,6 +227,7 @@ class Rock_volume():
             if create_array:
                 print "initialising a new array"
                 # initialise a fault array
+                print "array_buffer",self.array_buffer,"nx,ny,nz",nx,ny,nz
                 self.fault_array = np.zeros([nz+2+self.array_buffer*2,
                                              ny+2+self.array_buffer*2,
                                              nx+2+self.array_buffer*2,3,3])
