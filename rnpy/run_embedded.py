@@ -149,10 +149,10 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
         input_dict.update(fixed_parameters)
-        if 'solve_direction' in input_dict.keys():
-            solvedirections = input_dict['solve_direction']
-        else:
-            solvedirections = 'xyz'
+#        if 'solve_direction' in input_dict.keys():
+#            solvedirections = input_dict['solve_direction']
+#        else:
+#            solvedirections = 'xyz'
         input_dict['repeat'] = r
         # create a rock volume and get the fault surfaces and fault edges
         ro = rn.Rock_volume(**input_dict)
@@ -208,49 +208,53 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
         print "inputs to comparison volume",inputs 
         
         for att,br,sp in [['resistivity',boundary_res,'current'],['hydraulic_resistance',boundary_hydres,'fluid']]:
-            arrtoset = getattr(rom,att)        
-            
-            # x direction array
-            if 'x' in directions:
-                ncells = nc.copy()
-                nc[0] -= n[0]
-                romx = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='x',**inputs)
-                arr = getattr(romx,att)
-                arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n-1,0]
-                arr[1:,1:-1,1:,1] = arrtoset[1:,1:-1,1:-n,1]
-                arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:,1:-n,2]
-                arr[:,-1,:,0] = boundary_res
-                arr[-1,:,:,0] = boundary_res
-                setattr(romx,att,rna.add_nulls(arr))
-                romx.solve_resistor_network2()
-    
-            # y direction array
-            if 'y' in directions:
-                ncells = nc.copy()
-                nc[1] -= n[1]
-                romy = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='y',**inputs)
-                arr = getattr(romy,att)
-                arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n,1:-1,0]
-                arr[1:,1:-1,1:,1] = arrtoset[1:,1:-n-1,1:,1]
-                arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:-n,1:,2]
-                arr[-1,:,:,1] = boundary_res
-                arr[:,:,-1,1] = boundary_res
-                setattr(romy,att,rna.add_nulls(arr))
-                romy.solve_resistor_network2()
-            
-            # z direction array
-            if 'z' in directions:
-                ncells = nc.copy()
-                nc[2] -= n[2]
-                romz = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='z',**inputs)
-                arr = getattr(romz,att)
-                arr[1:,1:,1:-1,0] = arrtoset[1:-n,1:,1:-1,0]
-                arr[1:,1:-1,1:,1] = arrtoset[1:-n,1:-1,1:,1]
-                arr[1:-1,1:,1:,2] = arrtoset[1:-n-1,1:,1:,2]
-                arr[:,-1,:,2] = boundary_res
-                arr[:,:,-1,2] = boundary_res
-                setattr(romz,att,rna.add_nulls(arr))
-                romz.solve_resistor_network2()
+            if sp in properties:
+                arrtoset = getattr(rom,att)        
+                inputs['solve_properties'] = sp
+                # x direction array
+                if 'x' in directions:
+                    inputs['solve_direction'] = 'x'
+                    ncells = nc.copy()
+                    nc[0] -= n[0]
+                    romx = rn.Rock_volume(ncells=ncells,**inputs)
+                    arr = getattr(romx,att)
+                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-1,1:-n,1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:,1:-n,2]
+                    arr[:,-1,:,0] = boundary_res
+                    arr[-1,:,:,0] = boundary_res
+                    setattr(romx,att,rna.add_nulls(arr))
+                    romx.solve_resistor_network2()
+        
+                # y direction array
+                if 'y' in directions:
+                    inputs['solve_direction'] = 'y'
+                    ncells = nc.copy()
+                    nc[1] -= n[1]
+                    romy = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='y',**inputs)
+                    arr = getattr(romy,att)
+                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n,1:-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-n-1,1:,1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:-n,1:,2]
+                    arr[-1,:,:,1] = boundary_res
+                    arr[:,:,-1,1] = boundary_res
+                    setattr(romy,att,rna.add_nulls(arr))
+                    romy.solve_resistor_network2()
+                
+                # z direction array
+                if 'z' in directions:
+                    inputs['solve_direction'] = 'z'
+                    ncells = nc.copy()
+                    nc[2] -= n[2]
+                    romz = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='z',**inputs)
+                    arr = getattr(romz,att)
+                    arr[1:,1:,1:-1,0] = arrtoset[1:-n,1:,1:-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:-n,1:-1,1:,1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-n-1,1:,1:,2]
+                    arr[:,-1,:,2] = boundary_res
+                    arr[:,:,-1,2] = boundary_res
+                    setattr(romz,att,rna.add_nulls(arr))
+                    romz.solve_resistor_network2()
     
             
             rbulk.append(np.array([romx.resistivity_bulk[0],romy.resistivity_bulk[1],romz.resistivity_bulk[2]])*(nc/(nc+1.))**2)
