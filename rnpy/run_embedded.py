@@ -15,6 +15,7 @@ import os
 import os.path as op
 import time
 import itertools
+import copy
 
 argument_names = [['splitn','n','number of subvolumes in x,y and z direction',3,int],
                   ['subvolume_size','sn','number of cells in each subvolume (3 integers for size in x, y and z directions)',3,int],
@@ -149,6 +150,7 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
         input_dict.update(fixed_parameters)
+        input_dict['id'] = r
 #        if 'solve_direction' in input_dict.keys():
 #            solvedirections = input_dict['solve_direction']
 #        else:
@@ -206,8 +208,10 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
         inputs = dict(update_cellsize_tf=False, fault_assignment='none',
                       cellsize=rom.cellsize,solve_properties=properties)    
         print "inputs to comparison volume",inputs 
-        
-        for att,br,sp in [['resistivity',boundary_res,'current'],['hydraulic_resistance',boundary_hydres,'fluid']]:
+        print "directions"      
+        kbulk1,rbulk1 = np.ones(4)*np.nan,np.ones(4)*np.nan
+
+        for att,br,sp,bulk,prop in [['resistivity',boundary_res,'current',rbulk1,'resistivity'],['hydraulic_resistance',boundary_hydres,'fluid',kbulk1,'permeability']]:
             if sp in properties:
                 arrtoset = getattr(rom,att)        
                 inputs['solve_properties'] = sp
@@ -215,52 +219,76 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                 if 'x' in directions:
                     inputs['solve_direction'] = 'x'
                     ncells = nc.copy()
-                    nc[0] -= n[0]
+                    ncells[0] -= n[0]
                     romx = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romx,att)
-                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n-1,0]
-                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-1,1:-n,1]
-                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:,1:-n,2]
+                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n[0]-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-1,1:-n[0],1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:,1:-n[0],2]
                     arr[:,-1,:,0] = boundary_res
                     arr[-1,:,:,0] = boundary_res
                     setattr(romx,att,rna.add_nulls(arr))
                     romx.solve_resistor_network2()
+                    factor = (nc[1]*nc[2])/((nc[1]+1.)*(nc[2]+1.))
+                    if att == 'resistivity':
+                        bulk[0] = romx.resistivity_bulk[0]*factor
+                    else:
+                        bulk[0] = romx.permeability_bulk[0]/factor
+                    print "x direction",sp,bulk,prop
         
                 # y direction array
                 if 'y' in directions:
                     inputs['solve_direction'] = 'y'
                     ncells = nc.copy()
-                    nc[1] -= n[1]
-                    romy = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='y',**inputs)
+                    ncells[1] -= n[1]
+                    romy = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romy,att)
-                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n,1:-1,0]
-                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-n-1,1:,1]
-                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:-n,1:,2]
+                    arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n[1],1:-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:,1:-n[1]-1,1:,1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-1,1:-n[1],1:,2]
                     arr[-1,:,:,1] = boundary_res
                     arr[:,:,-1,1] = boundary_res
                     setattr(romy,att,rna.add_nulls(arr))
                     romy.solve_resistor_network2()
+                    factor = (nc[0]*nc[2])/((nc[0]+1.)*(nc[2]+1.))
+                    if att == 'resistivity':
+                        bulk[1] = romy.resistivity_bulk[1]*factor
+                    else:
+                        bulk[1] = romy.permeability_bulk[1]/factor
+                    print "y direction",sp,bulk,prop
                 
                 # z direction array
                 if 'z' in directions:
                     inputs['solve_direction'] = 'z'
                     ncells = nc.copy()
-                    nc[2] -= n[2]
-                    romz = rn.Rock_volume(ncells=ncells,solve_properties=sp,solve_direction='z',**inputs)
+                    ncells[2] -= n[2]
+                    romz = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romz,att)
-                    arr[1:,1:,1:-1,0] = arrtoset[1:-n,1:,1:-1,0]
-                    arr[1:,1:-1,1:,1] = arrtoset[1:-n,1:-1,1:,1]
-                    arr[1:-1,1:,1:,2] = arrtoset[1:-n-1,1:,1:,2]
+                    arr[1:,1:,1:-1,0] = arrtoset[1:-n[1],1:,1:-1,0]
+                    arr[1:,1:-1,1:,1] = arrtoset[1:-n[1],1:-1,1:,1]
+                    arr[1:-1,1:,1:,2] = arrtoset[1:-n[1]-1,1:,1:,2]
                     arr[:,-1,:,2] = boundary_res
                     arr[:,:,-1,2] = boundary_res
                     setattr(romz,att,rna.add_nulls(arr))
                     romz.solve_resistor_network2()
-    
-            
-            rbulk.append(np.array([romx.resistivity_bulk[0],romy.resistivity_bulk[1],romz.resistivity_bulk[2]])*(nc/(nc+1.))**2)
-            kbulk.append(np.array([romx.permeability_bulk[0],romy.permeability_bulk[1],romz.permeability_bulk[2]])*((nc+1.)/nc)**2)
+                    factor = (nc[0]*nc[1])/((nc[0]+1.)*(nc[1]+1.))
+                    if att == 'resistivity':
+                        bulk[2] = romz.resistivity_bulk[2]*factor
+                    else:
+                        bulk[2] = romz.permeability_bulk[2]/factor
+                    print "z direction",sp,bulk,prop
+        
+        rbulk1[-1] = rom.id
+        kbulk1[-1] = rom.id
 
-        return rbulk, kbulk
+    	rbulk.append(rbulk1)
+        kbulk.append(kbulk1)
+
+    rbulk = np.array(rbulk)
+    kbulk = np.array(kbulk)
+    print "rbulk,kbulk",rbulk,kbulk
+
+    return rbulk, kbulk
         
         
         
@@ -503,12 +531,13 @@ def build_master(list_of_inputs):
         ro_list.append(ro)
         
         solve_direction = ro.solve_direction
+        print "solve_direction before splitting",ro.solve_direction
         for sp in solve_properties:
             for sd in solve_direction:
                 ro.solve_direction = sd
                 ro.solve_properties = sp
-                ro_list_sep.append(ro)
-    
+                ro_list_sep.append(copy.copy(ro))
+                #print "ro_list_sep",sd,sp,[[rro.solve_direction,rro.solve_properties] for rro in ro_list_sep]
     return ro_list,ro_list_sep
 
 
@@ -519,20 +548,35 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     
     
     """
-    
+    #print outputs_gathered 
     print "len(outputs_gathered)",len(outputs_gathered)
     print "len(outputs_gathered[0])",len(outputs_gathered[0])    
     
+    # first gather all outputs into a master array
     count = 0
     for kbulk,rbulk in outputs_gathered:
-        line = np.hstack([kbulk,rbulk])
+        line = np.hstack([kbulk[:,:3],rbulk])
         if count == 0:
-            outarray = np.array([line])
+            outarray = line.copy()
         else:
             outarray = np.vstack([outarray,line])
         count += 1
+   
+ 
+    # now go through and put all entries for each rock volume on one line
+    count = 0
+    for r in np.unique(outarray[:,-1]):
+        line = np.nanmax(outarray[outarray[:,-1]==r],axis=0)
+        if count == 0:
+            outarray2 = line.copy()
+        else:
+            outarray2 = np.vstack([outarray2,line])
+        count += 1
+    if count == 1:
+        outarray2 = np.array([outarray2])
+
     print "saving outputs to file {}".format(outfile)
-    np.savetxt(outfile,outarray,fmt='%.3e',comments='')
+    np.savetxt(outfile,outarray2,fmt='%.3e',comments='')
    
 
 
@@ -632,25 +676,25 @@ def setup_and_run_segmented_volume(arguments, argument_names):
 
     
     # create subvolumes
-    if rank == 0:
-        subvolume_input_list = []
-        for rr in range(len(ro_list)):
-            ro = ro_list[rr]
-            input_dict = list_of_inputs_master[rr]
-            faultedge_list = ro.fault_edges
-            aperture_list = ro.fault_dict['aperture_list']
-            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
-                                                             aperture_list,
-                                                             input_dict['subvolume_size'],
-                                                             input_dict['splitn'],
-                                                             inputdict=input_dict,
-                                                             buf=4)
-    else:
-        subvolume_input_list = None
-    outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
-                                              size,rank,comm,
-                                              outfile,
-                                              return_objects=False)
+#    if rank == 0:
+#        subvolume_input_list = []
+#        for rr in range(len(ro_list)):
+#            ro = ro_list[rr]
+#            input_dict = list_of_inputs_master[rr]
+#            faultedge_list = ro.fault_edges
+#            aperture_list = ro.fault_dict['aperture_list']
+#            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
+#                                                             aperture_list,
+#                                                             input_dict['subvolume_size'],
+#                                                             input_dict['splitn'],
+#                                                             inputdict=input_dict,
+#                                                             buf=4)
+#    else:
+#        subvolume_input_list = None
+#    outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
+#                                              size,rank,comm,
+#                                              outfile,
+#                                              return_objects=False)
     
     
     
