@@ -375,10 +375,12 @@ def assign_fault_aperture(fault_uvw,
         if aperture_type == 'list':
             if aperture_list is not None:
                 du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
-#                print u0,v0,w0,u1,v1,w1
-#                print dw1,dv1,du1
+                #print "u0,v0,w0,u1,v1,w1",u0,v0,w0,u1,v1,w1
+                #print "dw1,dv1,du1",dw1,dv1,du1
+                
 #                print ap_array.shape
                 for iii,ap in enumerate(aperture_list):
+                    print "ap[i]",ap[i],len(ap[i])
 #                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
                     dperp=list(duvw).index(0)
 #                    print ap[i].shape

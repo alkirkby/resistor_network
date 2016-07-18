@@ -315,9 +315,8 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
                      accepted
     
     """
-    aperture_list,faultedge_list = [],[]
     # rename inputs to make them shorter and easier to deal with
-    n = subvolume_size + 1
+    n = np.array(subvolume_size) + 1
     sx,sy,sz = indices
     
     # minimum and maximum extents of faults in x, y and z directions
@@ -331,27 +330,29 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     ap,apc,apf = [],[],[]
     
     # get fracture indices that fall within the volume of interest (+buffer)
-    for fi in np.where(np.all([np.any([np.all([(sx+1)*n + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n - buf,0)],axis=0), 
-                                      np.all([max(sx*n - buf,0) < uvw1[:,0],uvw1[:,0] <= (sx+1)*n + buf],axis=0), 
-                                      np.all([uvw0[:,0] <= max(sx*n - buf,0),uvw1[:,0] > (sx+1)*n + buf],axis=0)],axis=0),
-                               np.any([np.all([(sy+1)*n + buf >= uvw0[:,1],uvw0[:,1] > max(sy*n - buf,0)],axis=0),
-                                      np.all([max(sy*n - buf,0) < uvw1[:,1],uvw1[:,1] <= (sy+1)*n + buf],axis=0),
-                                      np.all([uvw0[:,1] <= max(sy*n - buf,0),uvw1[:,1] > (sy+1)*n + buf],axis=0)],axis=0),
-                               np.any([np.all([(sz+1)*n + buf >= uvw0[:,2],uvw0[:,2] > max(sz*n - buf,0)],axis=0),
-                                       np.all([max(sz*n - buf,0) < uvw1[:,2],uvw1[:,2] <= (sz+1)*n + buf],axis=0),
-                                       np.all([uvw0[:,2] <= max(sz*n - buf,0),uvw1[:,2] > (sz+1)*n + buf],axis=0)],axis=0)],axis=0))[0]:
+    for fi in np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0), 
+                                      np.all([max(sx*n[0] - buf,0) < uvw1[:,0],uvw1[:,0] <= (sx+1)*n[0] + buf],axis=0), 
+                                      np.all([uvw0[:,0] <= max(sx*n[0] - buf,0),uvw1[:,0] > (sx+1)*n[0] + buf],axis=0)],axis=0),
+                               np.any([np.all([(sy+1)*n[1] + buf >= uvw0[:,1],uvw0[:,1] > max(sy*n[1] - buf,0)],axis=0),
+                                      np.all([max(sy*n[1] - buf,0) < uvw1[:,1],uvw1[:,1] <= (sy+1)*n[1] + buf],axis=0),
+                                      np.all([uvw0[:,1] <= max(sy*n[1] - buf,0),uvw1[:,1] > (sy+1)*n[1] + buf],axis=0)],axis=0),
+                               np.any([np.all([(sz+1)*n[2] + buf >= uvw0[:,2],uvw0[:,2] > max(sz*n[2] - buf,0)],axis=0),
+                                       np.all([max(sz*n[2] - buf,0) < uvw1[:,2],uvw1[:,2] <= (sz+1)*n[2] + buf],axis=0),
+                                       np.all([uvw0[:,2] <= max(sz*n[2] - buf,0),uvw1[:,2] > (sz+1)*n[2] + buf],axis=0)],axis=0)],axis=0))[0]:
 
         # local fault extents
-        lfe = faultedges[fi] - np.array([sx*n,sy*n,sz*n])
+        lfe = faultedges[fi] - np.array([sx*n[0],sy*n[1],sz*n[2]])
         lfe[lfe < 1 - buf] = 1 - buf
-        lfe[lfe > n + buf] = n + buf
+        for i in range(3):
+            lfe[:,:,i][lfe[:,:,i] > n[i] + buf] = n[i] + buf
+        print "fi,lfe",fi,lfe
         local_fault_edges.append(lfe)
         
         # direction perpendicular to fault
         dperp = list(np.amax(faultedges[fi],axis=(0,1)) - np.amin(faultedges[fi],axis=(0,1))).index(0)
         
         # minimum and maximum indices for aperture to cut it if it extends over multiple sub volumes
-        ap0 = np.array([sx*n,sy*n,sz*n]) - buf + 1 - np.amin(faultedges[fi],axis=(0,1))
+        ap0 = np.array([sx*n[0],sy*n[1],sz*n[2]]) - buf + 1 - np.amin(faultedges[fi],axis=(0,1))
         ap0[ap0 < 0] = 0.
         ap1 = ap0 + np.amax(lfe,axis=(0,1)) - np.amin(lfe,axis=(0,1))
         
@@ -363,10 +364,9 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
         apf.append(aperturelist[1][fi][ap0[2]:ap1[2]+1,ap0[1]:ap1[1]+1,ap0[0]:ap1[0]+1])
         apc.append(aperturelist[2][fi][ap0[2]:ap1[2]+1,ap0[1]:ap1[1]+1,ap0[0]:ap1[0]+1])
 
-    aperture_list.append([ap,apf,apc])
-    faultedge_list.append(local_fault_edges)
+    aperture_list = [ap,apf,apc]
 
-    return faultedge_list,aperture_list
+    return local_fault_edges,aperture_list
 
 
 def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,splitn,inputdict={},buf=4):
@@ -383,9 +383,9 @@ def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,spl
     inputdict['build_arrays'] = True
     inputdict['array_buffer'] = buf
 
-    for sz in range(splitn):
-        for sy in range(splitn):
-            for sx in range(splitn):
+    for sz in range(splitn[2]):
+        for sy in range(splitn[1]):
+            for sx in range(splitn[0]):
                 # initialise dict with default parameters
                 localidict = {}
                 localidict.update(inputdict)
@@ -393,6 +393,7 @@ def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,spl
                 localfaults,localap = segment_faults(faultedge_list,aperture_list,subvolume_size,[sx,sy,sz],buf=buf)
                 localidict['aperture_list'] = localap
                 localidict['fault_edges'] = np.array(localfaults)
+                print "localfaults",localidict['fault_edges']
                 # store indices to make it easier to put back together
                 localidict['indices'] = [sx,sy,sz]
                 
@@ -420,10 +421,10 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     """
     """
     
-    
+    print "outputs_gathered",outputs_gathered
     count = 0
     for line in outputs_gathered:
-        rbulk,kbulk,indices = outputs_gathered[:3]
+        rbulk,kbulk,indices = line[:3]
         outline = np.hstack([rbulk,kbulk,indices])
         if count == 0:
             outarray = np.array([outline])
@@ -457,9 +458,9 @@ def run_subvolumes(input_list,return_objects=False):
         indices.append(ros.indices)
     
     if return_objects:
-        return rbulk,kbulk,indices,ro_list
+        return rlist,klist,indices,ro_list
     else:
-        return rbulk,kbulk,indices      
+        return rlist,klist,indices      
 
 
 
@@ -469,7 +470,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     
     """
     if rank == 0:
-        nn = input_list[0]['subvolume_size'] 
+        nn = input_list[0]['subvolume_size']
         directions = input_list[0]['solve_direction']
         properties = input_list[0]['solve_properties']
 
@@ -479,7 +480,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
             properties = idict['solve_properties']
             for sd in directions:
                 di = 'xyz'.index(sd)
-                ncells = np.array([nn,nn,nn])
+                ncells = np.array(nn)
                 ncells[di] += 1
                 idict['ncells'] = ncells
                 for sp in properties:
@@ -676,25 +677,25 @@ def setup_and_run_segmented_volume(arguments, argument_names):
 
     
     # create subvolumes
-#    if rank == 0:
-#        subvolume_input_list = []
-#        for rr in range(len(ro_list)):
-#            ro = ro_list[rr]
-#            input_dict = list_of_inputs_master[rr]
-#            faultedge_list = ro.fault_edges
-#            aperture_list = ro.fault_dict['aperture_list']
-#            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
-#                                                             aperture_list,
-#                                                             input_dict['subvolume_size'],
-#                                                             input_dict['splitn'],
-#                                                             inputdict=input_dict,
-#                                                             buf=4)
-#    else:
-#        subvolume_input_list = None
-#    outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
-#                                              size,rank,comm,
-#                                              outfile,
-#                                              return_objects=False)
+    if rank == 0:
+        subvolume_input_list = []
+        for rr in range(len(ro_list)):
+            ro = ro_list[rr]
+            input_dict = list_of_inputs_master[rr]
+            faultedge_list = ro.fault_edges
+            aperture_list = ro.fault_dict['aperture_list']
+            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
+                                                             aperture_list,
+                                                             input_dict['subvolume_size'],
+                                                             input_dict['splitn'],
+                                                             inputdict=input_dict,
+                                                             buf=4)
+    else:
+        subvolume_input_list = None
+    outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
+                                              size,rank,comm,
+                                              outfile,
+                                              return_objects=False)
     
     
     
