@@ -436,8 +436,11 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     #print "outputs_gathered",outputs_gathered
     count = 0
     for line in outputs_gathered:
-        rbulk,kbulk,indices = line[:3]
-        outline = np.hstack([rbulk,kbulk,indices])
+        rbulk,kbulk,indices,ridlist = line[:4]
+        # reshape ridlist so it can be stacked with the other arrays
+        ridlist = np.array(ridlist).reshape(len(ridlist),1)
+        print "ridlist",ridlist
+        outline = np.hstack([rbulk,kbulk,indices,ridlist])
         if count == 0:
             outarray = outline.copy()
         else:
@@ -446,21 +449,22 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     
     # now go through and put all entries for each rock volume on one line
     count = 0
-    for ix in np.unique(outarray[:,-3]):
-        for iy in np.unique(outarray[:,-2]):
-            for iz in np.unique(outarray[:,-1]):
-                lines = outarray[np.all(outarray[:,-3:]==np.array([ix,iy,iz]),axis=1)]
-                line = np.nanmax(lines,axis=0)
-                if count == 0:
-                    outarray2 = line.copy()
-                else:
-                    outarray2 = np.vstack([outarray2,line])
-                count += 1
+    for rid in np.unique(outarray[:,-1]):
+        for iz in np.unique(outarray[:,-2]):
+            for iy in np.unique(outarray[:,-3]):
+                for ix in np.unique(outarray[:,-4]):
+                    lines = outarray[np.all(outarray[:,-4:]==np.array([ix,iy,iz,rid]),axis=1)]
+                    line = np.nanmax(lines,axis=0)
+                    if count == 0:
+                        outarray2 = line.copy()
+                    else:
+                        outarray2 = np.vstack([outarray2,line])
+                    count += 1
 
     if count == 1:
         outarray2 = np.array([outarray2])
 
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*6+['%3i']*3,comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*6+['%3i']*4,comments='')
     
     return outarray2
 
@@ -471,7 +475,7 @@ def run_subvolumes(input_list,return_objects=False):
     """
     ro_list = []
     rlist,klist,indices = [],[],[]
-    
+    ridlist = [] 
     
     for input_dict in input_list:
         #print "subvolume input dict",input_dict
@@ -491,12 +495,13 @@ def run_subvolumes(input_list,return_objects=False):
         
         rlist.append(rbulk.copy())
         klist.append(kbulk.copy())
+        ridlist.append(ros.id)
         indices.append(ros.indices)
     
     if return_objects:
-        return rlist,klist,indices,ro_list
+        return rlist,klist,indices,ridlist,ro_list
     else:
-        return rlist,klist,indices      
+        return rlist,klist,indices,ridlist
 
 
 
