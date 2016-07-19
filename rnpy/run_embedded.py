@@ -110,7 +110,7 @@ def read_arguments(arguments, argument_names):
                 if len(value) > 0:
                     if len(value) == 1:
                         fixed_parameters[at[0]] = value[0]
-                    elif at[0] in ['ncells','cellsize','subvolume_size']:
+                    elif at[0] in ['ncells','cellsize','subvolume_size','splitn']:
                         fixed_parameters[at[0]] = np.array(value)
                     else:
                         loop_parameters[at[0]] = value
@@ -577,7 +577,8 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
     compiled_ap = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3,3))
     compiled_res = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
     compiled_hr = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))    
-        
+    print "compiled_ap.shape",compiled_ap.shape
+    print "splitn",splitn
     testfaults,testap,testres,testhr = [],[],[],[]        
         
     count = 0
@@ -589,7 +590,8 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                         for sx in indicesx:
                             ind = np.where(np.all(indices[:,-4:]==np.array([sx,sy,sz,rid]),axis=1))[0][0]
                             rox,roy,roz = ro_list_seg[ind]
-#                            print sz,sy,sx,ind
+                            print "subarray_shapes",rox.aperture.shape,roy.aperture.shape,roz.aperture.shape
+                            print "indices",sz,sy,sx,ind
 #                            print 1+sz*n[2],1+sz*n[2]+ncellsz[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+(sx+1)*n[0]
 #                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+sy*n[1]+ncellsy[1],1+sx*n[0],1+(sx+1)*n[0]
 #                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+sx*n[0]+ncellsx[0]
@@ -655,7 +657,7 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                 print np.unique(diff_res)[:10]
                 print np.unique(diff_hr)[:10]
 
-    return testfaults,testap,testres,testhr,compiled_ap
+    return testfaults,testap,testres,testhr
 
 
 def build_master(list_of_inputs):
