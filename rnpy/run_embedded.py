@@ -582,15 +582,18 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
         
     count = 0
     for rom in ro_list:
-        for rid in np.unique(indices[-1]):
+        for rid in np.unique(indices[:,-1]):
             if rom.id == rid:
                 for sz in indicesz:
                     for sy in indicesy:
                         for sx in indicesx:
                             ind = np.where(np.all(indices[:,-4:]==np.array([sx,sy,sz,rid]),axis=1))[0][0]
                             rox,roy,roz = ro_list_seg[ind]
-                            print rox.solve_direction,roy.solve_direction,roz.solve_direction
-                            
+#                            print sz,sy,sx,ind
+#                            print 1+sz*n[2],1+sz*n[2]+ncellsz[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+(sx+1)*n[0]
+#                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+sy*n[1]+ncellsy[1],1+sx*n[0],1+(sx+1)*n[0]
+#                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+sx*n[0]+ncellsx[0]
+#                            print ncellsx,ncellsy,ncellsz
                             compiled_ap[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.aperture[1:ncellsz[2]+1,1:,1:,2].copy()
                             compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.aperture[1:,1:ncellsy[1]+1,1:,1].copy()
                             compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.aperture[1:,1:,1:ncellsx[0]+1,0].copy()
@@ -611,20 +614,27 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                 rom.aperture[:,:,-1,1] = 0.
                 rom.aperture[:,-1,:,0] = 0.
                 rom.aperture[-1,:,:,0] = 0.
+                rom.fault_array[:,-1,:,2] = 0.
+                rom.fault_array[:,:,-1,2] = 0.
+                rom.fault_array[-1,:,:,1] = 0.
+                rom.fault_array[:,:,-1,1] = 0.
+                rom.fault_array[:,-1,:,0] = 0.
+                rom.fault_array[-1,:,:,0] = 0.                
+                
                 
                 # set unused edges to high res (these are removed for calculation of resistivity)  
-                rom.resistivity[:,-1,:,2] = 1e40
-                rom.resistivity[:,:,-1,2] = 1e40
-                rom.resistivity[-1,:,:,1] = 1e40
-                rom.resistivity[:,:,-1,1] = 1e40
-                rom.resistivity[:,-1,:,0] = 1e40
-                rom.resistivity[-1,:,:,0] = 1e40
-                rom.hydraulic_resistance[:,-1,:,2] = 1e60
-                rom.hydraulic_resistance[:,:,-1,2] = 1e60
-                rom.hydraulic_resistance[-1,:,:,1] = 1e60
-                rom.hydraulic_resistance[:,:,-1,1] = 1e60
-                rom.hydraulic_resistance[:,-1,:,0] = 1e60
-                rom.hydraulic_resistance[-1,:,:,0] = 1e60
+                rom.resistivity[:,-1,:,2] = np.nan
+                rom.resistivity[:,:,-1,2] = np.nan
+                rom.resistivity[-1,:,:,1] = np.nan
+                rom.resistivity[:,:,-1,1] = np.nan
+                rom.resistivity[:,-1,:,0] = np.nan
+                rom.resistivity[-1,:,:,0] = np.nan
+                rom.hydraulic_resistance[:,-1,:,2] = np.nan
+                rom.hydraulic_resistance[:,:,-1,2] = np.nan
+                rom.hydraulic_resistance[-1,:,:,1] = np.nan
+                rom.hydraulic_resistance[:,:,-1,1] = np.nan
+                rom.hydraulic_resistance[:,-1,:,0] = np.nan
+                rom.hydraulic_resistance[-1,:,:,0] = np.nan
 
 
                 diff_faults = compiled_faults-rom.fault_array
@@ -640,12 +650,12 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                 testap.append(np.all(diff_ap==0))
                 testres.append(np.all(diff_res==0))
                 testhr.append(np.all(diff_hr==0))
-                print np.unique(diff_faults)
-                print np.unique(diff_ap)
-                print np.unique(diff_res)
-                print np.unique(diff_hr)
+                print np.unique(diff_faults)[:10]
+                print np.unique(diff_ap)[:10]
+                print np.unique(diff_res)[:10]
+                print np.unique(diff_hr)[:10]
 
-    return testfaults,testap,testres,testhr
+    return testfaults,testap,testres,testhr,compiled_ap
 
 
 def build_master(list_of_inputs):
