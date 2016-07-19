@@ -86,21 +86,26 @@ def read_arguments(arguments, argument_names):
     args = parser.parse_args(arguments[1:])
 
     loop_parameters = {'fault_separation':[0.0]}
+    
     # initialise fixed parameters, giving some defaults
     fixed_parameters = {'workdir':os.getcwd(),'comparison_arrays':'none',
                         'splitn':np.array([3,3,3]),'subvolume_size':np.array([4,4,4])}
     repeats = [0]
     
+    # loop through command line arguments and sort according to type
     for at in args._get_kwargs():
         if at[1] is not None:
+            # reshape fault edges to correct shape they are provided as an argument
             if at[0] == 'fault_edges':
                 nf = len(at[1])
                 value = np.reshape(at[1],(nf,3,2))
             else:
                 value = at[1]
-                
+            # repeats doesn't go into input dict
             if at[0] == 'repeats':
                 repeats = at[1][0]
+            # except for ncells, cellsize and subvolume size, all list arguments
+            # are loop parameters
             elif type(value) == list:
                 if len(value) > 0:
                     if len(value) == 1:
@@ -114,7 +119,6 @@ def read_arguments(arguments, argument_names):
                 
     fixed_parameters['ncells'] = (fixed_parameters['subvolume_size'] + 1) * fixed_parameters['splitn']
 
-    #print "loop_parameters",loop_parameters
     return fixed_parameters, loop_parameters, repeats
 
 
@@ -126,7 +130,7 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
     dimension given by number of fault separation values.
     
     """
-
+    # set some defaults
     for param,default in [['solve_properties','currentfluid'],
                           ['solve_direction','xyz'],
                           ['solve_method','direct'],
@@ -139,7 +143,9 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
                                   fixed_parameters[param] = default
     
     input_list = []
-
+    
+    # only build the array in the master volume if we need it for comparions
+    # (large arrays will result in a memory error)
     if fixed_parameters['comparison_arrays'] != 'none':
         fixed_parameters['build_arrays'] = True
     else:
@@ -150,11 +156,8 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
         input_dict.update(fixed_parameters)
+        # set id - will become an attribute of the rock volume
         input_dict['id'] = r
-#        if 'solve_direction' in input_dict.keys():
-#            solvedirections = input_dict['solve_direction']
-#        else:
-#            solvedirections = 'xyz'
         input_dict['repeat'] = r
         # create a rock volume and get the fault surfaces and fault edges
         ro = rn.Rock_volume(**input_dict)
@@ -551,19 +554,23 @@ def build_master(list_of_inputs):
     initialise master rock volumes
     
     """
+    # two lists, one with all rock volumes, the other split up by solve direction
+    # and solve properties
     ro_list_sep, ro_list = [],[]
     repeat = None
     solve_properties = []
+    
     for pp in ['current','fluid']:
         if pp in list_of_inputs[0]['solve_properties']:
             solve_properties.append(pp)
         
     
     for input_dict in list_of_inputs:
-        if repeat != input_dict['repeat']:
+        # only initialise new faults if we are moving to a new volume
+        if repeat != input_dict['id']:
             input_dict['fault_edges'] = None
             input_dict['fault_surfaces'] = None
-            repeat = input_dict['repeat']
+            repeat = input_dict['id']
         else:
             input_dict['fault_edges'] = ro.fault_edges
             input_dict['fault_surfaces'] = ro.fault_dict['fault_surfaces']
@@ -572,13 +579,13 @@ def build_master(list_of_inputs):
         ro_list.append(ro)
         
         solve_direction = ro.solve_direction
-        print "solve_direction before splitting",ro.solve_direction
+        
         for sp in solve_properties:
             for sd in solve_direction:
                 ro.solve_direction = sd
                 ro.solve_properties = sp
                 ro_list_sep.append(copy.copy(ro))
-                #print "ro_list_sep",sd,sp,[[rro.solve_direction,rro.solve_properties] for rro in ro_list_sep]
+                
     return ro_list,ro_list_sep
 
 
@@ -589,9 +596,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     
     
     """
-    #print outputs_gathered 
-    print "len(outputs_gathered)",len(outputs_gathered)
-    print "len(outputs_gathered[0])",len(outputs_gathered[0])    
+  
     
     # first gather all outputs into a master array
     count = 0
@@ -602,7 +607,6 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         else:
             outarray = np.vstack([outarray,line])
         count += 1
-   
  
     # now go through and put all entries for each rock volume on one line
     count = 0
@@ -623,7 +627,11 @@ def write_outputs_comparison(outputs_gathered, outfile) :
 
 
 def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile):
+    """
+    run comparison arrays to compare to segmented volume (different volumes for
+    the x, y and z directions)
     
+    """
     
     if comm is not None:
         print "setting up comparison volumes in parallel"
@@ -734,6 +742,8 @@ def setup_and_run_segmented_volume(arguments, argument_names):
                                                              buf=4)
     else:
         subvolume_input_list = None
+        
+    # run the subvolumes and return an array containing indices
     outarray = scatter_run_subvolumes(subvolume_input_list,
                                       size,rank,comm,
                                       op.join(wd,'subvolumes_'+outfile),
