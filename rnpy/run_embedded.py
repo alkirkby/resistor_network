@@ -114,7 +114,7 @@ def read_arguments(arguments, argument_names):
                 
     fixed_parameters['ncells'] = (fixed_parameters['subvolume_size'] + 1) * fixed_parameters['splitn']
 
-    print "loop_parameters",loop_parameters
+    #print "loop_parameters",loop_parameters
     return fixed_parameters, loop_parameters, repeats
 
 
@@ -207,8 +207,8 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
         
         inputs = dict(update_cellsize_tf=False, fault_assignment='none',
                       cellsize=rom.cellsize,solve_properties=properties)    
-        print "inputs to comparison volume",inputs 
-        print "directions"      
+        #print "inputs to comparison volume",inputs 
+        #print "directions"      
         kbulk1,rbulk1 = np.ones(4)*np.nan,np.ones(4)*np.nan
 
         for att,br,sp,bulk,prop in [['resistivity',boundary_res,'current',rbulk1,'resistivity'],['hydraulic_resistance',boundary_hydres,'fluid',kbulk1,'permeability']]:
@@ -234,7 +234,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[0] = romx.resistivity_bulk[0]*factor
                     else:
                         bulk[0] = romx.permeability_bulk[0]/factor
-                    print "x direction",sp,bulk,prop
+                    #print "x direction",sp,bulk,prop
         
                 # y direction array
                 if 'y' in directions:
@@ -255,7 +255,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[1] = romy.resistivity_bulk[1]*factor
                     else:
                         bulk[1] = romy.permeability_bulk[1]/factor
-                    print "y direction",sp,bulk,prop
+                    #print "y direction",sp,bulk,prop
                 
                 # z direction array
                 if 'z' in directions:
@@ -276,7 +276,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[2] = romz.resistivity_bulk[2]*factor
                     else:
                         bulk[2] = romz.permeability_bulk[2]/factor
-                    print "z direction",sp,bulk,prop
+                    #print "z direction",sp,bulk,prop
         
         rbulk1[-1] = rom.id
         kbulk1[-1] = rom.id
@@ -286,7 +286,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
 
     rbulk = np.array(rbulk)
     kbulk = np.array(kbulk)
-    print "rbulk,kbulk",rbulk,kbulk
+    #print "rbulk,kbulk",rbulk,kbulk
 
     return rbulk, kbulk
         
@@ -329,6 +329,15 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     local_fault_edges = []
     ap,apc,apf = [],[],[]
     
+    print "fi",np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0),
+                                      np.all([max(sx*n[0] - buf,0) < uvw1[:,0],uvw1[:,0] <= (sx+1)*n[0] + buf],axis=0),
+                                      np.all([uvw0[:,0] <= max(sx*n[0] - buf,0),uvw1[:,0] > (sx+1)*n[0] + buf],axis=0)],axis=0),
+                               np.any([np.all([(sy+1)*n[1] + buf >= uvw0[:,1],uvw0[:,1] > max(sy*n[1] - buf,0)],axis=0),
+                                      np.all([max(sy*n[1] - buf,0) < uvw1[:,1],uvw1[:,1] <= (sy+1)*n[1] + buf],axis=0),
+                                      np.all([uvw0[:,1] <= max(sy*n[1] - buf,0),uvw1[:,1] > (sy+1)*n[1] + buf],axis=0)],axis=0),
+                               np.any([np.all([(sz+1)*n[2] + buf >= uvw0[:,2],uvw0[:,2] > max(sz*n[2] - buf,0)],axis=0),
+                                       np.all([max(sz*n[2] - buf,0) < uvw1[:,2],uvw1[:,2] <= (sz+1)*n[2] + buf],axis=0),
+                                       np.all([uvw0[:,2] <= max(sz*n[2] - buf,0),uvw1[:,2] > (sz+1)*n[2] + buf],axis=0)],axis=0)],axis=0))    
     # get fracture indices that fall within the volume of interest (+buffer)
     for fi in np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0), 
                                       np.all([max(sx*n[0] - buf,0) < uvw1[:,0],uvw1[:,0] <= (sx+1)*n[0] + buf],axis=0), 
@@ -345,7 +354,7 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
         lfe[lfe < 1 - buf] = 1 - buf
         for i in range(3):
             lfe[:,:,i][lfe[:,:,i] > n[i] + buf] = n[i] + buf
-        print "fi,lfe",fi,lfe
+        #print "fi,lfe",fi,lfe
         local_fault_edges.append(lfe)
         
         # direction perpendicular to fault
@@ -421,18 +430,36 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     """
     """
     
-    print "outputs_gathered",outputs_gathered
+    #print "outputs_gathered",outputs_gathered
     count = 0
     for line in outputs_gathered:
         rbulk,kbulk,indices = line[:3]
         outline = np.hstack([rbulk,kbulk,indices])
         if count == 0:
-            outarray = np.array([outline])
+            outarray = outline.copy()
         else:
             outarray = np.vstack([outarray,outline])
         count += 1
-        
-    np.savetxt(outfile,outarray,fmt='%.3e',comments='')
+    
+    # now go through and put all entries for each rock volume on one line
+    count = 0
+    for ix in np.unique(outarray[:,-3]):
+        for iy in np.unique(outarray[:,-2]):
+            for iz in np.unique(outarray[:,-1]):
+                lines = outarray[np.all(outarray[:,-3:]==np.array([ix,iy,iz]),axis=1)]
+                line = np.nanmax(lines,axis=0)
+                if count == 0:
+                    outarray2 = line.copy()
+                else:
+                    outarray2 = np.vstack([outarray2,line])
+                count += 1
+
+    if count == 1:
+        outarray2 = np.array([outarray2])
+
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*6+['%3i']*3,comments='')
+    
+    return outarray2
 
 
 def run_subvolumes(input_list,return_objects=False):
@@ -444,17 +471,23 @@ def run_subvolumes(input_list,return_objects=False):
     
     
     for input_dict in input_list:
+        #print "subvolume input dict",input_dict
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
         ros = rn.Rock_volume(**input_dict)
+        #print "resistivity",ros.resistivity
+        print "fault_edges",ros.fault_edges
+        print "solve_direction",ros.solve_direction
+	print "solve_properties",ros.solve_properties
         ros.solve_resistor_network2()
         rbulk[di] = ros.resistivity_bulk[di]
         kbulk[di] = ros.permeability_bulk[di]
+        print "ros.resistivity_bulk,ros.resistivity_bulk",ros.resistivity_bulk,ros.resistivity_bulk
         if return_objects:
-            ro_list.append(ros)
+            ro_list.append(copy.copy(ros))
         
-        rlist.append(rbulk)
-        klist.append(kbulk)
+        rlist.append(rbulk.copy())
+        klist.append(kbulk.copy())
         indices.append(ros.indices)
     
     if return_objects:
@@ -472,12 +505,17 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     if rank == 0:
         nn = input_list[0]['subvolume_size']
         directions = input_list[0]['solve_direction']
-        properties = input_list[0]['solve_properties']
+        #properties = input_list[0]['solve_properties']
 
         input_list_sep = []
         for idict in input_list:
             directions = idict['solve_direction']
-            properties = idict['solve_properties']
+            properties = []
+            print "idict['solve_properties']",idict['solve_properties']
+            for attr in ['current','fluid']:
+                if attr in idict['solve_properties']:
+                    properties.append(attr)
+            print "properties",properties
             for sd in directions:
                 di = 'xyz'.index(sd)
                 ncells = np.array(nn)
@@ -497,9 +535,11 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     outputs_gathered = comm.gather(bulk_props,root=0)
     
     if rank == 0:
-        write_outputs_subvolumes(outputs_gathered, outfile)   
+        outarray = write_outputs_subvolumes(outputs_gathered, outfile)
+    else:
+        outarray = None
 
-    return outputs_gathered
+    return outarray
 
 
 #def construct_array_from_subvolumes():
@@ -681,7 +721,9 @@ def setup_and_run_segmented_volume(arguments, argument_names):
         subvolume_input_list = []
         for rr in range(len(ro_list)):
             ro = ro_list[rr]
-            input_dict = list_of_inputs_master[rr]
+            input_dict = list_of_inputs_master[rr].copy()
+            # have to solve 3 directions in subvolumes regardless of directions being solved in master
+            input_dict['solve_direction'] = 'xyz'
             faultedge_list = ro.fault_edges
             aperture_list = ro.fault_dict['aperture_list']
             subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
@@ -692,10 +734,13 @@ def setup_and_run_segmented_volume(arguments, argument_names):
                                                              buf=4)
     else:
         subvolume_input_list = None
-    outputs_gathered = scatter_run_subvolumes(subvolume_input_list,
-                                              size,rank,comm,
-                                              outfile,
-                                              return_objects=False)
+    outarray = scatter_run_subvolumes(subvolume_input_list,
+                                      size,rank,comm,
+                                      op.join(wd,'subvolumes_'+outfile),
+                                      return_objects=False)
+
+    if rank == 0:
+        print "outarray",outarray
     
     
     

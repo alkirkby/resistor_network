@@ -380,7 +380,7 @@ def assign_fault_aperture(fault_uvw,
                 
 #                print ap_array.shape
                 for iii,ap in enumerate(aperture_list):
-                    print "ap[i]",ap[i],len(ap[i])
+                    #print "ap[i]",ap[i],len(ap[i])
 #                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
                     dperp=list(duvw).index(0)
 #                    print ap[i].shape
