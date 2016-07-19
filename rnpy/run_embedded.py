@@ -430,6 +430,11 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     for line in outputs_gathered:
         if len(line) == 5:
             rbulk,kbulk,indices,ridlist,rolist = line
+#            print rbulk
+#            print kbulk
+#            print indices
+#            print rolist
+#            print ridlist
             ro_masterlist += rolist
         else:
             rbulk,kbulk,indices,ridlist = line[:4]
@@ -489,6 +494,7 @@ def run_subvolumes(input_list,return_objects=False):
     ridlist = [] 
     
     for input_dict in input_list:
+#        print input_dict
         #print "subvolume input dict",input_dict
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
@@ -543,9 +549,13 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     else:
         input_list_divided = None
 
-    inputs_sent = comm.scatter(input_list_divided,root=0)
-    bulk_props = run_subvolumes(inputs_sent,return_objects=return_objects)
-    outputs_gathered = comm.gather(bulk_props,root=0)
+    if comm is not None:
+        inputs_sent = comm.scatter(input_list_divided,root=0)
+        bulk_props = run_subvolumes(inputs_sent,return_objects=return_objects)
+        outputs_gathered = comm.gather(bulk_props,root=0)
+    else:
+        outputs_gathered = [run_subvolumes(input_list_sep,return_objects=return_objects)]
+        print outputs_gathered
     
     if rank == 0:
         return write_outputs_subvolumes(outputs_gathered, outfile)
