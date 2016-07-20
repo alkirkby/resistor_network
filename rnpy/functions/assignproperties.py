@@ -498,4 +498,22 @@ def get_hydraulic_aperture(width,keff,km):
         bhstart = (width*12*(keff-km))**(1./3)
         return so.newton(effectivek,bhstart,args=(keff,km,width),maxiter=100)
         
+def permeability2hydraulic_resistance(permeability,cellsize,fluid_viscosity):
+    """
+    calculate hydraulic resistance from permeability
+    
+    inputs:
+    permeability = array with dimensions nz,ny,nx,3 (representing x, y and z 
+                   directions), can contain nans
+    fluid_viscosity = float
+    dimensions = [x,y,z] dimensions of volume or individual cells in array    
+    
+    returns:
+    hydraulic resistance array of same dimensions as permeability
+    
+    """
 
+    dx,dy,dz = np.array(cellsize).astype(float)
+    gf = np.array([dy*dz/dx,dx*dz/dy,dx*dy/dz])
+    
+    return fluid_viscosity/(gf*permeability)

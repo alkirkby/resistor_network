@@ -10,6 +10,7 @@ import sys
 import rnpy.core.resistornetwork as rn
 import rnpy.functions.faultaperture as rnfa
 import rnpy.functions.assignfaults as rnaf
+import rnpy.functions.assignproperties as rnap
 import rnpy.functions.array as rna
 import os
 import os.path as op
@@ -588,72 +589,70 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
         compiled_ap = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3,3))
         compiled_res = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
         compiled_hr = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
-
-        for rid in np.unique(indices[:,-1]):
-            if rom.id == rid:
-                for fs in np.unique(indices[:,-5]):
-                    if fs == np.median(rom.fault_dict['fault_separation']):
-			for sz in indicesz:
-			    for sy in indicesy:
-				for sx in indicesx:
-				    ind = np.where(np.all(indices[:,-5:]==np.array([fs,sx,sy,sz,rid]),axis=1))[0][0]
-				    rox,roy,roz = ro_list_seg[ind]
-				    compiled_ap[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.aperture[1:ncellsz[2]+1,1:,1:,2].copy()
-				    compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.aperture[1:,1:ncellsy[1]+1,1:,1].copy()
-				    compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.aperture[1:,1:,1:ncellsx[0]+1,0].copy()
-				    compiled_faults[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.fault_array[1:ncellsz[2]+1,1:,1:,2]
-				    compiled_faults[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.fault_array[1:,1:ncellsy[1]+1,1:,1]
-				    compiled_faults[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.fault_array[1:,1:,1:ncellsx[0]+1,0]
-				    compiled_res[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.resistivity[1:ncellsz[2]+1,1:,1:,2]
-				    compiled_res[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.resistivity[1:,1:ncellsy[1]+1,1:,1]
-				    compiled_res[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.resistivity[1:,1:,1:ncellsx[0]+1,0]
-				    compiled_hr[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.hydraulic_resistance[1:ncellsz[2]+1,1:,1:,2]
-				    compiled_hr[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.hydraulic_resistance[1:,1:ncellsy[1]+1,1:,1]
-				    compiled_hr[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.hydraulic_resistance[1:,1:,1:ncellsx[0]+1,0]    
-
-			# set unused edges to zero (these are removed for calculation of resistivity)  
-			rom.aperture[:,-1,:,2] = 0.
-			rom.aperture[:,:,-1,2] = 0.
-			rom.aperture[-1,:,:,1] = 0.
-			rom.aperture[:,:,-1,1] = 0.
-			rom.aperture[:,-1,:,0] = 0.
-			rom.aperture[-1,:,:,0] = 0.
-			rom.fault_array[:,-1,:,2] = 0.
-			rom.fault_array[:,:,-1,2] = 0.
-			rom.fault_array[-1,:,:,1] = 0.
-			rom.fault_array[:,:,-1,1] = 0.
-			rom.fault_array[:,-1,:,0] = 0.
-			rom.fault_array[-1,:,:,0] = 0.                
+        
+        rid,fs = rom.id,np.median(rom.fault_dict['fault_separation'])
+        
+        for sz in indicesz:
+            for sy in indicesy:
+                for sx in indicesx:
+                    ind = np.where(np.all(indices[:,-5:]==np.array([fs,sx,sy,sz,rid]),axis=1))[0][0]
+                    rox,roy,roz = ro_list_seg[ind]
+                    compiled_ap[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.aperture[1:ncellsz[2]+1,1:,1:,2].copy()
+                    compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.aperture[1:,1:ncellsy[1]+1,1:,1].copy()
+                    compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.aperture[1:,1:,1:ncellsx[0]+1,0].copy()
+                    compiled_faults[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.fault_array[1:ncellsz[2]+1,1:,1:,2]
+                    compiled_faults[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.fault_array[1:,1:ncellsy[1]+1,1:,1]
+                    compiled_faults[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.fault_array[1:,1:,1:ncellsx[0]+1,0]
+                    compiled_res[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.resistivity[1:ncellsz[2]+1,1:,1:,2]
+                    compiled_res[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.resistivity[1:,1:ncellsy[1]+1,1:,1]
+                    compiled_res[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.resistivity[1:,1:,1:ncellsx[0]+1,0]
+                    compiled_hr[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.hydraulic_resistance[1:ncellsz[2]+1,1:,1:,2]
+                    compiled_hr[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.hydraulic_resistance[1:,1:ncellsy[1]+1,1:,1]
+                    compiled_hr[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.hydraulic_resistance[1:,1:,1:ncellsx[0]+1,0]    
+    
+        # set unused edges to zero (these are removed for calculation of resistivity)  
+        rom.aperture[:,-1,:,2] = 0.
+        rom.aperture[:,:,-1,2] = 0.
+        rom.aperture[-1,:,:,1] = 0.
+        rom.aperture[:,:,-1,1] = 0.
+        rom.aperture[:,-1,:,0] = 0.
+        rom.aperture[-1,:,:,0] = 0.
+        rom.fault_array[:,-1,:,2] = 0.
+        rom.fault_array[:,:,-1,2] = 0.
+        rom.fault_array[-1,:,:,1] = 0.
+        rom.fault_array[:,:,-1,1] = 0.
+        rom.fault_array[:,-1,:,0] = 0.
+        rom.fault_array[-1,:,:,0] = 0.                
+        		    
 		    
-		    
-			# set unused edges to high res (these are removed for calculation of resistivity)  
-			rom.resistivity[:,-1,:,2] = np.nan
-			rom.resistivity[:,:,-1,2] = np.nan
-			rom.resistivity[-1,:,:,1] = np.nan
-			rom.resistivity[:,:,-1,1] = np.nan
-			rom.resistivity[:,-1,:,0] = np.nan
-			rom.resistivity[-1,:,:,0] = np.nan
-			rom.hydraulic_resistance[:,-1,:,2] = np.nan
-			rom.hydraulic_resistance[:,:,-1,2] = np.nan
-			rom.hydraulic_resistance[-1,:,:,1] = np.nan
-			rom.hydraulic_resistance[:,:,-1,1] = np.nan
-			rom.hydraulic_resistance[:,-1,:,0] = np.nan
-			rom.hydraulic_resistance[-1,:,:,0] = np.nan
+        # set unused edges to high res (these are removed for calculation of resistivity)  
+        rom.resistivity[:,-1,:,2] = np.nan
+        rom.resistivity[:,:,-1,2] = np.nan
+        rom.resistivity[-1,:,:,1] = np.nan
+        rom.resistivity[:,:,-1,1] = np.nan
+        rom.resistivity[:,-1,:,0] = np.nan
+        rom.resistivity[-1,:,:,0] = np.nan
+        rom.hydraulic_resistance[:,-1,:,2] = np.nan
+        rom.hydraulic_resistance[:,:,-1,2] = np.nan
+        rom.hydraulic_resistance[-1,:,:,1] = np.nan
+        rom.hydraulic_resistance[:,:,-1,1] = np.nan
+        rom.hydraulic_resistance[:,-1,:,0] = np.nan
+        rom.hydraulic_resistance[-1,:,:,0] = np.nan
 
 
-			diff_faults = compiled_faults-rom.fault_array
-			diff_faults[np.isnan(diff_faults)] = 0
-			diff_ap = compiled_ap-rom.aperture
-			diff_ap[np.isnan(diff_ap)] = 0                
-			diff_res = compiled_res-rom.resistivity
-			diff_res[np.isnan(diff_res)] = 0                
-			diff_hr = compiled_hr-rom.hydraulic_resistance
-			diff_hr[np.isnan(diff_hr)] = 0                
+        diff_faults = compiled_faults-rom.fault_array
+        diff_faults[np.isnan(diff_faults)] = 0
+        diff_ap = compiled_ap-rom.aperture
+        diff_ap[np.isnan(diff_ap)] = 0                
+        diff_res = compiled_res-rom.resistivity
+        diff_res[np.isnan(diff_res)] = 0                
+        diff_hr = compiled_hr-rom.hydraulic_resistance
+        diff_hr[np.isnan(diff_hr)] = 0                
 
-			testfaults.append(np.all(diff_faults==0))
-			testap.append(np.all(diff_ap==0))
-			testres.append(np.all(diff_res==0))
-			testhr.append(np.all(diff_hr==0))
+        testfaults.append(np.all(diff_faults==0))
+        testap.append(np.all(diff_ap==0))
+        testres.append(np.all(diff_res==0))
+        testhr.append(np.all(diff_hr==0))
 #                print np.unique(diff_faults)[:10]
 #                print np.unique(diff_ap)[:10]
 #                print np.unique(diff_res)[:10]
@@ -663,12 +662,184 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
 
 
 
-def build_master_segmented(subvolume_outputs,list_of_inputs):
+def write_outputs_comparison(outputs_gathered, outfile) :
+    """
+    gathers all the outputs written to individual files for each rank, to a 
+    master file.
+    
+    
+    """
+  
+    
+    # first gather all outputs into a master array
+    count = 0
+    for kbulk,rbulk,ridlist,fslist in outputs_gathered:
+        fslist = np.array(fslist).reshape(len(fslist),1)
+        ridlist = np.array(ridlist).reshape(len(ridlist),1)
+        line = np.hstack([kbulk,rbulk,fslist,ridlist])
+        if count == 0:
+            outarray = line.copy()
+        else:
+            outarray = np.vstack([outarray,line])
+        count += 1
+
+    # now go through and put all entries for each rock volume on one line
+    count = 0
+    for r in np.unique(outarray[:,-1]):
+        for fs in np.unique(outarray[:,-2]):
+            line = np.nanmax(outarray[outarray[:,-1]==r],axis=0)
+            if count == 0:
+                outarray2 = line.copy()
+            else:
+                outarray2 = np.vstack([outarray2,line])
+            count += 1
+        if count == 1:
+            outarray2 = np.array([outarray2])
+
+#    print "saving outputs to file {}".format(outfile)
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%2i'],comments='')
+   
+
+
+def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile):
+    """
+    run comparison arrays to compare to segmented volume (different volumes for
+    the x, y and z directions)
+    
+    """
+    
+    if comm is not None:
+        print "setting up comparison volumes in parallel"
+        if rank == 0:
+            rolist_divided = divide_inputs(ro_list,size)
+        else:
+            rolist_divided = None
+        inputs_sent = comm.scatter(rolist_divided,root=0)
+        bulk_props = calculate_comparison_volumes(inputs_sent,subvolume_size)
+        outputs_gathered = comm.gather(bulk_props,root=0)
+        
+        if rank == 0:
+            print "writing comparison outputs"
+            write_outputs_comparison(outputs_gathered, outfile)
+
+    else:
+        for ro in ro_list:
+            rbulk,kbulk = calculate_comparison_volumes(ro,subvolume_size)
+
+
+
+
+def update_from_subvolumes(arr,outputs,propertyname):
+    """
+    update an array from subvolume outputs
+    
+    """
+    splitn = np.amax(outputs[-4:-1],axis=0)
+    
+    if propertyname == 'permeability':
+        c = 3
+    else:
+        c = 0
+    
+    for sz in range(splitn[2]):
+        for sy in range(splitn[1]):
+            for sx in range(splitn[0]):
+                ind = np.where(outputs[:,-4:-1] == np.array([sx,sy,sz]))[0][0]
+                arr[sz+1,sy+1,sx+1,0] = outputs[ind][0 + c]
+                arr[sz+1,sy+1,sx+1,1] = outputs[ind][1 + c]
+                arr[sz+1,sy+1,sx+1,2] = outputs[ind][2 + c]
+
+    return arr                   
+
+
+def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
     """
     set up master volume to contain the segmented inner volumes.
     """
-    return
+    
+    ro_list_sep = []
+    solve_properties = []
+    n = np.array(subvolume_size) + 1
 
+    splitn = np.amax(subvolume_outputs[-4:-1],axis=0)
+
+    for pp in ['current','fluid']:
+        if pp in list_of_inputs[0]['solve_properties']:
+            solve_properties.append(pp)
+    
+    for input_dict in list_of_inputs:
+        # not building new faults or apertures so fault assignment is none
+        input_dict['fault_assignment'] = 'none'
+        # number of cells
+        input_dict['ncells'] = splitn - 1
+        # new cellsize, size of subvolume * cellsize of original volume
+        input_dict['cellsize'] = n * input_dict['cellsize']
+        rid,fs = input_dict['id'],input_dict['fault_separation']
+
+        ind = np.where(np.all([subvolume_outputs[:,-1] == rid,subvolume_outputs[:,-5]==fs],axis=0))[0]
+        outputs = subvolume_outputs[ind]
+        ro = rn.Rock_volume(**input_dict)
+        ro.resistivity = update_from_subvolumes(ro.resistivity,outputs,'resistivity')
+        ro.permeability = update_from_subvolumes(ro.permeability,outputs,'permeability')
+        ro.hydraulic_resistance = rnap.permeability2hydraulic_resistance(ro.permeability,
+                                                                         ro.cellsize,
+                                                                         ro.fluid_viscosity)
+        
+        for sp in solve_properties:
+            ro.solve_properties = sp
+            for sd in ro.solve_direction:
+                ro.solve_direction = sd
+                ro_list_sep.append(copy.copy(ro))
+    
+    return ro_list_sep
+
+
+def run_segmented(ro_list_seg,save_array=True,savepath=None):
+    
+
+    kbulk,rbulk,ridlist,fslist = [],[],[],[]
+    
+    for ro in ro_list_seg:
+        ro.solve_resistor_network2()
+        if (save_array and (savepath is not None)):
+            for attname in ['permeability','resistivity']:
+                arr = getattr(ro,attname)
+                if arr is not None:
+                    np.save(op.join(savepath,attname+'%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),
+                            arr)
+        kbulk.append(ro.permeability_bulk.copy())
+        rbulk.append(ro.resistivity_bulk.copy())
+        ridlist.append(ro.id)
+        fslist.append(np.median(ro.fault_dict['fault_separation']))
+        
+    return kbulk,rbulk,ridlist,fslist
+    
+    
+
+def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,save_arrays=True,savepath=None):
+    """
+    run comparison arrays to compare to segmented volume (different volumes for
+    the x, y and z directions)
+    
+    """
+    
+    if comm is not None:
+        print "setting up comparison volumes in parallel"
+        if rank == 0:
+            rolist_divided = divide_inputs(ro_list,size)
+        else:
+            rolist_divided = None
+        inputs_sent = comm.scatter(rolist_divided,root=0)
+        bulk_props = run_segmented(inputs_sent,subvolume_size,save_arrays=save_arrays,savepath=savepath)
+        outputs_gathered = comm.gather(bulk_props,root=0)
+        
+        if rank == 0:
+            print "writing comparison outputs"
+            write_outputs_comparison(outputs_gathered, outfile)
+
+    else:
+        outputs_gathered = run_segmented(ro_list)
+        write_outputs_comparison(outputs_gathered, outfile)
 
 
 def build_master(list_of_inputs):
@@ -711,70 +882,8 @@ def build_master(list_of_inputs):
     return ro_list,ro_list_sep
 
 
-def write_outputs_comparison(outputs_gathered, outfile) :
-    """
-    gathers all the outputs written to individual files for each rank, to a 
-    master file.
-    
-    
-    """
-  
-    
-    # first gather all outputs into a master array
-    count = 0
-    for kbulk,rbulk,ridlist,fslist in outputs_gathered:
-        fslist = np.array(fslist).reshape(len(fslist),1)
-        ridlist = np.array(ridlist).reshape(len(ridlist),1)
-        line = np.hstack([kbulk,rbulk,fslist,ridlist])
-        if count == 0:
-            outarray = line.copy()
-        else:
-            outarray = np.vstack([outarray,line])
-        count += 1
-
-    # now go through and put all entries for each rock volume on one line
-    count = 0
-    for r in np.unique(outarray[:,-1]):
-        for fs in np.unique(outarray[:,-2]):
-            line = np.nanmax(outarray[outarray[:,-1]==r],axis=0)
-            if count == 0:
-                outarray2 = line.copy()
-            else:
-                outarray2 = np.vstack([outarray2,line])
-            count += 1
-        if count == 1:
-            outarray2 = np.array([outarray2])
-
-#    print "saving outputs to file {}".format(outfile)
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%2i'],comments='')
-   
 
 
-
-def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile):
-    """
-    run comparison arrays to compare to segmented volume (different volumes for
-    the x, y and z directions)
-    
-    """
-    
-    if comm is not None:
-        print "setting up comparison volumes in parallel"
-        if rank == 0:
-            rolist_divided = divide_inputs(ro_list,size)
-        else:
-            rolist_divided = None
-        inputs_sent = comm.scatter(rolist_divided,root=0)
-        bulk_props = calculate_comparison_volumes(inputs_sent,subvolume_size)
-        outputs_gathered = comm.gather(bulk_props,root=0)
-        
-        if rank == 0:
-            print "writing comparison outputs"
-            write_outputs_comparison(outputs_gathered, outfile)
-
-    else:
-        for ro in ro_list:
-            rbulk,kbulk = calculate_comparison_volumes(ro,subvolume_size)
 
 
 def setup_and_run_segmented_volume(arguments, argument_names):
@@ -894,9 +1003,17 @@ def setup_and_run_segmented_volume(arguments, argument_names):
                                           op.join(wd,'subvolumes_'+outfile),
                                           return_objects=False)
 
-#    if rank == 0:
-#        print "outarray",outarray
+    # create and run master volume containing subvolume results
+    if rank == 0:
+        ro_list_sep = build_master_segmented(list_of_inputs_master,
+                                             outarray,
+                                             input_dict['subvolume_size'])
+    else:
+        ro_list_sep = None
     
+    distribute_run_segmented(ro_list_sep,input_dict['subvolume_size'],
+                             rank,size,comm,op.join(wd,'master_'+outfile),
+                             save_array=True,savepath=wd2)
     
     
     
