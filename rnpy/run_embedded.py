@@ -673,21 +673,28 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     
     # first gather all outputs into a master array
     count = 0
-    for kbulk,rbulk,ridlist,fslist in outputs_gathered:
+    for rbulk,kbulk,ridlist,fslist in outputs_gathered:
         fslist = np.array(fslist).reshape(len(fslist),1)
         ridlist = np.array(ridlist).reshape(len(ridlist),1)
-        line = np.hstack([kbulk,rbulk,fslist,ridlist])
+        line = np.hstack([rbulk,kbulk,fslist,ridlist])
+        #print line
         if count == 0:
             outarray = line.copy()
         else:
             outarray = np.vstack([outarray,line])
         count += 1
 
+    np.savetxt(outfile[:-4]+'full.dat',outarray,fmt=['%.3e']*7+['%2i'],comments='')
+
     # now go through and put all entries for each rock volume on one line
     count = 0
     for r in np.unique(outarray[:,-1]):
         for fs in np.unique(outarray[:,-2]):
-            line = np.nanmax(outarray[outarray[:,-1]==r],axis=0)
+            ind = np.where(np.all([outarray[:,-1]==r,outarray[:,-2]==fs],axis=0))[0]
+            print "ind",ind
+            print "line all",line
+            line = np.nanmax(outarray[ind],axis=0)
+            print "line",line
             if count == 0:
                 outarray2 = line.copy()
             else:
@@ -734,8 +741,8 @@ def update_from_subvolumes(arr,outputs,propertyname):
     update an array from subvolume outputs
     
     """
-    splitn = np.amax(outputs[-4:-1],axis=0)
-    
+    splitn = np.amax(outputs[:,-4:-1],axis=0).astype(int) + 1
+    print "splitn",splitn    
     if propertyname == 'permeability':
         c = 3
     else:
@@ -745,10 +752,12 @@ def update_from_subvolumes(arr,outputs,propertyname):
         for sy in range(splitn[1]):
             for sx in range(splitn[0]):
                 ind = np.where(outputs[:,-4:-1] == np.array([sx,sy,sz]))[0][0]
+#                print "ind,arr.shape,np.shape(outputs)",ind,arr.shape,np.shape(outputs)
+#                print propertyname,"values",outputs[ind][c:c+3]
                 arr[sz+1,sy+1,sx+1,0] = outputs[ind][0 + c]
                 arr[sz+1,sy+1,sx+1,1] = outputs[ind][1 + c]
                 arr[sz+1,sy+1,sx+1,2] = outputs[ind][2 + c]
-
+#                print "set values",arr[sz+1,sy+1,sx+1,0],arr[sz+1,sy+1,sx+1,1],arr[sz+1,sy+1,sx+1,2]
     return arr                   
 
 
@@ -761,7 +770,7 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
     solve_properties = []
     n = np.array(subvolume_size) + 1
 
-    splitn = np.amax(subvolume_outputs[-4:-1],axis=0)
+    splitn = np.amax(subvolume_outputs[:,-4:-1],axis=0) + 1    
 
     for pp in ['current','fluid']:
         if pp in list_of_inputs[0]['solve_properties']:
@@ -772,51 +781,56 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
         input_dict['fault_assignment'] = 'none'
         # number of cells
         input_dict['ncells'] = splitn - 1
+#        print "input_dict['ncells']",input_dict['ncells']
         # new cellsize, size of subvolume * cellsize of original volume
         input_dict['cellsize'] = n * input_dict['cellsize']
         rid,fs = input_dict['id'],input_dict['fault_separation']
 
         ind = np.where(np.all([subvolume_outputs[:,-1] == rid,subvolume_outputs[:,-5]==fs],axis=0))[0]
         outputs = subvolume_outputs[ind]
+#        print "outputs",rid,outputs
         ro = rn.Rock_volume(**input_dict)
-        ro.resistivity = update_from_subvolumes(ro.resistivity,outputs,'resistivity')
-        ro.permeability = update_from_subvolumes(ro.permeability,outputs,'permeability')
+        ro.resistivity = rna.add_nulls(update_from_subvolumes(ro.resistivity,outputs,'resistivity'))
+        ro.permeability = rna.add_nulls(update_from_subvolumes(ro.permeability,outputs,'permeability'))
         ro.hydraulic_resistance = rnap.permeability2hydraulic_resistance(ro.permeability,
                                                                          ro.cellsize,
                                                                          ro.fluid_viscosity)
-        
+        solve_directions = input_dict['solve_direction']
+#        print "solve directions",solve_directions        
+
         for sp in solve_properties:
             ro.solve_properties = sp
-            for sd in ro.solve_direction:
+            for sd in solve_directions:
                 ro.solve_direction = sd
                 ro_list_sep.append(copy.copy(ro))
     
     return ro_list_sep
 
 
-def run_segmented(ro_list_seg,save_array=True,savepath=None):
+def run_segmented(ro_list_sep,save_array=True,savepath=None):
     
 
-    kbulk,rbulk,ridlist,fslist = [],[],[],[]
+    rbulk,kbulk,ridlist,fslist = [],[],[],[]
     
-    for ro in ro_list_seg:
+    for ro in ro_list_sep:
         ro.solve_resistor_network2()
+        print ro.solve_direction,ro.solve_properties,"ro.permeability_bulk,ro.resistivity_bulk",ro.permeability_bulk,ro.resistivity_bulk
         if (save_array and (savepath is not None)):
             for attname in ['permeability','resistivity']:
                 arr = getattr(ro,attname)
                 if arr is not None:
                     np.save(op.join(savepath,attname+'%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),
                             arr)
-        kbulk.append(ro.permeability_bulk.copy())
-        rbulk.append(ro.resistivity_bulk.copy())
+        kbulk.append(np.array(ro.permeability_bulk).copy())
+        rbulk.append(np.array(ro.resistivity_bulk).copy())
         ridlist.append(ro.id)
         fslist.append(np.median(ro.fault_dict['fault_separation']))
         
-    return kbulk,rbulk,ridlist,fslist
+    return rbulk,kbulk,ridlist,fslist
     
     
 
-def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,save_arrays=True,savepath=None):
+def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,save_array=True,savepath=None):
     """
     run comparison arrays to compare to segmented volume (different volumes for
     the x, y and z directions)
@@ -830,7 +844,7 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,save_
         else:
             rolist_divided = None
         inputs_sent = comm.scatter(rolist_divided,root=0)
-        bulk_props = run_segmented(inputs_sent,subvolume_size,save_arrays=save_arrays,savepath=savepath)
+        bulk_props = run_segmented(inputs_sent,save_array=save_array,savepath=savepath)
         outputs_gathered = comm.gather(bulk_props,root=0)
         
         if rank == 0:
@@ -1011,7 +1025,7 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     else:
         ro_list_sep = None
     
-    distribute_run_segmented(ro_list_sep,input_dict['subvolume_size'],
+    distribute_run_segmented(ro_list_sep,list_of_inputs_master[0]['subvolume_size'],
                              rank,size,comm,op.join(wd,'master_'+outfile),
                              save_array=True,savepath=wd2)
     
