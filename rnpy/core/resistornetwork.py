@@ -155,7 +155,7 @@ class Rock_volume():
 
 
         if self.build_arrays:
-            print "building arrays"
+#            print "building arrays"
             if self.fault_array is None:
                 self.build_faults()
                 
@@ -170,9 +170,10 @@ class Rock_volume():
             if self.array_buffer > 0:
                 
                 if np.all(self.fault_array.shape[:3] > np.array(self.ncells) + 2):
-                    print "removing buffer"
+#                    print "removing buffer"
                     buf = self.array_buffer
                     self.fault_array = rna.add_nulls(self.fault_array[buf:-buf,buf:-buf,buf:-buf])
+                    self.fault_edges -= self.array_buffer
                 if np.all(self.aperture.shape[:3] > np.array(self.ncells) + 2):
                     buf = self.array_buffer
                     self.aperture = rna.add_nulls(self.aperture[buf:-buf,buf:-buf,buf:-buf])
@@ -225,9 +226,9 @@ class Rock_volume():
         
         if self.fault_array is None:
             if create_array:
-                print "initialising a new array"
+#                print "initialising a new array"
                 # initialise a fault array
-                print "array_buffer",self.array_buffer,"nx,ny,nz",nx,ny,nz
+#                print "array_buffer",self.array_buffer,"nx,ny,nz",nx,ny,nz
                 self.fault_array = np.zeros([nz+2+self.array_buffer*2,
                                              ny+2+self.array_buffer*2,
                                              nx+2+self.array_buffer*2,3,3])
@@ -247,6 +248,7 @@ class Rock_volume():
                             self.fault_edges = np.array([self.fault_edges])
                         addfaults = True
                     else:
+                        pass
                         print "Invalid fault edges"
                     
                         
@@ -354,7 +356,7 @@ class Rock_volume():
             if (addfaults and create_array):
                 rnaf.add_faults_to_array(self.fault_array,self.fault_edges)
             else:
-                print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
+#                print "Can't assign faults, invalid fault assignment type or invalid fault edges list provided"
                 return
                 
             # make fault separation into an array with length same as fault edges

@@ -546,7 +546,7 @@ def assign_fault_aperture(fault_uvw,
         for ii in range(3):
             rna.add_nulls(ap_array[ii])
         if aperture_type == 'list':
-            print len(aperture_list)
+#            print len(aperture_list)
             aperture_list_f = aperture_list[1]
             aperture_list_c = aperture_list[2]
             aperture_list = aperture_list[0]

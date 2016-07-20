@@ -237,7 +237,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[0] = romx.resistivity_bulk[0]*factor
                     else:
                         bulk[0] = romx.permeability_bulk[0]/factor
-                    #print "x direction",sp,bulk,prop
         
                 # y direction array
                 if 'y' in directions:
@@ -258,7 +257,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[1] = romy.resistivity_bulk[1]*factor
                     else:
                         bulk[1] = romy.permeability_bulk[1]/factor
-                    #print "y direction",sp,bulk,prop
                 
                 # z direction array
                 if 'z' in directions:
@@ -279,7 +277,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[2] = romz.resistivity_bulk[2]*factor
                     else:
                         bulk[2] = romz.permeability_bulk[2]/factor
-                    #print "z direction",sp,bulk,prop
         
         rbulk1[-1] = rom.id
         kbulk1[-1] = rom.id
@@ -289,7 +286,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
 
     rbulk = np.array(rbulk)
     kbulk = np.array(kbulk)
-    #print "rbulk,kbulk",rbulk,kbulk
 
     return rbulk, kbulk
         
@@ -325,12 +321,14 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     # minimum and maximum extents of faults in x, y and z directions
     uvw0 = np.amin(faultedges,axis=(1,2))
     uvw1 = np.amax(faultedges,axis=(1,2))
+    
                 
     # initialise lists to contain the local fault edges in the subvolume, the
     # aperture, geometry corrected aperture (fluids) and geometry corrected 
     # aperture (current)
     local_fault_edges = []
     ap,apc,apf = [],[],[]
+    
     
     # get fracture indices that fall within the volume of interest (+buffer)
     for fi in np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0), 
@@ -342,26 +340,29 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
                                np.any([np.all([(sz+1)*n[2] + buf >= uvw0[:,2],uvw0[:,2] > max(sz*n[2] - buf,0)],axis=0),
                                        np.all([max(sz*n[2] - buf,0) < uvw1[:,2],uvw1[:,2] <= (sz+1)*n[2] + buf],axis=0),
                                        np.all([uvw0[:,2] <= max(sz*n[2] - buf,0),uvw1[:,2] > (sz+1)*n[2] + buf],axis=0)],axis=0)],axis=0))[0]:
-
+        
         # local fault extents
         lfe = faultedges[fi] - np.array([sx*n[0],sy*n[1],sz*n[2]])
-        lfe[lfe < 1 - buf] = 1 - buf
-        for i in range(3):
-            lfe[:,:,i][lfe[:,:,i] > n[i] + buf] = n[i] + buf
-        #print "fi,lfe",fi,lfe
-        local_fault_edges.append(lfe)
         
         # direction perpendicular to fault
         dperp = list(np.amax(faultedges[fi],axis=(0,1)) - np.amin(faultedges[fi],axis=(0,1))).index(0)
+
+        for i in range(3):
+            if i != dperp:
+                lfe[:,:,i][lfe[:,:,i] < 1. - buf] = 1. - buf
+                lfe[:,:,i][lfe[:,:,i] > n[i] + buf] = n[i] + buf
+     
+        local_fault_edges.append(lfe)
+
         
         # minimum and maximum indices for aperture to cut it if it extends over multiple sub volumes
-        ap0 = np.array([sx*n[0],sy*n[1],sz*n[2]]) - buf + 1 - np.amin(faultedges[fi],axis=(0,1))
+        ap0 = np.array([sx*n[0],sy*n[1],sz*n[2]]) - buf + 1 - np.amin(faultedges[fi],axis=(0,1))#
         ap0[ap0 < 0] = 0.
         ap1 = ap0 + np.amax(lfe,axis=(0,1)) - np.amin(lfe,axis=(0,1))
         
         ap0[dperp] = 0.
         ap1[dperp] = 2.
-
+        
         # append aperture, aperture corrected for fluid flow, aperture corrected for current
         ap.append(aperturelist[0][fi][ap0[2]:ap1[2]+1,ap0[1]:ap1[1]+1,ap0[0]:ap1[0]+1])
         apf.append(aperturelist[1][fi][ap0[2]:ap1[2]+1,ap0[1]:ap1[1]+1,ap0[0]:ap1[0]+1])
@@ -393,7 +394,7 @@ def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,spl
                 localidict = {}
                 localidict.update(inputdict)
                 # get aperture and faults
-                localfaults,localap = segment_faults(faultedge_list,aperture_list,subvolume_size,[sx,sy,sz],buf=buf)
+                localfaults,localap = segment_faults(faultedge_list,aperture_list,[sx,sy,sz],np.array(subvolume_size).copy(),buf=buf)
                 localidict['aperture_list'] = localap
                 localidict['fault_edges'] = np.array(localfaults)
                 #print "localfaults",localidict['fault_edges']
@@ -425,16 +426,11 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     """
     ro_masterlist = []
     ro_masterlist_sorted = []
-    #print "outputs_gathered",outputs_gathered
+    
     count = 0
     for line in outputs_gathered:
         if len(line) == 5:
             rbulk,kbulk,indices,ridlist,rolist = line
-#            print rbulk
-#            print kbulk
-#            print indices
-#            print rolist
-#            print ridlist
             ro_masterlist += rolist
         else:
             rbulk,kbulk,indices,ridlist = line[:4]
@@ -537,7 +533,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
                     properties.append(attr)
             for sd in directions:
                 di = 'xyz'.index(sd)
-                ncells = np.array(nn)
+                ncells = np.array(nn).copy()
                 ncells[di] += 1
                 idict['ncells'] = ncells
                 for sp in properties:
@@ -555,7 +551,6 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
         outputs_gathered = comm.gather(bulk_props,root=0)
     else:
         outputs_gathered = [run_subvolumes(input_list_sep,return_objects=return_objects)]
-        print outputs_gathered
     
     if rank == 0:
         return write_outputs_subvolumes(outputs_gathered, outfile)
@@ -568,7 +563,6 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     return outarray
 
 
-#def construct_array_from_subvolumes():
 def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
     """
     """
@@ -587,11 +581,9 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
     compiled_ap = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3,3))
     compiled_res = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
     compiled_hr = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))    
-    print "compiled_ap.shape",compiled_ap.shape
-    print "splitn",splitn
+
     testfaults,testap,testres,testhr = [],[],[],[]        
-        
-    count = 0
+    
     for rom in ro_list:
         for rid in np.unique(indices[:,-1]):
             if rom.id == rid:
@@ -600,12 +592,6 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                         for sx in indicesx:
                             ind = np.where(np.all(indices[:,-4:]==np.array([sx,sy,sz,rid]),axis=1))[0][0]
                             rox,roy,roz = ro_list_seg[ind]
-                            print "subarray_shapes",rox.aperture.shape,roy.aperture.shape,roz.aperture.shape
-                            print "indices",sz,sy,sx,ind
-#                            print 1+sz*n[2],1+sz*n[2]+ncellsz[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+(sx+1)*n[0]
-#                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+sy*n[1]+ncellsy[1],1+sx*n[0],1+(sx+1)*n[0]
-#                            print 1+sz*n[2],1+(sz+1)*n[2],1+sy*n[1],1+(sy+1)*n[1],1+sx*n[0],1+sx*n[0]+ncellsx[0]
-#                            print ncellsx,ncellsy,ncellsz
                             compiled_ap[1+sz*n[2]:1+sz*n[2]+ncellsz[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+(sx+1)*n[0],2] = roz.aperture[1:ncellsz[2]+1,1:,1:,2].copy()
                             compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+sy*n[1]+ncellsy[1],1+sx*n[0]:1+(sx+1)*n[0],1] = roy.aperture[1:,1:ncellsy[1]+1,1:,1].copy()
                             compiled_ap[1+sz*n[2]:1+(sz+1)*n[2],1+sy*n[1]:1+(sy+1)*n[1],1+sx*n[0]:1+sx*n[0]+ncellsx[0],0] = rox.aperture[1:,1:,1:ncellsx[0]+1,0].copy()
@@ -662,12 +648,12 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                 testap.append(np.all(diff_ap==0))
                 testres.append(np.all(diff_res==0))
                 testhr.append(np.all(diff_hr==0))
-                print np.unique(diff_faults)[:10]
-                print np.unique(diff_ap)[:10]
-                print np.unique(diff_res)[:10]
-                print np.unique(diff_hr)[:10]
+#                print np.unique(diff_faults)[:10]
+#                print np.unique(diff_ap)[:10]
+#                print np.unique(diff_res)[:10]
+#                print np.unique(diff_hr)[:10]
 
-    return testfaults,testap,testres,testhr
+    return testfaults,testap,testres,testhr,compiled_ap
 
 
 def build_master(list_of_inputs):
@@ -741,7 +727,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     if count == 1:
         outarray2 = np.array([outarray2])
 
-    print "saving outputs to file {}".format(outfile)
+#    print "saving outputs to file {}".format(outfile)
     np.savetxt(outfile,outarray2,fmt='%.3e',comments='')
    
 
