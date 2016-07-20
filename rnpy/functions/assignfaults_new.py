@@ -251,7 +251,7 @@ def get_faultsize(duvw,offset):
     
     """
     
-    size = int(np.amax(duvw) + 2*(max(0.2*np.amax(duvw),4)) + offset)
+    size = int(np.amax(duvw) + 2*(max(0.2*np.amax(duvw),6)) + offset)
     size += size % 2
     
     return size
