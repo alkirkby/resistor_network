@@ -199,7 +199,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
     (different dimensions for solving in x y and z directions)
     
     """
-    kbulk,rbulk= [],[]    
+    kbulk, rbulk, ridlist, fslist = [],[],[],[]
     
     for rom in Rock_volume_list:
         properties = rom.solve_properties
@@ -212,7 +212,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                       cellsize=rom.cellsize,solve_properties=properties)    
         #print "inputs to comparison volume",inputs 
         #print "directions"      
-        kbulk1,rbulk1 = np.ones(4)*np.nan,np.ones(4)*np.nan
+        kbulk1,rbulk1 = np.ones(3)*np.nan,np.ones(3)*np.nan
 
         for att,br,sp,bulk,prop in [['resistivity',boundary_res,'current',rbulk1,'resistivity'],['hydraulic_resistance',boundary_hydres,'fluid',kbulk1,'permeability']]:
             if sp in properties:
@@ -277,17 +277,16 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
                         bulk[2] = romz.resistivity_bulk[2]*factor
                     else:
                         bulk[2] = romz.permeability_bulk[2]/factor
-        
-        rbulk1[-1] = rom.id
-        kbulk1[-1] = rom.id
 
-    	rbulk.append(rbulk1)
+        rbulk.append(rbulk1)
         kbulk.append(kbulk1)
+        ridlist.append(rom.id)
+        fslist.append(rom.fault_dict['fault_separation'])
 
     rbulk = np.array(rbulk)
     kbulk = np.array(kbulk)
 
-    return rbulk, kbulk
+    return rbulk, kbulk, ridlist, fslist
         
         
         
@@ -430,15 +429,16 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     count = 0
     for line in outputs_gathered:
         if len(line) == 5:
-            rbulk,kbulk,indices,ridlist,rolist = line
+            rbulk,kbulk,indices,ridlist,fslist,rolist = line[:6]
             ro_masterlist += rolist
         else:
-            rbulk,kbulk,indices,ridlist = line[:4]
+            rbulk,kbulk,indices,ridlist,fslist = line[:5]
             ro_masterlist = None
-        # reshape ridlist so it can be stacked with the other arrays
+        # reshape ridlist and fslist so it can be stacked with the other arrays
+        fslist = np.array(fslist).reshape(len(fslist),1)
         ridlist = np.array(ridlist).reshape(len(ridlist),1)
         #print "ridlist",ridlist
-        outline = np.hstack([rbulk,kbulk,indices,ridlist])
+        outline = np.hstack([rbulk,kbulk,fslist,indices,ridlist])
         if count == 0:
             outarray = outline.copy()
         else:
@@ -487,7 +487,8 @@ def run_subvolumes(input_list,return_objects=False):
     """
     ro_list = []
     rlist,klist,indices = [],[],[]
-    ridlist = [] 
+    ridlist = []
+    fslist = []
     
     for input_dict in input_list:
 #        print input_dict
@@ -505,12 +506,13 @@ def run_subvolumes(input_list,return_objects=False):
         rlist.append(rbulk.copy())
         klist.append(kbulk.copy())
         ridlist.append(ros.id)
+        fslist.append(ros.fault_dict['fault_separation'])
         indices.append(ros.indices)
     
     if return_objects:
-        return rlist,klist,indices,ridlist,ro_list
+        return rlist,klist,indices,ridlist,fslist,ro_list
     else:
-        return rlist,klist,indices,ridlist
+        return rlist,klist,indices,ridlist,fslist
 
 
 
@@ -653,7 +655,16 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
 #                print np.unique(diff_res)[:10]
 #                print np.unique(diff_hr)[:10]
 
-    return testfaults,testap,testres,testhr,compiled_ap
+    return testfaults,testap,testres,testhr
+
+
+
+def build_master_segmented(subvolume_outputs,list_of_inputs):
+    """
+    set up master volume to contain the segmented inner volumes.
+    """
+    return
+
 
 
 def build_master(list_of_inputs):
@@ -707,8 +718,10 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     
     # first gather all outputs into a master array
     count = 0
-    for kbulk,rbulk in outputs_gathered:
-        line = np.hstack([kbulk[:,:3],rbulk])
+    for kbulk,rbulk,ridlist,fslist in outputs_gathered:
+        fslist = np.array(fslist).reshape(len(fslist),1)
+        ridlist = np.array(ridlist).reshape(len(ridlist),1)
+        line = np.hstack([kbulk,rbulk,fslist,ridlist])
         if count == 0:
             outarray = line.copy()
         else:
@@ -728,7 +741,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         outarray2 = np.array([outarray2])
 
 #    print "saving outputs to file {}".format(outfile)
-    np.savetxt(outfile,outarray2,fmt='%.3e',comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%2i'],comments='')
    
 
 
