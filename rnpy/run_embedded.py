@@ -18,45 +18,10 @@ import time
 import itertools
 import copy
 
-argument_names = [['splitn','n','number of subvolumes in x,y and z direction',3,int],
-                  ['subvolume_size','sn','number of cells in each subvolume (3 integers for size in x, y and z directions)',3,int],
-                  ['cellsize','c','cellsize in x,y and z direction',3,float],
-                  ['pconnection','p','probability of a fault in x, y and z direction',3,float],
-                  ['resistivity_matrix','rm','',1,float],
-                  ['resistivity_fluid','rf','',1,float],
-                  ['permeability_matrix','km','',1,float],
-                  ['fluid_viscosity','mu','',1,float],
-                  ['fault_assignment',None,'how to assign faults, random or list, '\
-                                           'if list need to provide fault edges',1,str],
-                  ['offset',None,'number of cells offset between fault surfaces',1,float],
-                  ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
-                  ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
-                  ['mismatch_wavelength_cutoff',None,
-                  'wavelength cutoff for matching between faults',1,float],
-                  ['elevation_scalefactor',None,
-                  'scale factor for standard deviation in elevation of fault surfaces',1,float],
-                  ['fractal_dimension',None,
-                  'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
-                  1,float],
-                  ['fault_separation',None,'amount to separate faults by, in metres','*',float],
-                  ['fault_edges','fe','indices of fault edges in x,y,z directions '\
-                                      'xmin xmax ymin ymax zmin zmax',6,int],
-                  ['aperture_type',None,'type of aperture, random or constant',1,str],
-                  ['workdir','wd','working directory',1,str],
-                  ['outfile','o','output file name',1,str],
-                  ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
-                  ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
-                  ['solve_method','sm','solver method, direct or iterative (relaxation)',1,str],
-                  ['vsurf','vs','voltage at top of volume for modelling',1,float],
-                  ['vbase','vb','voltage at top of volume for modelling',1,float],
-                  ['psurf','ps','pressure at top of volume for modelling',1,float],
-                  ['pbase','pb','pressure at top of volume for modelling',1,float],
-                  ['tolerance','tol','tolerance for the iterative solver',1,float],
-                  ['repeats','r','how many times to repeat each permutation',1,int],
-                  ['comparison_arrays','','what sort of comparison arrays to build, bulk, array, bulk_array (both), or none',1,str]]
 
 
-def read_arguments(arguments, argument_names):
+
+def read_arguments(arguments):
     """
     takes list of command line arguments obtained by passing in sys.argv
     reads these and updates attributes accordingly
@@ -64,6 +29,44 @@ def read_arguments(arguments, argument_names):
     
     import argparse
     
+
+    argument_names = [['splitn','n','number of subvolumes in x,y and z direction',3,int],
+                      ['subvolume_size','sn','number of cells in each subvolume (3 integers for size in x, y and z directions)',3,int],
+                      ['cellsize','c','cellsize in x,y and z direction',3,float],
+                      ['pconnection','p','probability of a fault in x, y and z direction',3,float],
+                      ['resistivity_matrix','rm','',1,float],
+                      ['resistivity_fluid','rf','',1,float],
+                      ['permeability_matrix','km','',1,float],
+                      ['fluid_viscosity','mu','',1,float],
+                      ['fault_assignment',None,'how to assign faults, random or list, '\
+                                               'if list need to provide fault edges',1,str],
+                      ['offset',None,'number of cells offset between fault surfaces',1,float],
+                      ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
+                      ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
+                      ['mismatch_wavelength_cutoff',None,
+                      'wavelength cutoff for matching between faults',1,float],
+                      ['elevation_scalefactor',None,
+                      'scale factor for standard deviation in elevation of fault surfaces',1,float],
+                      ['fractal_dimension',None,
+                      'fractal dimension of fault surfaces, recommended values in range (2.0,2.5)',
+                      1,float],
+                      ['fault_separation',None,'amount to separate faults by, in metres','*',float],
+                      ['fault_edges','fe','indices of fault edges in x,y,z directions '\
+                                          'xmin xmax ymin ymax zmin zmax',6,int],
+                      ['aperture_type',None,'type of aperture, random or constant',1,str],
+                      ['workdir','wd','working directory',1,str],
+                      ['outfile','o','output file name',1,str],
+                      ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
+                      ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
+                      ['solve_method','sm','solver method, direct or iterative (relaxation)',1,str],
+                      ['vsurf','vs','voltage at top of volume for modelling',1,float],
+                      ['vbase','vb','voltage at top of volume for modelling',1,float],
+                      ['psurf','ps','pressure at top of volume for modelling',1,float],
+                      ['pbase','pb','pressure at top of volume for modelling',1,float],
+                      ['tolerance','tol','tolerance for the iterative solver',1,float],
+                      ['repeats','r','how many times to repeat each permutation',1,int],
+                      ['comparison_arrays','','what sort of comparison arrays to build, bulk, array, bulk_array (both), or none',1,str]]
+
             
     parser = argparse.ArgumentParser()
 
@@ -211,8 +214,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,properties=None
         
         inputs = dict(update_cellsize_tf=False, fault_assignment='none',
                       cellsize=rom.cellsize,solve_properties=properties)    
-        #print "inputs to comparison volume",inputs 
-        #print "directions"      
         kbulk1,rbulk1 = np.ones(3)*np.nan,np.ones(3)*np.nan
 
         for att,br,sp,bulk,prop in [['resistivity',boundary_res,'current',rbulk1,'resistivity'],['hydraulic_resistance',boundary_hydres,'fluid',kbulk1,'permeability']]:
@@ -397,7 +398,6 @@ def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,spl
                 localfaults,localap = segment_faults(faultedge_list,aperture_list,[sx,sy,sz],np.array(subvolume_size).copy(),buf=buf)
                 localidict['aperture_list'] = localap
                 localidict['fault_edges'] = np.array(localfaults)
-                #print "localfaults",localidict['fault_edges']
                 # store indices to make it easier to put back together
                 localidict['indices'] = [sx,sy,sz]
                 
@@ -438,7 +438,6 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
         # reshape ridlist and fslist so it can be stacked with the other arrays
         fslist = np.array(fslist).reshape(len(fslist),1)
         ridlist = np.array(ridlist).reshape(len(ridlist),1)
-        #print "ridlist",ridlist
         outline = np.hstack([rbulk,kbulk,fslist,indices,ridlist])
         if count == 0:
             outarray = outline.copy()
@@ -493,8 +492,6 @@ def run_subvolumes(input_list,return_objects=False):
     fslist = []
     
     for input_dict in input_list:
-#        print input_dict
-        #print "subvolume input dict",input_dict
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
         ros = rn.Rock_volume(**input_dict)
@@ -653,10 +650,6 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
         testap.append(np.all(diff_ap==0))
         testres.append(np.all(diff_res==0))
         testhr.append(np.all(diff_hr==0))
-#                print np.unique(diff_faults)[:10]
-#                print np.unique(diff_ap)[:10]
-#                print np.unique(diff_res)[:10]
-#                print np.unique(diff_hr)[:10]
 
     return testfaults,testap,testres,testhr
 
@@ -677,7 +670,6 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         fslist = np.array(fslist).reshape(len(fslist),1)
         ridlist = np.array(ridlist).reshape(len(ridlist),1)
         line = np.hstack([rbulk,kbulk,fslist,ridlist])
-        #print line
         if count == 0:
             outarray = line.copy()
         else:
@@ -693,10 +685,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     for r in np.unique(outarray[:,-1]):
         for fs in np.unique(outarray[:,-2]):
             ind = np.where(np.all([outarray[:,-1]==r,outarray[:,-2]==fs],axis=0))[0]
-            print "ind",ind
-            print "line all",outarray[ind]
             line = np.nanmax(outarray[ind],axis=0)
-            print "line",line
             if count == 0:
                 outarray2 = line.copy()
             else:
@@ -705,7 +694,6 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         if count == 1:
             outarray2 = np.array([outarray2])
 
-#    print "saving outputs to file {}".format(outfile)
     np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%2i'],comments='')
    
 
@@ -732,9 +720,9 @@ def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile):
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
-        for ro in ro_list:
-            rbulk,kbulk = calculate_comparison_volumes(ro,subvolume_size)
-
+        outputs_gathered = [list(calculate_comparison_volumes(ro_list,subvolume_size))]
+#        print len(outputs_gathered)
+        write_outputs_comparison(outputs_gathered, outfile)
 
 
 
@@ -744,7 +732,7 @@ def update_from_subvolumes(arr,outputs,propertyname):
     
     """
     splitn = np.amax(outputs[:,-4:-1],axis=0).astype(int) + 1
-    print "splitn",splitn    
+#    print "splitn",splitn    
     if propertyname == 'permeability':
         c = 3
     else:
@@ -753,13 +741,10 @@ def update_from_subvolumes(arr,outputs,propertyname):
     for sz in range(splitn[2]):
         for sy in range(splitn[1]):
             for sx in range(splitn[0]):
-                ind = np.where(outputs[:,-4:-1] == np.array([sx,sy,sz]))[0][0]
-#                print "ind,arr.shape,np.shape(outputs)",ind,arr.shape,np.shape(outputs)
-#                print propertyname,"values",outputs[ind][c:c+3]
+                ind = np.where(np.all(outputs[:,-4:-1] ==np.array([sx,sy,sz]),axis=1))[0][0]
                 arr[sz+1,sy+1,sx+1,0] = outputs[ind][0 + c]
                 arr[sz+1,sy+1,sx+1,1] = outputs[ind][1 + c]
                 arr[sz+1,sy+1,sx+1,2] = outputs[ind][2 + c]
-#                print "set values",arr[sz+1,sy+1,sx+1,0],arr[sz+1,sy+1,sx+1,1],arr[sz+1,sy+1,sx+1,2]
     return arr                   
 
 
@@ -783,14 +768,12 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
         input_dict['fault_assignment'] = 'none'
         # number of cells
         input_dict['ncells'] = splitn - 1
-#        print "input_dict['ncells']",input_dict['ncells']
         # new cellsize, size of subvolume * cellsize of original volume
         input_dict['cellsize'] = n * input_dict['cellsize']
         rid,fs = input_dict['id'],input_dict['fault_separation']
 
         ind = np.where(np.all([subvolume_outputs[:,-1] == rid,subvolume_outputs[:,-5]==fs],axis=0))[0]
         outputs = subvolume_outputs[ind]
-#        print "outputs",rid,outputs
         ro = rn.Rock_volume(**input_dict)
         ro.resistivity = rna.add_nulls(update_from_subvolumes(ro.resistivity,outputs,'resistivity'))
         ro.permeability = rna.add_nulls(update_from_subvolumes(ro.permeability,outputs,'permeability'))
@@ -798,7 +781,6 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
                                                                          ro.cellsize,
                                                                          ro.fluid_viscosity)
         solve_directions = input_dict['solve_direction']
-#        print "solve directions",solve_directions        
 
         for sp in solve_properties:
             ro.solve_properties = sp
@@ -816,9 +798,8 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None):
     
     for ro in ro_list_sep:
         ro.solve_resistor_network2()
-        print ro.solve_direction,ro.solve_properties,"ro.permeability_bulk,ro.resistivity_bulk",ro.permeability_bulk,ro.resistivity_bulk
         if (save_array and (savepath is not None)):
-            for attname in ['permeability','resistivity']:
+            for attname in ['permeability','resistivity','hydraulic_resistance']:
                 arr = getattr(ro,attname)
                 if arr is not None:
                     np.save(op.join(savepath,attname+'%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),
@@ -854,11 +835,12 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,save_
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
-        outputs_gathered = run_segmented(ro_list)
+        # if not using mpi, don't need to split up
+        outputs_gathered = [list(run_segmented(ro_list,save_array=save_array,savepath=savepath))]
         write_outputs_comparison(outputs_gathered, outfile)
 
 
-def build_master(list_of_inputs):
+def build_master(list_of_inputs,save_array=True,savepath=None):
     """
     initialise master rock volumes
     
@@ -885,6 +867,9 @@ def build_master(list_of_inputs):
             input_dict['fault_surfaces'] = ro.fault_dict['fault_surfaces']
 
         ro = rn.Rock_volume(**input_dict)
+        if (save_array and (savepath is not None)):
+            np.save(op.join(savepath,'fault_edges_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_edges)
+            np.save(op.join(savepath,'aperture_list_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_dict['aperture_list'])
         ro_list.append(ro)
         
         solve_direction = ro.solve_direction
@@ -902,7 +887,7 @@ def build_master(list_of_inputs):
 
 
 
-def setup_and_run_segmented_volume(arguments, argument_names):
+def setup_and_run_segmented_volume(arguments):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
@@ -926,7 +911,7 @@ def setup_and_run_segmented_volume(arguments, argument_names):
 
     
     # get inputs from the command line
-    fixed_parameters, loop_parameters, repeats = read_arguments(arguments, argument_names)
+    fixed_parameters, loop_parameters, repeats = read_arguments(arguments)
     
     # get workdir
     if 'workdir' in fixed_parameters.keys():
@@ -966,7 +951,7 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     # parallel processing
     subvolume_size = list_of_inputs_master[0]['subvolume_size']
     if rank == 0:
-        ro_list, ro_list_sep = build_master(list_of_inputs_master)
+        ro_list, ro_list_sep = build_master(list_of_inputs_master,save_array=True,savepath=wd2)
     else:
         ro_list, ro_list_sep = None,None
     # run comparison
@@ -1030,10 +1015,9 @@ def setup_and_run_segmented_volume(arguments, argument_names):
     distribute_run_segmented(ro_list_sep,list_of_inputs_master[0]['subvolume_size'],
                              rank,size,comm,op.join(wd,'master_'+outfile),
                              save_array=True,savepath=wd2)
-    
-    
+
     
                    
 if __name__ == "__main__":
-    setup_and_run_segmented_volume(sys.argv,argument_names)
+    setup_and_run_segmented_volume(sys.argv)
 
