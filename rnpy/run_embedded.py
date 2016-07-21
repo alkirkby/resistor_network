@@ -683,16 +683,18 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         else:
             outarray = np.vstack([outarray,line])
         count += 1
+    
+    outarray[np.isinf(outarray)] = np.nan    
 
     np.savetxt(outfile[:-4]+'full.dat',outarray,fmt=['%.3e']*7+['%2i'],comments='')
-
+    
     # now go through and put all entries for each rock volume on one line
     count = 0
     for r in np.unique(outarray[:,-1]):
         for fs in np.unique(outarray[:,-2]):
             ind = np.where(np.all([outarray[:,-1]==r,outarray[:,-2]==fs],axis=0))[0]
             print "ind",ind
-            print "line all",line
+            print "line all",outarray[ind]
             line = np.nanmax(outarray[ind],axis=0)
             print "line",line
             if count == 0:
