@@ -203,7 +203,6 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
     (different dimensions for solving in x y and z directions)
     
     """
-    kbulk, rbulk, ridlist, fslist = [],[],[],[]
     
     count = 0
     for rom in Rock_volume_list:
@@ -280,7 +279,18 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
                         bulk[2] = romz.resistivity_bulk[2]*factor
                     else:
                         bulk[2] = romz.permeability_bulk[2]/factor
-        line = np.hstack([rbulk1,kbulk1,[np.median(rom.fault_dict['fault_separation'])],[rom.id]])
+                        
+        if hasattr(rom,'aperture_mean'):
+            apm = rom.aperture_mean
+        else:
+            apm = np.ones(3)*np.nan
+
+        if hasattr(rom,'contact_area'):
+            ca = rom.contact_area
+        else:
+            ca = np.ones(3)*np.nan                        
+                        
+        line = np.hstack([rbulk1,kbulk1,apm,ca,[np.median(rom.fault_dict['fault_separation'])],[rom.id]])
         
         if count == 0:
             outarray = np.array([line.copy()])
@@ -289,7 +299,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
             outarray = np.vstack([outarray,line])
 
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7+['%3i'],header='resx resy resz kx ky kz fs rid')
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i'],header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs rid')
     
     
 
@@ -477,7 +487,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     if count == 1:
         outarray2 = np.array([outarray2])
 
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%3i']*4,comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*10+['%.3f']*3+['%3i']*4,comments='')
     
     if ro_masterlist is None:
         return outarray2
@@ -503,8 +513,19 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
         
         if return_objects:
             ro_list.append(copy.copy(ros))
+
+        if hasattr(ros,'aperture_mean'):
+            apm = ros.aperture_mean
+        else:
+            apm = np.ones(3)*np.nan
+
+        if hasattr(ros,'contact_area'):
+            ca = ros.contact_area
+        else:
+            ca = np.ones(3)*np.nan   
+
         
-        line = np.hstack([rbulk,kbulk,
+        line = np.hstack([rbulk,kbulk,apm,ca,
                          [np.median(ros.fault_dict['fault_separation'])],
                           ros.indices,[ros.id]])
         if count == 0:
@@ -514,8 +535,9 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
             outarray = np.vstack([outarray,[line]])
         
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7 + ['%3i']*4)
-
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i']*4,
+                       header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs ix iy iz rid')
+                         
     
     if return_objects:
         return outarray,ro_list
@@ -707,8 +729,12 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         if count == 1:
             outarray2 = np.array([outarray2])
 
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%2i'],comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*10+['%.3f']*3+['%2i'],comments='')
    
+
+
+
+
 
 
 def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=None):
@@ -820,8 +846,20 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None,tmp_outfile=None):
                 if arr is not None:
                     np.save(op.join(savepath,attname+'%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),
                             arr)
-        
-        line = np.hstack([ro.resistivity_bulk,ro.permeability_bulk,
+                            
+                            
+        if hasattr(rom,'aperture_mean'):
+            apm = ro.aperture_mean
+        else:
+            apm = np.ones(3)*np.nan
+
+        if hasattr(rom,'contact_area'):
+            ca = ro.contact_area
+        else:
+            ca = np.ones(3)*np.nan
+            
+            
+        line = np.hstack([ro.resistivity_bulk,ro.permeability_bulk,apm,ca
                           [np.median(ro.fault_dict['fault_separation'])],[ro.id]])
         if count == 0:
             outarray = np.array([line.copy()])
@@ -830,11 +868,11 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None,tmp_outfile=None):
             outarray = np.vstack([outarray,[line]])
             
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7+['%3i'])        
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i'],
+                       header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs rid')        
 
     return outarray
-    
-    
+
 
 def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,
                              save_array=True,savepath=None,tmp_outfile=None):
@@ -868,6 +906,8 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,
                                                savepath=savepath,tmp_outfile=tmp_outfile))]
         write_outputs_comparison(outputs_gathered, outfile)
 
+                         
+    
 
 def build_master(list_of_inputs,save_array=True,savepath=None):
     """
