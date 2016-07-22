@@ -281,13 +281,15 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
                     else:
                         bulk[2] = romz.permeability_bulk[2]/factor
         line = np.hstack([rbulk1,kbulk1,[np.median(rom.fault_dict['fault_separation'])],[rom.id]])
+        
         if count == 0:
-            outarray = line.copy()
+            outarray = np.array([line.copy()])
             count += 1
         else:
             outarray = np.vstack([outarray,line])
-        
-        np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7+['%1i'],header='resx resy resz kx ky kz fs rid')
+
+        if tmp_outfile is not None:
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7+['%3i'],header='resx resy resz kx ky kz fs rid')
     
     
 
@@ -433,6 +435,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     count = 0
     for line in outputs_gathered:
         if len(line) == 2:
+            print "gathering ro list and outputs" 
             line1,rolist = line
             ro_masterlist += rolist
         else:
@@ -476,7 +479,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
 
     np.savetxt(outfile,outarray2,fmt=['%.3e']*7+['%3i']*4,comments='')
     
-    if rolist is None:
+    if ro_masterlist is None:
         return outarray2
     else:
         return outarray2,ro_masterlist_sorted
@@ -486,8 +489,8 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
     """
     
     """
-
-    ro_list = []
+    if return_objects:
+        ro_list = []
     
     count = 0    
     for input_dict in input_list:
@@ -505,9 +508,10 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
                          [np.median(ros.fault_dict['fault_separation'])],
                           ros.indices,[ros.id]])
         if count == 0:
-            outarray = line.copy()
+            outarray = np.array([line.copy()])
+            count += 1
         else:
-            outarray = np.vstack([outarray,line])
+            outarray = np.vstack([outarray,[line]])
         
         if tmp_outfile is not None:
             np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7 + ['%3i']*4)
@@ -573,7 +577,6 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
         else:
             return None
 
-    return outarray
 
 
 def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
@@ -590,7 +593,6 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
                                [nn[2],nn[1] + 1,nn[0]],
                                [nn[2],nn[1],nn[0] + 1]]
     
-
     testfaults,testap,testres,testhr = [],[],[],[]        
     
     for rom in ro_list:
@@ -600,7 +602,7 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
         compiled_hr = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
         
         rid,fs = rom.id,np.median(rom.fault_dict['fault_separation'])
-        
+
         for sz in indicesz:
             for sy in indicesy:
                 for sx in indicesx:
@@ -690,7 +692,6 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     
     outarray[np.isinf(outarray)] = np.nan    
 
-    np.savetxt(outfile[:-4]+'full.dat',outarray,fmt=['%.3e']*7+['%2i'],comments='')
     
     # now go through and put all entries for each rock volume on one line
     count = 0
@@ -746,7 +747,7 @@ def update_from_subvolumes(arr,outputs,propertyname):
     
     """
     splitn = np.amax(outputs[:,-4:-1],axis=0).astype(int) + 1
-#    print "splitn",splitn    
+
     if propertyname == 'permeability':
         c = 3
     else:
@@ -823,12 +824,14 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None,tmp_outfile=None):
         line = np.hstack([ro.resistivity_bulk,ro.permeability_bulk,
                           [np.median(ro.fault_dict['fault_separation'])],[ro.id]])
         if count == 0:
-            outarray = line.copy()
+            outarray = np.array([line.copy()])
             count += 1
         else:
-            outarray = np.vstack([outarray,line])
+            outarray = np.vstack([outarray,[line]])
             
-        
+        if tmp_outfile is not None:
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*7+['%3i'])        
+
     return outarray
     
     
@@ -944,9 +947,9 @@ def setup_and_run_segmented_volume(arguments):
         wd = fixed_parameters['workdir']
     else:
         wd = './model_runs'
-    # define a subdirectory to store arrays
+    # define a subdirectory to store arrays and temporary files
     wd2 = os.path.join(wd,'arrays')
-    
+    wd3 = op.join(wd,'tempfiles')    
     # create inputs for master rock volumes
     list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats)
 
@@ -958,12 +961,13 @@ def setup_and_run_segmented_volume(arguments):
         if not os.path.exists(wd):
             os.mkdir(wd)
         wd = os.path.abspath(wd)
-        if not os.path.exists(wd2):
-            os.mkdir(wd2)
+        for wdn in [wd2,wd3]:
+            if not os.path.exists(wdn):
+                os.mkdir(wdn)
     else:
         
         # wait for rank 1 to generate folder
-        while not os.path.exists(wd2):
+        while not os.path.exists(wd3):
             time.sleep(1)
 
     # initialise outfile name
@@ -986,7 +990,7 @@ def setup_and_run_segmented_volume(arguments):
     if 'bulk' in fixed_parameters['comparison_arrays']:
         run_comparison(ro_list_sep,subvolume_size,rank,size,comm,
                        op.join(wd,'comparison_'+outfile),
-                       tmp_outfile=op.join(wd,'comparison_'+outfile[:-4]+'.tmp'))
+                       tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
 
     
     # create subvolumes
@@ -1021,7 +1025,7 @@ def setup_and_run_segmented_volume(arguments):
                                                       size,rank,comm,
                                                       op.join(wd,'subvolumes_'+outfile),
                                                       return_objects=True,
-                                                      tmp_outfile=op.join(wd,'subvolumes_'+outfile[:-4]+'.tmp'))
+                                                      tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
         # assemble the individual pieces into master arrays (aperture, 
         # resistivity and hydraulic resistance and compare these to the
         # original ones.
@@ -1034,7 +1038,7 @@ def setup_and_run_segmented_volume(arguments):
                                           size,rank,comm,
                                           op.join(wd,'subvolumes_'+outfile),
                                           return_objects=False,
-                                          tmp_outfile=op.join(wd,'subvolumes_'+outfile[:-4]+'.tmp'))
+                                          tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
 
     # create and run master volume containing subvolume results
     if rank == 0:
@@ -1047,7 +1051,7 @@ def setup_and_run_segmented_volume(arguments):
     distribute_run_segmented(ro_list_sep,list_of_inputs_master[0]['subvolume_size'],
                              rank,size,comm,op.join(wd,'master_'+outfile),
                              save_array=True,savepath=wd2,
-                             tmp_outfile=op.join(wd,'master_'+outfile[:-4]+'.tmp'))
+                             tmp_outfile=op.join(wd3,'master_'+outfile[:-4]+'.tmp'))
 
     
                    
