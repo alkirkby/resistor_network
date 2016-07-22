@@ -299,7 +299,7 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
             outarray = np.vstack([outarray,line])
 
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i'],header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs rid')
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*9+['%.3f']*3+['%.3e','%3i'],header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs rid')
     
     
 
@@ -487,7 +487,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     if count == 1:
         outarray2 = np.array([outarray2])
 
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*10+['%.3f']*3+['%3i']*4,comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*9+['%.3f']*3+['%.3e']+['%3i']*4,comments='')
     
     if ro_masterlist is None:
         return outarray2
@@ -535,7 +535,7 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
             outarray = np.vstack([outarray,[line]])
         
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i']*4,
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*9+['%.3f']*3+['%.3e']+['%3i']*4,
                        header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs ix iy iz rid')
                          
     
@@ -729,7 +729,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
         if count == 1:
             outarray2 = np.array([outarray2])
 
-    np.savetxt(outfile,outarray2,fmt=['%.3e']*10+['%.3f']*3+['%2i'],comments='')
+    np.savetxt(outfile,outarray2,fmt=['%.3e']*9+['%.3f']*3+['%.3e','%2i'],comments='')
    
 
 
@@ -822,6 +822,9 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
         ro.hydraulic_resistance = rnap.permeability2hydraulic_resistance(ro.permeability,
                                                                          ro.cellsize,
                                                                          ro.fluid_viscosity)
+        ro.aperture_mean = np.nanmax(outputs[:,6:9],axis=0)
+        ro.contact_area = np.nanmax(outputs[:,9:12],axis=0)
+
         solve_directions = input_dict['solve_direction']
 
         for sp in solve_properties:
@@ -848,18 +851,18 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None,tmp_outfile=None):
                             arr)
                             
                             
-        if hasattr(rom,'aperture_mean'):
+        if hasattr(ro,'aperture_mean'):
             apm = ro.aperture_mean
         else:
             apm = np.ones(3)*np.nan
 
-        if hasattr(rom,'contact_area'):
+        if hasattr(ro,'contact_area'):
             ca = ro.contact_area
         else:
             ca = np.ones(3)*np.nan
             
             
-        line = np.hstack([ro.resistivity_bulk,ro.permeability_bulk,apm,ca
+        line = np.hstack([ro.resistivity_bulk,ro.permeability_bulk,apm,ca,
                           [np.median(ro.fault_dict['fault_separation'])],[ro.id]])
         if count == 0:
             outarray = np.array([line.copy()])
@@ -868,7 +871,7 @@ def run_segmented(ro_list_sep,save_array=True,savepath=None,tmp_outfile=None):
             outarray = np.vstack([outarray,[line]])
             
         if tmp_outfile is not None:
-            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*10+['%.3f']*3+['%3i'],
+            np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*9+['%.3f']*3+['%.3e','%3i'],
                        header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs rid')        
 
     return outarray
@@ -1087,7 +1090,7 @@ def setup_and_run_segmented_volume(arguments):
                                              input_dict['subvolume_size'])
     else:
         ro_list_sep = None
-    
+    print "running master volume, ro_list_sep on rank",rank,ro_list_sep    
     distribute_run_segmented(ro_list_sep,list_of_inputs_master[0]['subvolume_size'],
                              rank,size,comm,op.join(wd,'master_'+outfile),
                              save_array=True,savepath=wd2,
