@@ -469,14 +469,15 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
                         ind = np.where(np.all(outarray[:,-5:]==np.array([fs,ix,iy,iz,rid]),axis=1))[0]
                         line = np.nanmax(outarray[ind],axis=0)
                         roxyz = np.zeros(3,dtype=object)
-                        for ii in range(3):
-                            for iii in ind:
-                                if np.any(np.isfinite(outarray[iii][np.array([ii,ii+3])])):
-                                    roxyz[ii] = ro_masterlist[iii]
-                                    break
+                        if ro_masterlist is not None:
+                            for ii in range(3):
+                                for iii in ind:
+                                    if np.any(np.isfinite(outarray[iii][np.array([ii,ii+3])])):
+                                        roxyz[ii] = ro_masterlist[iii]
+                                        break
                         
-                        # only append the first instance to the sorted ro list
-                        ro_masterlist_sorted.append(roxyz)
+                            # only append the first instance to the sorted ro list
+                            ro_masterlist_sorted.append(roxyz)
                         # add the line to the output array
                         if count == 0:
                             outarray2 = line.copy()
@@ -920,7 +921,6 @@ def build_master(list_of_inputs,save_array=True,savepath=None):
     # two lists, one with all rock volumes, the other split up by solve direction
     # and solve properties
     ro_list_sep, ro_list = [],[]
-    repeat = None
     solve_properties = []
     
     for pp in ['current','fluid']:
@@ -930,19 +930,14 @@ def build_master(list_of_inputs,save_array=True,savepath=None):
     
     for input_dict in list_of_inputs:
         # only initialise new faults if we are moving to a new volume
-        if repeat != input_dict['id']:
-            input_dict['fault_edges'] = None
-            input_dict['fault_surfaces'] = None
-            repeat = input_dict['id']
-        else:
-            input_dict['fault_edges'] = ro.fault_edges
-            input_dict['fault_surfaces'] = ro.fault_dict['fault_surfaces']
+        input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
+        input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
 
         ro = rn.Rock_volume(**input_dict)
         if (save_array and (savepath is not None)):
             np.save(op.join(savepath,'fault_edges_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_edges)
             np.save(op.join(savepath,'aperture_list_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_dict['aperture_list'])
-        ro_list.append(ro)
+        ro_list.append(copy.copy(ro))
         
         solve_direction = ro.solve_direction
         
