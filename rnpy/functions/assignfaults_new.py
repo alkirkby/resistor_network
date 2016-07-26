@@ -477,6 +477,18 @@ def assign_fault_aperture(fault_uvw,
                                            b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-dv:cb[1]+dv+duvw[1]%2+1],\
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
                     if fill_array:
+                        if w1-w0+1 > int(np.shape(b2vals)[0]):
+                            w1 = int(np.shape(b2vals)[0])+w0-1
+                        elif w1-w0+1 < int(np.shape(b2vals)[0]):
+                            b2vals = b2vals[:w1-w0+1]
+                            b1vals = b1vals[:w1-w0]
+                            b0vals = b0vals[:w1-w0+1]
+                        if v1-v0+1 > int(np.shape(b2vals)[1]):
+                            v1 = int(np.shape(b2vals)[1])+v0-1
+                        elif v1-v0+1 < int(np.shape(b2vals)[1]):
+                            b2vals = b2vals[:,:v1-v0+1]
+                            b1vals = b1vals[:,:v1-v0+1]
+                            b0vals = b0vals[:,:v1-v0]
                         # faults perpendicular to x direction, i.e. yz plane
                         ap_array[ii,w0:w1+1,v0:v1+1,u0-1,0,0] += b2vals
                         ap_array[ii,w0:w1+1,v0:v1+1,u0,0,0] += b2vals
@@ -496,6 +508,21 @@ def assign_fault_aperture(fault_uvw,
                                            b1[cb[0]-dw:cb[0]+dw+duvw[2]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1],\
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                     if fill_array:
+                        # correct for slight discrepancies in array shape
+                        if w1-w0+1 > int(np.shape(b2vals)[0]):
+                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
+                            w1 = int(np.shape(b2vals)[0])+w0-1
+                        elif w1-w0+1 < int(np.shape(b2vals)[0]):
+                            b2vals = b2vals[:w1-w0+1]
+                            b1vals = b1vals[:w1-w0]
+                            b0vals = b0vals[:w1-w0+1]
+                        if u1-u0+1 > int(np.shape(b2vals)[1]):
+                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            u1 = int(np.shape(b2vals)[1])+u0-1
+                        elif u1-u0+1 < int(np.shape(b2vals)[1]):
+                            b2vals = b2vals[:,:u1-u0+1]
+                            b1vals = b1vals[:,:u1-u0+1]
+                            b0vals = b0vals[:,:u1-u0]
                         # faults perpendicular to y direction, i.e. xz plane
                         ap_array[ii,w0:w1+1,v0-1,u0:u1+1,1,1] += b2vals
                         ap_array[ii,w0:w1+1,v0,u0:u1+1,1,1] += b2vals
@@ -515,6 +542,21 @@ def assign_fault_aperture(fault_uvw,
                                            b1[cb[0]-dv:cb[0]+dv+duvw[1]%2,cb[1]-du:cb[1]+du+duvw[0]%2+1],\
                                            b2[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2+1]/2.
                     if fill_array:
+                        # correct for slight discrepancies in array shape
+                        if v1-v0+1 > int(np.shape(b2vals)[0]):
+                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0])
+                            v1 = int(np.shape(b2vals)[0])+v0-1
+                        elif v1-v0+1 < int(np.shape(b2vals)[0]):
+                            b2vals = b2vals[:v1-v0+1]
+                            b1vals = b1vals[:v1-v0]
+                            b0vals = b0vals[:v1-v0+1]
+                        if u1-u0+1 > int(np.shape(b2vals)[1]):
+                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            u1 = int(np.shape(b2vals)[1])+u0-1
+                        elif u1-u0+1 < int(np.shape(b2vals)[1]):
+                            b2vals = b2vals[:,:u1-u0+1]
+                            b1vals = b1vals[:,:u1-u0+1]
+                            b0vals = b0vals[:,:u1-u0]
                         # faults perpendicular to z direction, i.e. xy plane
                         ap_array[ii,w0-1,v0:v1+1,u0:u1+1,2,2] += b2vals
                         ap_array[ii,w0,v0:v1+1,u0:u1+1,2,2] += b2vals

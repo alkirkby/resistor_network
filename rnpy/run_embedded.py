@@ -1021,19 +1021,24 @@ def setup_and_run_segmented_volume(arguments):
     # parallel processing
     subvolume_size = list_of_inputs_master[0]['subvolume_size']
     if rank == 0:
+        t0 = time.time()
         ro_list, ro_list_sep = build_master(list_of_inputs_master,save_array=True,savepath=wd2)
+        print "Initialised master rock volumes in {} s".format(time.time()-t0)
     else:
         ro_list, ro_list_sep = None,None
     # run comparison
     if 'bulk' in fixed_parameters['comparison_arrays']:
+        t1 = time.time()
         run_comparison(ro_list_sep,subvolume_size,rank,size,comm,
                        op.join(wd,'comparison_'+outfile),
                        tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
-
+        if rank == 0:
+            print "Ran comparison arrays in {} s".format(time.time()-t1)
     
     # create subvolumes
     if rank == 0:
         subvolume_input_list = []
+        t2 = time.time()
         for rr in range(len(ro_list)):
             ro = ro_list[rr]
             input_dict = list_of_inputs_master[rr].copy()
@@ -1047,6 +1052,7 @@ def setup_and_run_segmented_volume(arguments):
                                                              input_dict['splitn'],
                                                              inputdict=input_dict,
                                                              buf=4)
+        print "Initialised subvolume input list in {} s".format(time.time()-t2)
     else:
         subvolume_input_list = None
         
@@ -1058,6 +1064,7 @@ def setup_and_run_segmented_volume(arguments):
     
     # run the subvolumes and return an array, containing results + indices +
     # rock volume ids + (optionally) rock volume objects
+    t3 = time.time()
     if return_objects:
         outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,
                                                       size,rank,comm,
@@ -1070,28 +1077,35 @@ def setup_and_run_segmented_volume(arguments):
         if rank == 0:
             print "comparing segmented and original arrays"
             testfaults,testap,testres,testhr = compare_arrays(ro_list,ro_list_seg,outarray[:,-5:],list_of_inputs_master[0]['subvolume_size'])
-            print testfaults,testap,testres,testhr
+    #        print testfaults,testap,testres,testhr
     else:
         outarray = scatter_run_subvolumes(subvolume_input_list,
                                           size,rank,comm,
                                           op.join(wd,'subvolumes_'+outfile),
                                           return_objects=False,
                                           tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
+    if rank == 0:
+        print "Ran subvolumes in {} s".format(time.time()-t3)
 
     # create and run master volume containing subvolume results
     if rank == 0:
+        t4 = time.time()
         ro_list_sep = build_master_segmented(list_of_inputs_master,
                                              outarray,
                                              input_dict['subvolume_size'])
+        print "Built a master segmented volume in {} s".format(time.time()-t4)
     else:
         ro_list_sep = None
-    print "running master volume, ro_list_sep on rank",rank,ro_list_sep    
+    #print "running master volume, ro_list_sep on rank",rank,ro_list_sep
+    t5 = time.time()    
     distribute_run_segmented(ro_list_sep,list_of_inputs_master[0]['subvolume_size'],
                              rank,size,comm,op.join(wd,'master_'+outfile),
                              save_array=True,savepath=wd2,
                              tmp_outfile=op.join(wd3,'master_'+outfile[:-4]+'.tmp'))
+    if rank == 0:
+        print "Ran segmented volume in {} s".format(time.time()-t5)
+        print "Times: setup master: {} s, run comparison: {} s, setup subvolumes: {} s, run subvolumes: {} s, setup segmented (master): {} s, run segmented (master): {} s".format(t1-t0,t2-t1,t3-t2,t4-t3,t5-t4,time.time()-t5)
 
-    
                    
 if __name__ == "__main__":
     setup_and_run_segmented_volume(sys.argv)
