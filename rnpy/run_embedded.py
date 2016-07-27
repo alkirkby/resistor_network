@@ -504,6 +504,7 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
         ro_list = []
     
     count = 0    
+    print "running subvolumes for tmp outfile {}".format(tmp_outfile)
     for input_dict in input_list:
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
@@ -534,7 +535,7 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
             count += 1
         else:
             outarray = np.vstack([outarray,[line]])
-        
+ 
         if tmp_outfile is not None:
             np.savetxt(tmp_outfile,outarray,fmt=['%.3e']*9+['%.3f']*3+['%.3e']+['%3i']*4,
                        header='resx resy resz kx ky kz apmx apmy apmz cax cay caz fs ix iy iz rid')
@@ -555,7 +556,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
 
     if tmp_outfile is not None:
         tmp_outfile += str(rank)
-    
+    print "tmp file name for rank {} created".format(rank) 
     if rank == 0:
         nn = input_list[0]['subvolume_size']
         directions = input_list[0]['solve_direction']
@@ -584,6 +585,7 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
 
     if comm is not None:
         inputs_sent = comm.scatter(input_list_divided,root=0)
+        print "scattering subvolumes on rank {}".format(rank)
         bulk_props = run_subvolumes(inputs_sent,return_objects=return_objects,
                                     tmp_outfile=tmp_outfile)
         outputs_gathered = comm.gather(bulk_props,root=0)
@@ -991,7 +993,7 @@ def setup_and_run_segmented_volume(arguments):
     # create inputs for master rock volumes
     list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats)
 
-    time.sleep(10)
+    time.sleep(2)
 
     
     if rank == 0:        
@@ -1003,10 +1005,14 @@ def setup_and_run_segmented_volume(arguments):
             if not os.path.exists(wdn):
                 os.mkdir(wdn)
     else:
-        
-        # wait for rank 1 to generate folder
+        print "waiting for directories on rank {}"
+        # wait for rank 0 to generate folder up to max of 10 minutes
+        tt = 0
         while not os.path.exists(wd3):
             time.sleep(1)
+            tt += 1
+            if tt > 600:
+                break
 
     # initialise outfile name
     if 'outfile' in fixed_parameters.keys():
@@ -1065,6 +1071,7 @@ def setup_and_run_segmented_volume(arguments):
     # run the subvolumes and return an array, containing results + indices +
     # rock volume ids + (optionally) rock volume objects
     t3 = time.time()
+    print "running subvolumes on rank {}"
     if return_objects:
         outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,
                                                       size,rank,comm,
