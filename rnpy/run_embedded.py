@@ -389,7 +389,7 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     return local_fault_edges,aperture_list
 
 
-def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,splitn,inputdict={},buf=4):
+def initialise_inputs_subvolumes(subvolume_size,splitn,inputdict={},buf=4):
     """
     divide a large rock volume into subvolumes and prepare a list containing 
     input dictionaries for all the subvolumes.
@@ -409,10 +409,7 @@ def initialise_inputs_subvolumes(faultedge_list,aperture_list,subvolume_size,spl
                 # initialise dict with default parameters
                 localidict = {}
                 localidict.update(inputdict)
-                # get aperture and faults
-                localfaults,localap = segment_faults(faultedge_list,aperture_list,[sx,sy,sz],np.array(subvolume_size).copy(),buf=buf)
-                localidict['aperture_list'] = localap
-                localidict['fault_edges'] = np.array(localfaults)
+
                 # store indices to make it easier to put back together
                 localidict['indices'] = [sx,sy,sz]
                 
@@ -496,7 +493,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
         return outarray2,ro_masterlist_sorted
 
 
-def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
+def run_subvolumes(input_list,faultedge_list,aperture_list,subvolume_size,return_objects=False,tmp_outfile=None):
     """
     
     """
@@ -508,6 +505,14 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
     for input_dict in input_list:
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
+
+        # get aperture and faults
+        localfaults,localap = segment_faults(faultedge_list,aperture_list,input_dict['indices'],
+                                             np.array(subvolume_size).copy(),buf=input_dict['array_buffer'])
+        input_dict['aperture_list'] = localap
+        input_dict['fault_edges'] = np.array(localfaults)
+
+
         ros = rn.Rock_volume(**input_dict)
         ros.solve_resistor_network2()
         rbulk[di] = ros.resistivity_bulk[di]
@@ -548,7 +553,8 @@ def run_subvolumes(input_list,return_objects=False,tmp_outfile=None):
 
 
 
-def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=False,tmp_outfile=None):
+def scatter_run_subvolumes(input_list,faultedge_list,aperture_list,subvolume_size,
+                           size,rank,comm,outfile,return_objects=False,tmp_outfile=None):
     """
     initialise and run subvolumes
     
@@ -586,11 +592,11 @@ def scatter_run_subvolumes(input_list,size,rank,comm,outfile,return_objects=Fals
     if comm is not None:
         inputs_sent = comm.scatter(input_list_divided,root=0)
         print "scattering subvolumes on rank {}".format(rank)
-        bulk_props = run_subvolumes(inputs_sent,return_objects=return_objects,
+        bulk_props = run_subvolumes(inputs_sent,faultedge_list,aperture_list,subvolume_size,return_objects=return_objects,
                                     tmp_outfile=tmp_outfile)
         outputs_gathered = comm.gather(bulk_props,root=0)
     else:
-        outputs_gathered = [run_subvolumes(input_list_sep,
+        outputs_gathered = [run_subvolumes(input_list_sep,faultedge_list,aperture_list,subvolume_size,
                                            return_objects=return_objects,
                                            tmp_outfile=tmp_outfile)]
     
@@ -1054,9 +1060,7 @@ def setup_and_run_segmented_volume(arguments):
             input_dict['solve_direction'] = 'xyz'
             faultedge_list = ro.fault_edges
             aperture_list = ro.fault_dict['aperture_list']
-            subvolume_input_list += initialise_inputs_subvolumes(faultedge_list,
-                                                             aperture_list,
-                                                             input_dict['subvolume_size'],
+            subvolume_input_list += initialise_inputs_subvolumes(input_dict['subvolume_size'],
                                                              input_dict['splitn'],
                                                              inputdict=input_dict,
                                                              buf=4)
@@ -1075,7 +1079,8 @@ def setup_and_run_segmented_volume(arguments):
     t3 = time.time()
     print "running subvolumes on rank {}"
     if return_objects:
-        outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,
+        outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,faultedge_list,
+                                                      aperture_list,input_dict['subvolume_size'],
                                                       size,rank,comm,
                                                       op.join(wd,'subvolumes_'+outfile),
                                                       return_objects=True,
@@ -1088,7 +1093,8 @@ def setup_and_run_segmented_volume(arguments):
             testfaults,testap,testres,testhr = compare_arrays(ro_list,ro_list_seg,outarray[:,-5:],list_of_inputs_master[0]['subvolume_size'])
     #        print testfaults,testap,testres,testhr
     else:
-        outarray = scatter_run_subvolumes(subvolume_input_list,
+        outarray = scatter_run_subvolumes(subvolume_input_list,faultedge_list,
+                                          aperture_list,input_dict['subvolume_size'],
                                           size,rank,comm,
                                           op.join(wd,'subvolumes_'+outfile),
                                           return_objects=False,
