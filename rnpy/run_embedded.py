@@ -171,7 +171,7 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats):
         # set the variables to the file name
         input_dict['fault_edgesname'] = fename
         input_dict['fault_surfacename'] = fsname
-
+        input_dict['fault_assignment'] = 'list'
 
         for fs in loop_parameters['fault_separation']:
             input_dict['fault_separation'] = fs
@@ -710,7 +710,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
 #        ridlist = np.array(ridlist).reshape(len(ridlist),1)
 #        line = np.hstack([rbulk,kbulk,fslist,ridlist])
         if count == 0:
-            outarray = lines.copy()
+            outarray = np.array(lines)
         else:
             outarray = np.vstack([outarray,lines])
         count += 1
@@ -931,11 +931,13 @@ def build_master(list_of_inputs,save_array=True,savepath=None):
         
     
     for input_dict in list_of_inputs:
+        print input_dict['id'],input_dict['solve_properties'],input_dict['solve_direction']
         # only initialise new faults if we are moving to a new volume
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
-
+        print input_dict['fault_edges'][0]
         ro = rn.Rock_volume(**input_dict)
+        print ro.fault_edges[0]
         if (save_array and (savepath is not None)):
             np.save(op.join(savepath,'fault_edges_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_edges)
             np.save(op.join(savepath,'aperture_list_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation']))),ro.fault_dict['aperture_list'])

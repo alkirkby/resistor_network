@@ -478,14 +478,18 @@ def assign_fault_aperture(fault_uvw,
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
                     if fill_array:
                         if w1-w0+1 > int(np.shape(b2vals)[0]):
+                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
                             w1 = int(np.shape(b2vals)[0])+w0-1
                         elif w1-w0+1 < int(np.shape(b2vals)[0]):
+                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
                             b2vals = b2vals[:w1-w0+1]
                             b1vals = b1vals[:w1-w0]
                             b0vals = b0vals[:w1-w0+1]
                         if v1-v0+1 > int(np.shape(b2vals)[1]):
+                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1])
                             v1 = int(np.shape(b2vals)[1])+v0-1
                         elif v1-v0+1 < int(np.shape(b2vals)[1]):
+                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1])
                             b2vals = b2vals[:,:v1-v0+1]
                             b1vals = b1vals[:,:v1-v0+1]
                             b0vals = b0vals[:,:v1-v0]
@@ -513,6 +517,7 @@ def assign_fault_aperture(fault_uvw,
                             print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
                             w1 = int(np.shape(b2vals)[0])+w0-1
                         elif w1-w0+1 < int(np.shape(b2vals)[0]):
+                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
                             b2vals = b2vals[:w1-w0+1]
                             b1vals = b1vals[:w1-w0]
                             b0vals = b0vals[:w1-w0+1]
@@ -520,6 +525,7 @@ def assign_fault_aperture(fault_uvw,
                             print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
                             u1 = int(np.shape(b2vals)[1])+u0-1
                         elif u1-u0+1 < int(np.shape(b2vals)[1]):
+                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
                             b2vals = b2vals[:,:u1-u0+1]
                             b1vals = b1vals[:,:u1-u0+1]
                             b0vals = b0vals[:,:u1-u0]
@@ -547,6 +553,7 @@ def assign_fault_aperture(fault_uvw,
                             print "indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0])
                             v1 = int(np.shape(b2vals)[0])+v0-1
                         elif v1-v0+1 < int(np.shape(b2vals)[0]):
+                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0])
                             b2vals = b2vals[:v1-v0+1]
                             b1vals = b1vals[:v1-v0]
                             b0vals = b0vals[:v1-v0+1]
@@ -554,6 +561,7 @@ def assign_fault_aperture(fault_uvw,
                             print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
                             u1 = int(np.shape(b2vals)[1])+u0-1
                         elif u1-u0+1 < int(np.shape(b2vals)[1]):
+                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
                             b2vals = b2vals[:,:u1-u0+1]
                             b1vals = b1vals[:,:u1-u0+1]
                             b0vals = b0vals[:,:u1-u0]
