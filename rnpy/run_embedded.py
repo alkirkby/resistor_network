@@ -352,7 +352,7 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     # aperture (current)
     local_fault_edges = []
     ap,apc,apf = [],[],[]
-    
+    print "np.shape(aperturelist)",np.shape(aperturelist),np.shape(aperturelist[0])
     
     # get fracture indices that fall within the volume of interest (+buffer)
     for fi in np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0), 
@@ -518,6 +518,8 @@ def run_subvolumes(input_list,subvolume_size,return_objects=False,tmp_outfile=No
         aperture_list = np.load(input_dict['aperturelist_file'])
         #        faultedge_file = input_dict['faultedge_file']
         # get aperture and faults
+        print "aperturelist_file",input_dict['aperturelist_file']
+        print np.shape(aperture_list)
         localfaults,localap = segment_faults(faultedge_list,aperture_list,input_dict['indices'],
                                              np.array(subvolume_size).copy(),buf=input_dict['array_buffer'])
         input_dict['aperture_list'] = localap
@@ -957,6 +959,8 @@ def build_master(list_of_inputs,savepath=None,return_objects=False):
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
         build_arrays = input_dict['build_arrays']
+        input_dict['aperture_type'] = 'random'
+        #print "input_dict (master, large array)",input_dict
         
         if return_objects:
             input_dict['build_arrays'] = True
@@ -965,15 +969,18 @@ def build_master(list_of_inputs,savepath=None,return_objects=False):
         
         # initialise a rock volume to get the fault edges and aperture list, don't need to build arrays at this point
         ro = rn.Rock_volume(**input_dict)
-
+#        print "np.shape(ro.fault_dict['aperture_list'])",np.shape(ro.fault_dict['aperture_list'])
+ 
         # change build_array value back to original value
-        input_dict['build_arrays'] = build_arrays        
+        input_dict['build_arrays'] = build_arrays
+        input_dict['aperture_type'] = 'list'        
         
         # save aperture list and fault edges to a file and record the filenames in the input_dict
         if savepath is None:
             savepath = ro.workdir
         fename = op.join(savepath,'fault_edges_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
         aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
+
         np.save(fename,ro.fault_edges)
         np.save(aplistname,ro.fault_dict['aperture_list'])
         input_dict['faultedge_file'] = fename
@@ -990,8 +997,8 @@ def build_master(list_of_inputs,savepath=None,return_objects=False):
         # split into different solve properties and solve directions
         for sp in solve_properties:
             for sd in solve_direction:
-                ro.solve_direction = sd
-                ro.solve_properties = sp
+                input_dict['solve_direction'] = sd
+                input_dict['solve_properties'] = sp
                 input_list_sep.append(input_dict.copy())
                 
     if return_objects:
@@ -1084,7 +1091,7 @@ def setup_and_run_segmented_volume(arguments):
             input_list, input_list_sep = build_master(list_of_inputs_master,savepath=wd2,return_objects=False)
         print "Initialised master rock volumes in {} s".format(time.time()-t0)
     else:
-        input_list, input_list_sep, ro_list = None, None, None, None
+        input_list, input_list_sep, ro_list = None, None, None
         
     # run comparison for bulk properties
     if 'bulk' in fixed_parameters['comparison_arrays']:

@@ -413,6 +413,7 @@ def assign_fault_aperture(fault_uvw,
                 aperture_type = 'random'
         
         if aperture_type in ['random','constant']:
+            print "aperture type {}".format(aperture_type)
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
@@ -455,6 +456,7 @@ def assign_fault_aperture(fault_uvw,
             else:
                 b = h1 - h2 + fault_separation[i]
                 
+            #print "faultsurface shape",np.shape(b)
             # set zero values to really low value to allow averaging
             b[b <= 1e-50] = 1e-50
             # centre indices of array b
@@ -500,7 +502,7 @@ def assign_fault_aperture(fault_uvw,
                         ap_array[ii,w0:w1+1,v0:v1,u0,1,0] += b0vals
                         # z direction opening in x direction
                         ap_array[ii,w0:w1,v0:v1+1,u0,2,0] += b1vals
-
+                    #print "assigning aperture to list"
                     aperture = np.zeros((w1-w0+1,v1-v0+1,2,3,3))
                     aperture[:,:,0,0,0] = b2vals
                     aperture[:,:,1,0,0] = b2vals
@@ -536,7 +538,7 @@ def assign_fault_aperture(fault_uvw,
                         ap_array[ii,w0:w1+1,v0,u0:u1,0,1] += b0vals
                         # z direction opening in y direction
                         ap_array[ii,w0:w1,v0,u0:u1+1,2,1] += b1vals
-
+                    #print "assigning aperture to list"
                     aperture = np.zeros((w1+1-w0,2,u1+1-u0,3,3))
                     aperture[:,0,:,1,1] = b2vals
                     aperture[:,1,:,1,1] = b2vals
@@ -572,7 +574,7 @@ def assign_fault_aperture(fault_uvw,
                         ap_array[ii,w0,v0:v1+1,u0:u1,0,2] += b0vals
                         # y direction opening in z direction
                         ap_array[ii,w0,v0:v1,u0:u1+1,1,2] += b1vals
-                    
+                    #print "assigning aperture to list"
                     aperture = np.zeros((2,v1+1-v0,u1+1-u0,3,3))
                     aperture[0,:,:,2,2] = b2vals
                     aperture[1,:,:,2,2] = b2vals
