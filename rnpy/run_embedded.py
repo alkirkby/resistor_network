@@ -503,12 +503,12 @@ def run_subvolumes(input_list,subvolume_size,return_objects=False,tmp_outfile=No
     for input_dict in input_list:
         rbulk, kbulk = np.ones(3)*np.nan, np.ones(3)*np.nan
         di = 'xyz'.index(input_dict['solve_direction'])
-        if faultedge_file is not None:
+        #if faultedge_file is not None:
             # only reload if it's a different file to previous, save reloading the file multiple times
-            if faultedge_file == input_dict['faultedge_file']:
-                faultedge_list = np.load(input_dict['faultedge_file'])
-                aperture_list = np.load(input_dict['aperturelist_file'])
-                faultedge_file = input_dict['faultedge_file']
+            #if faultedge_file == input_dict['faultedge_file']:
+        faultedge_list = np.load(input_dict['faultedge_file'])
+        aperture_list = np.load(input_dict['aperturelist_file'])
+        #        faultedge_file = input_dict['faultedge_file']
         # get aperture and faults
         localfaults,localap = segment_faults(faultedge_list,aperture_list,input_dict['indices'],
                                              np.array(subvolume_size).copy(),buf=input_dict['array_buffer'])
@@ -943,19 +943,19 @@ def build_master(list_of_inputs,savepath=None):
         if pp in list_of_inputs[0]['solve_properties']:
             solve_properties.append(pp)
         
-    
+    faultedgefiles = []
+    aperturefiles = []
+
     for input_dict in list_of_inputs:
         # only initialise new faults if we are moving to a new volume
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
 
         ro = rn.Rock_volume(**input_dict)
-        faultedgefiles = []
-        aperturefiles = []
         if savepath is None:
             savepath = ro.workdir
-        fename = op.join(savepath,'fault_edges_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
-        aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
+        fename = op.join(savepath,'fault_edges_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
+        aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
         np.save(fename,ro.fault_edges)
         np.save(aplistname,ro.fault_dict['aperture_list'])
         faultedgefiles.append(fename)
@@ -1067,6 +1067,7 @@ def setup_and_run_segmented_volume(arguments):
         subvolume_input_list = []
         t2 = time.time()
         for rr in range(len(ro_list)):
+            print "rr,faultedgefiles",rr,faultedgefiles
             input_dict = list_of_inputs_master[rr].copy()
             # have to solve 3 directions in subvolumes regardless of directions being solved in master
             input_dict['solve_direction'] = 'xyz'
@@ -1077,7 +1078,7 @@ def setup_and_run_segmented_volume(arguments):
                                                                  buf=4)
         print "Initialised subvolume input list in {} s".format(time.time()-t2)
     else:
-        subvolume_input_list = None,None,None
+        subvolume_input_list = None
         
     # determine whether we need the segmented rock volumes for future analysis/comparison
     if 'array' in list_of_inputs_master[0]['comparison_arrays']:
@@ -1090,7 +1091,7 @@ def setup_and_run_segmented_volume(arguments):
     t3 = time.time()
     print "running subvolumes on rank {}"
     if return_objects:
-        outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,input_dict['subvolume_size'],
+        outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,list_of_inputs_master[0]['subvolume_size'],
                                                       size,rank,comm,
                                                       op.join(wd,'subvolumes_'+outfile),
                                                       return_objects=True,
@@ -1101,9 +1102,9 @@ def setup_and_run_segmented_volume(arguments):
         if rank == 0:
             print "comparing segmented and original arrays"
             testfaults,testap,testres,testhr = compare_arrays(ro_list,ro_list_seg,outarray[:,-5:],list_of_inputs_master[0]['subvolume_size'])
-    #        print testfaults,testap,testres,testhr
+            print testfaults,testap,testres,testhr
     else:
-        outarray = scatter_run_subvolumes(subvolume_input_list,input_dict['subvolume_size'],
+        outarray = scatter_run_subvolumes(subvolume_input_list,list_of_inputs_master[0]['subvolume_size'],
                                           size,rank,comm,
                                           op.join(wd,'subvolumes_'+outfile),
                                           return_objects=False,
