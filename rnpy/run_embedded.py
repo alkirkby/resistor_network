@@ -196,7 +196,7 @@ def object2dict(Object):
     return odict
 
 
-def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=None,properties=None,
+def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,properties=None,
                                  boundary_res = 1e40,boundary_hydres = 1e60,directions=None):
     """
     calculate the resistivity in x y and z direction of a subsetted volume
@@ -205,7 +205,15 @@ def calculate_comparison_volumes(Rock_volume_list,subvolume_size,tmp_outfile=Non
     """
     
     count = 0
-    for rom in Rock_volume_list:
+    for input_dict in input_list:
+        
+        input_dict['fault_edges'] = np.load(input_dict['faultedge_file'])
+        input_dict['fault_assignment'] = 'list'
+        input_dict['aperture_list'] = np.load(input_dict['aperturelist_file'])
+        input_dict['aperture_assignment'] = 'list'
+        
+        rom = rn.Rock_volume(**input_dict)
+        
         properties = rom.solve_properties
         directions = rom.solve_direction
             
@@ -561,8 +569,8 @@ def run_subvolumes(input_list,subvolume_size,return_objects=False,tmp_outfile=No
 
 
 
-def scatter_run_subvolumes(input_list,subvolume_size,
-                           size,rank,comm,outfile,return_objects=False,tmp_outfile=None):
+def scatter_run_subvolumes(input_list,subvolume_size,size,rank,comm,outfile,
+                           return_objects=False,tmp_outfile=None):
     """
     initialise and run subvolumes
     
@@ -640,6 +648,8 @@ def compare_arrays(ro_list,ro_list_seg,indices,subvolume_size):
         compiled_res = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
         compiled_hr = np.zeros((splitn[2]*n[2]+2,splitn[1]*n[1]+2,splitn[0]*n[0]+2,3))
         
+
+
         rid,fs = rom.id,np.median(rom.fault_dict['fault_separation'])
 
         for sz in indicesz:
@@ -749,12 +759,7 @@ def write_outputs_comparison(outputs_gathered, outfile) :
     np.savetxt(outfile,outarray2,fmt=['%.3e']*9+['%.3f']*3+['%.3e','%2i'],comments='')
    
 
-
-
-
-
-
-def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=None):
+def run_comparison(input_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=None):
     """
     run comparison arrays to compare to segmented volume (different volumes for
     the x, y and z directions)
@@ -766,10 +771,10 @@ def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=Non
     if comm is not None:
         print "setting up comparison volumes in parallel"
         if rank == 0:
-            rolist_divided = divide_inputs(ro_list,size)
+            inputlist_divided = divide_inputs(input_list,size)
         else:
-            rolist_divided = None
-        inputs_sent = comm.scatter(rolist_divided,root=0)
+            inputlist_divided = None
+        inputs_sent = comm.scatter(inputlist_divided,root=0)
         bulk_props = calculate_comparison_volumes(inputs_sent,subvolume_size,tmp_outfile=tmp_outfile)
         outputs_gathered = comm.gather(bulk_props,root=0)
         
@@ -778,7 +783,7 @@ def run_comparison(ro_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=Non
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
-        outputs_gathered = [list(calculate_comparison_volumes(ro_list,subvolume_size,tmp_outfile=tmp_outfile))]
+        outputs_gathered = [list(calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=tmp_outfile))]
 
         write_outputs_comparison(outputs_gathered, outfile)
 
@@ -929,51 +934,70 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,
                          
     
 
-def build_master(list_of_inputs,savepath=None):
+def build_master(list_of_inputs,savepath=None,return_objects=False):
     """
     initialise master rock volumes
     
     """
     # two lists, one with all rock volumes, the other split up by solve direction
     # and solve properties
-    ro_list_sep, ro_list = [],[]
+    input_list,input_list_sep = [], []
     solve_properties = []
+    
+    if return_objects:
+        ro_list = []
     
     for pp in ['current','fluid']:
         if pp in list_of_inputs[0]['solve_properties']:
             solve_properties.append(pp)
-        
-    faultedgefiles = []
-    aperturefiles = []
+
 
     for input_dict in list_of_inputs:
         # only initialise new faults if we are moving to a new volume
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
-
+        build_arrays = input_dict['build_arrays']
+        
+        if return_objects:
+            input_dict['build_arrays'] = True
+        else:
+            input_dict['build_arrays'] = False
+        
+        # initialise a rock volume to get the fault edges and aperture list, don't need to build arrays at this point
         ro = rn.Rock_volume(**input_dict)
+
+        # change build_array value back to original value
+        input_dict['build_arrays'] = build_arrays        
+        
+        # save aperture list and fault edges to a file and record the filenames in the input_dict
         if savepath is None:
             savepath = ro.workdir
         fename = op.join(savepath,'fault_edges_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
         aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e.npy'%(ro.id,np.median(ro.fault_dict['fault_separation'])))
         np.save(fename,ro.fault_edges)
         np.save(aplistname,ro.fault_dict['aperture_list'])
-        faultedgefiles.append(fename)
-        aperturefiles.append(aplistname)
-        ro_list.append(copy.copy(ro))
+        input_dict['faultedge_file'] = fename
+        input_dict['aperturelist_file'] = aplistname
+
         
+        input_list.append(input_dict.copy())
+    
+        if return_objects:
+            ro_list.append(copy.copy(ro))
+    
         solve_direction = ro.solve_direction
         
+        # split into different solve properties and solve directions
         for sp in solve_properties:
             for sd in solve_direction:
                 ro.solve_direction = sd
                 ro.solve_properties = sp
-                ro_list_sep.append(copy.copy(ro))
+                input_list_sep.append(input_dict.copy())
                 
-    return ro_list,ro_list_sep,faultedgefiles,aperturefiles
-
-
-
+    if return_objects:
+        return input_list, input_list_sep, ro_list
+    else:
+        return input_list, input_list_sep
 
 
 
@@ -1015,7 +1039,6 @@ def setup_and_run_segmented_volume(arguments):
     list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats)
 
     time.sleep(2)
-
     
     if rank == 0:        
         # make working directories
@@ -1043,20 +1066,30 @@ def setup_and_run_segmented_volume(arguments):
     else:
         outfile = 'outputs.dat'
 
+    # determine whether we need the segmented rock volumes for future analysis/comparison
+    if 'array' in list_of_inputs_master[0]['comparison_arrays']:
+        return_objects = True
+    else:
+        return_objects = False
+
     # get list of master rock volumes. Two lists. The first has all the rock volumes
     # the second has all the solve properties and directions separated out for
     # parallel processing
     subvolume_size = list_of_inputs_master[0]['subvolume_size']
     if rank == 0:
         t0 = time.time()
-        ro_list, ro_list_sep,faultedgefiles,aplistfiles = build_master(list_of_inputs_master,savepath=wd2)
+        if return_objects:
+            input_list, input_list_sep, ro_list = build_master(list_of_inputs_master,savepath=wd2,return_objects=True)
+        else:
+            input_list, input_list_sep = build_master(list_of_inputs_master,savepath=wd2,return_objects=False)
         print "Initialised master rock volumes in {} s".format(time.time()-t0)
     else:
-        ro_list, ro_list_sep,faultedgefiles,aplistfiles = None,None,None,None
-    # run comparison
+        input_list, input_list_sep, ro_list = None, None, None, None
+        
+    # run comparison for bulk properties
     if 'bulk' in fixed_parameters['comparison_arrays']:
         t1 = time.time()
-        run_comparison(ro_list_sep,subvolume_size,rank,size,comm,
+        run_comparison(input_list_sep,subvolume_size,rank,size,comm,
                        op.join(wd,'comparison_'+outfile),
                        tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
         if rank == 0:
@@ -1066,13 +1099,10 @@ def setup_and_run_segmented_volume(arguments):
     if rank == 0:
         subvolume_input_list = []
         t2 = time.time()
-        for rr in range(len(ro_list)):
-            print "rr,faultedgefiles",rr,faultedgefiles
+        for rr in range(len(input_list)):
             input_dict = list_of_inputs_master[rr].copy()
             # have to solve 3 directions in subvolumes regardless of directions being solved in master
             input_dict['solve_direction'] = 'xyz'
-            input_dict['faultedge_file'] = faultedgefiles[rr]
-            input_dict['aperturelist_file'] = aplistfiles[rr]
             subvolume_input_list += initialise_inputs_subvolumes(input_dict['splitn'],
                                                                  input_dict,
                                                                  buf=4)
@@ -1080,11 +1110,7 @@ def setup_and_run_segmented_volume(arguments):
     else:
         subvolume_input_list = None
         
-    # determine whether we need the segmented rock volumes for future analysis/comparison
-    if 'array' in list_of_inputs_master[0]['comparison_arrays']:
-        return_objects = True
-    else:
-        return_objects = False
+
     
     # run the subvolumes and return an array, containing results + indices +
     # rock volume ids + (optionally) rock volume objects
