@@ -407,7 +407,7 @@ class Rock_volume():
                 ap,apc,aph,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
                 self.fault_dict['aperture_list'] = [ap,apc,aph]            
-            #print np.shape(ap),np.shape(apc),np.shape(aph),len(self.fault_dict['aperture_list'])
+                
             if self.aperture is not None:
                 # get the aperture values from the faulted part of the volume to do some calculations on
                 faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \

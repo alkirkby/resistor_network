@@ -206,13 +206,14 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
     
     count = 0
     for input_dict in input_list:
-        
+        input_dict = input_dict.copy()
         input_dict['fault_edges'] = np.load(input_dict['faultedge_file'])
         input_dict['fault_assignment'] = 'list'
         input_dict['aperture_list'] = np.load(input_dict['aperturelist_file'])
         input_dict['aperture_assignment'] = 'list'
         
         rom = rn.Rock_volume(**input_dict)
+        
         
         properties = rom.solve_properties
         directions = rom.solve_direction
@@ -352,7 +353,6 @@ def segment_faults(faultedges,aperturelist,indices,subvolume_size,buf=4):
     # aperture (current)
     local_fault_edges = []
     ap,apc,apf = [],[],[]
-    print "np.shape(aperturelist)",np.shape(aperturelist),np.shape(aperturelist[0])
     
     # get fracture indices that fall within the volume of interest (+buffer)
     for fi in np.where(np.all([np.any([np.all([(sx+1)*n[0] + buf >= uvw0[:,0],uvw0[:,0] > max(sx*n[0] - buf,0)],axis=0), 
@@ -518,8 +518,6 @@ def run_subvolumes(input_list,subvolume_size,return_objects=False,tmp_outfile=No
         aperture_list = np.load(input_dict['aperturelist_file'])
         #        faultedge_file = input_dict['faultedge_file']
         # get aperture and faults
-        print "aperturelist_file",input_dict['aperturelist_file']
-        print np.shape(aperture_list)
         localfaults,localap = segment_faults(faultedge_list,aperture_list,input_dict['indices'],
                                              np.array(subvolume_size).copy(),buf=input_dict['array_buffer'])
         input_dict['aperture_list'] = localap
@@ -955,7 +953,19 @@ def build_master(list_of_inputs,savepath=None,return_objects=False):
 
 
     for input_dict in list_of_inputs:
+        # make a copy so we don't change the original
+        input_dict = input_dict.copy()
         # only initialise new faults if we are moving to a new volume
+        if 'fault_edges' in input_dict.keys():
+            faultedges = input_dict['fault_edges']
+        else:
+            faultedges = None
+            
+        if 'fault_surfaces' in input_dict.keys():
+            faultsurfaces = input_dict['fault_surfaces']
+        else:
+            faultsurfaces = None
+        
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
         build_arrays = input_dict['build_arrays']
@@ -986,6 +996,9 @@ def build_master(list_of_inputs,savepath=None,return_objects=False):
         input_dict['faultedge_file'] = fename
         input_dict['aperturelist_file'] = aplistname
 
+        # reset these back to original values
+        input_dict['fault_edges'] = faultedges
+        input_dict['fault_surfaces'] = faultsurfaces
         
         input_list.append(input_dict.copy())
     
@@ -1101,13 +1114,13 @@ def setup_and_run_segmented_volume(arguments):
                        tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
         if rank == 0:
             print "Ran comparison arrays in {} s".format(time.time()-t1)
-    
+    print "len(input_list),len(list_of_inputs_master)",len(input_list),len(list_of_inputs_master)
     # create subvolume inputs
     if rank == 0:
         subvolume_input_list = []
         t2 = time.time()
         for rr in range(len(input_list)):
-            input_dict = list_of_inputs_master[rr].copy()
+            input_dict = input_list[rr].copy()
             # have to solve 3 directions in subvolumes regardless of directions being solved in master
             input_dict['solve_direction'] = 'xyz'
             subvolume_input_list += initialise_inputs_subvolumes(input_dict['splitn'],
@@ -1144,7 +1157,7 @@ def setup_and_run_segmented_volume(arguments):
                                           tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
     if rank == 0:
         print "Ran subvolumes in {} s".format(time.time()-t3)
-
+    
     # create and run master volume containing subvolume results
     if rank == 0:
         t4 = time.time()

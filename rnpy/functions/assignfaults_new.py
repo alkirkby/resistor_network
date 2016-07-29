@@ -375,15 +375,9 @@ def assign_fault_aperture(fault_uvw,
         if aperture_type == 'list':
             if aperture_list is not None:
                 du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
-                #print "u0,v0,w0,u1,v1,w1",u0,v0,w0,u1,v1,w1
-                #print "dw1,dv1,du1",dw1,dv1,du1
                 
-#                print ap_array.shape
                 for iii,ap in enumerate(aperture_list):
-                    #print "ap[i]",ap[i],len(ap[i])
-#                    print np.shape(ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1])
                     dperp=list(duvw).index(0)
-#                    print ap[i].shape
 
                     if dperp == 0:
                         try:
@@ -413,7 +407,6 @@ def assign_fault_aperture(fault_uvw,
                 aperture_type = 'random'
         
         if aperture_type in ['random','constant']:
-            print "aperture type {}".format(aperture_type)
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
@@ -456,7 +449,6 @@ def assign_fault_aperture(fault_uvw,
             else:
                 b = h1 - h2 + fault_separation[i]
                 
-            #print "faultsurface shape",np.shape(b)
             # set zero values to really low value to allow averaging
             b[b <= 1e-50] = 1e-50
             # centre indices of array b
@@ -469,7 +461,6 @@ def assign_fault_aperture(fault_uvw,
                     bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             else:
                 bf, bc = [np.array([b[:-1,:-1]]*3)]*2
-    #        print np.shape(b),np.shape(bf), np.shape(bc)
             tmp_aplist = []
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
