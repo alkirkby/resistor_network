@@ -1114,7 +1114,7 @@ def setup_and_run_segmented_volume(arguments):
                        tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
         if rank == 0:
             print "Ran comparison arrays in {} s".format(time.time()-t1)
-    print "len(input_list),len(list_of_inputs_master)",len(input_list),len(list_of_inputs_master)
+
     # create subvolume inputs
     if rank == 0:
         subvolume_input_list = []
