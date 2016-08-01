@@ -73,7 +73,7 @@ class Rock_volume():
                                offset = 0,
                                faultlength_max = np.amax(self.cellsize)*np.amax(self.ncells),
                                faultlength_min = np.amax(self.cellsize),
-                               alpha = 10.,
+                               alpha = 3.,
                                a = 3.5,
                                mismatch_wavelength_cutoff = None,
                                elevation_scalefactor = 1e-3,

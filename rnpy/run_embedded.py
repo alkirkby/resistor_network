@@ -234,6 +234,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     inputs['solve_direction'] = 'x'
                     ncells = nc.copy()
                     ncells[0] -= n[0]
+                    print "setting up comparison resistor network"
                     romx = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romx,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n[0]-1,0]
@@ -242,7 +243,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     arr[:,-1,:,0] = boundary_res
                     arr[-1,:,:,0] = boundary_res
                     setattr(romx,att,rna.add_nulls(arr))
+                    print "solving comparison resistor network"
                     romx.solve_resistor_network2()
+                    print "comparison resistor network solved"
                     factor = (nc[1]*nc[2])/((nc[1]+1.)*(nc[2]+1.))
                     if att == 'resistivity':
                         bulk[0] = romx.resistivity_bulk[0]*factor
@@ -254,6 +257,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     inputs['solve_direction'] = 'y'
                     ncells = nc.copy()
                     ncells[1] -= n[1]
+                    print "setting up comparison resistor network"
                     romy = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romy,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n[1],1:-1,0]
@@ -262,7 +266,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     arr[-1,:,:,1] = boundary_res
                     arr[:,:,-1,1] = boundary_res
                     setattr(romy,att,rna.add_nulls(arr))
+                    print "solving comparison resistor network"
                     romy.solve_resistor_network2()
+                    print "comparison resistor network solved"
                     factor = (nc[0]*nc[2])/((nc[0]+1.)*(nc[2]+1.))
                     if att == 'resistivity':
                         bulk[1] = romy.resistivity_bulk[1]*factor
@@ -274,6 +280,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     inputs['solve_direction'] = 'z'
                     ncells = nc.copy()
                     ncells[2] -= n[2]
+                    print "setting up comparison resistor network"
                     romz = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romz,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:-n[1],1:,1:-1,0]
@@ -282,7 +289,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,tmp_outfile=None,prop
                     arr[:,-1,:,2] = boundary_res
                     arr[:,:,-1,2] = boundary_res
                     setattr(romz,att,rna.add_nulls(arr))
+                    print "solving comparison resistor network"
                     romz.solve_resistor_network2()
+                    print "comparison resistor network solved"
                     factor = (nc[0]*nc[1])/((nc[0]+1.)*(nc[1]+1.))
                     if att == 'resistivity':
                         bulk[2] = romz.resistivity_bulk[2]*factor
@@ -830,6 +839,7 @@ def build_master_segmented(list_of_inputs,subvolume_outputs,subvolume_size):
     for input_dict in list_of_inputs:
         # not building new faults or apertures so fault assignment is none
         input_dict['fault_assignment'] = 'none'
+        input_dict['build_arrays'] = True
         # number of cells
         input_dict['ncells'] = splitn - 1
         # new cellsize, size of subvolume * cellsize of original volume
@@ -1107,6 +1117,7 @@ def setup_and_run_segmented_volume(arguments):
         input_list, input_list_sep, ro_list = None, None, None
         
     # run comparison for bulk properties
+    t1 = time.time()
     if 'bulk' in fixed_parameters['comparison_arrays']:
         t1 = time.time()
         run_comparison(input_list_sep,subvolume_size,rank,size,comm,
