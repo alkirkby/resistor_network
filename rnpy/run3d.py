@@ -264,10 +264,8 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     # make a list containing the variable names to store
     # start with variables with three directions (x,y and z)
     variablekeys = ['aperture_mean','contact_area','permeability','resistivity']
-    dno = 'xyz'.index(direction)
     # add single-valued variables
-    variablekeys += ['resistivity_matrix','resistivity_fluid','permeability_matrix',
-                     'fault_separation','direction','repeat','rank','run_no']
+    variablekeys += ['fault_separation','repeat','rank','run_no']
         
     # output line
 #    print ro.aperture_mean[dno],ro.contact_area[dno],\
@@ -275,11 +273,10 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
 #                            ro.resistivity_matrix,ro.resistivity_fluid,\
 #                            ro.permeability_matrix,ro.fault_dict['fault_separation'],\
 #                            repeatno,rank,runno
-    output_line = [ro.aperture_mean[dno],ro.contact_area[dno],
-                            ro.permeability_bulk[dno],ro.resistivity_bulk[dno],
-                            ro.resistivity_matrix,ro.resistivity_fluid,
-                            ro.permeability_matrix,ro.fault_dict['fault_separation'],
-                            dno,repeatno,rank,runno]
+    output_line = np.hstack([ro.aperture_mean,ro.contact_area,
+                            ro.permeability_bulk,ro.resistivity_bulk,
+                            np.median(ro.fault_dict['fault_separation']),
+                            dno,repeatno,rank,runno])
                
     # create a dictionary containing fixed variables
     fixeddict = {}
@@ -287,7 +284,8 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
         fixeddict[param] = ' '.join([str(val) for val in getattr(ro,param)])
     for param in ['workdir','fluid_viscosity','fault_assignment','offset',
                   'fractal_dimension','faultlength_max','faultlength_min',
-                  'alpha','a','mismatch_wavelength_cutoff','aperture_type']:
+                  'alpha','a','mismatch_wavelength_cutoff','aperture_type',
+                  'resistivity_matrix','resistivity_fluid','permeability_matrix']:
         if param in ro.fault_dict.keys():
             fixeddict[param] = ro.fault_dict[param]
         else:
@@ -335,6 +333,8 @@ def gather_outputs(outputs_gathered, wd, outfile) :
             except IOError:
                 print "Failed to find file {}, skipping and moving to the next file".format(outfn)
         count += 1
+        
+        
 
     np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
 
