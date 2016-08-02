@@ -552,7 +552,7 @@ def run_subvolumes(input_list,subvolume_size,rank,return_objects=False,tmp_outfi
      
     #print "running subvolumes for tmp outfile {}".format(tmp_outfile)
     
-    time.sleep(10)
+    
     for input_dict in input_list:
         input_dict['aperture_type'] = 'list'
         input_dict['fault_assignment'] = 'list'
@@ -564,10 +564,13 @@ def run_subvolumes(input_list,subvolume_size,rank,return_objects=False,tmp_outfi
         # wait for file to appear
         while not op.exists(input_dict['aperturelist_file']):
             time.sleep(5)
+        # extra time in case the file has appeared but is still being written
+        time.sleep(np.amax(subvolume_size))
+        # load fault edges and apertures
         faultedge_list = np.load(input_dict['faultedge_file'])
         aperture_list = np.load(input_dict['aperturelist_file'])
-        #        faultedge_file = input_dict['faultedge_file']
-        # get aperture and faults
+
+        # get local aperture and faults
         localfaults,localap = segment_faults(faultedge_list,aperture_list,input_dict['indices'],
                                              np.array(subvolume_size).copy(),buf=input_dict['array_buffer'])
         input_dict['aperture_list'] = localap
