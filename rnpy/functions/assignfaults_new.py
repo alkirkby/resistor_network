@@ -440,7 +440,7 @@ def assign_fault_aperture(fault_uvw,
                     print "fault surfaces wrong type"
                 
             if build:
-                print "building new faults"
+                print "building new faults",
                 if aperture_type == 'random':
                     h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
                 else:

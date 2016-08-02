@@ -409,18 +409,25 @@ class Rock_volume():
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
                 self.fault_dict['aperture_list'] = [ap,apc,aph]            
                 
-            if self.aperture is not None:
+            if ((self.aperture is not None) and (self.fault_array is not None)):
                 # get the aperture values from the faulted part of the volume to do some calculations on
                 # get the aperture values from the faulted part of the volume to do some calculations on
                 mask = self.aperture.copy()
                 mask[np.isnan(mask)] = 0.
-                mask = mask.astype(bool)
+                if np.amax(mask) > 0:
+                    mask = mask.astype(bool)
                 
-                faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
-                
-                self.aperture_mean = np.array([np.nanmean([np.nanmean(ffv) for ffv in fv]) for fv in faultapvals])
-                self.contact_area = np.array([np.nanmean([float(len(ffv[ffv<1e-49]))/len(ffv) for ffv in fv]) for fv in faultapvals])
-                        
+                    faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
+                    # get rid of nans
+                    faultapvals = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals]
+                    nfc = [[max(1,len(ffv)) for ffv in fv] for fv in faultapvals]                    
+
+                    self.aperture_mean = np.array([np.mean([np.mean(ffv) for ffv in fv]) for fv in faultapvals])
+                    self.contact_area = np.array([np.mean([float(len(faultapvals[j][i][faultapvals[j][i]<1e-49]))/nfc[j][i] for i in range(len(faultapvals[j]))]) for j in range(len(faultapvals))])
+                else:
+                    self.aperture_mean = np.zeros(3)
+                    self.contact_area = np.ones(3)                    
+    
                 if self.aperture_hydraulic is None:
                     self.aperture_hydraulic = self.aperture.copy()
                 if self.aperture_electric is None:
