@@ -411,17 +411,15 @@ class Rock_volume():
                 
             if self.aperture is not None:
                 # get the aperture values from the faulted part of the volume to do some calculations on
-                faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
-                              for i in range(3)]
-        
-                self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
-        #        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
-                self.contact_area = []
-                for i in range(3):
-                    if np.size(faultapvals[i]) > 0:
-                        self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
-                    else:
-                        self.contact_area.append(0.) 
+                # get the aperture values from the faulted part of the volume to do some calculations on
+                mask = self.aperture.copy()
+                mask[np.isnan(mask)] = 0.
+                mask = mask.astype(bool)
+                
+                faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
+                
+                self.aperture_mean = np.array([np.nanmean([np.nanmean(ffv) for ffv in fv]) for fv in faultapvals])
+                self.contact_area = np.array([np.nanmean([float(len(ffv[ffv<1e-49]))/len(ffv) for ffv in fv]) for fv in faultapvals])
                         
                 if self.aperture_hydraulic is None:
                     self.aperture_hydraulic = self.aperture.copy()
