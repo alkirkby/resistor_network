@@ -168,6 +168,9 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats,savepath):
     for r in range(repeats):
         # define names for fault edge and fault surface arrays to be saved
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
+        fename = op.join(savepath,fename)
+        fsname = op.join(savepath,fsname)
+        
         input_dict = {}
         input_dict.update(fixed_parameters)
         # set id - will become an attribute of the rock volume
@@ -176,11 +179,12 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats,savepath):
         input_dict['fault_assignment'] = 'random'
         input_dict['aperture_type'] = 'random'
         # set the variables to the file name
-        input_dict['faultedge_file'] = op.join(savepath,fename)
-        input_dict['faultsurface_file'] = op.join(savepath,fsname)
+        input_dict['faultedge_file'] = fename
+        input_dict['faultsurface_file'] = fsname
 
 
         count = 0
+        # loop through fault separation values and initialise aperture
         for fs in loop_parameters['fault_separation']:
             if count > 0:
                 input_dict['fault_assignment'] = 'list'
@@ -188,7 +192,7 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats,savepath):
                 input_dict['fault_edges'] = ro.fault_edges
             count += 1
             input_dict['fault_separation'] = fs
-            aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e.npy'%(r,np.median(input_dict['fault_separation'])))
+            aplistname = op.join(savepath,'aperture_list_%1i_fs%.1e.npy'%(r,fs))
             ro = rn.Rock_volume(**input_dict)
             # save aperture list to a file
             np.save(aplistname,ro.fault_dict['aperture_list'])
@@ -200,13 +204,16 @@ def initialise_inputs_master(fixed_parameters,loop_parameters,repeats,savepath):
             if return_objects:
                 ro_list.append(copy.copy(ro))
         # save to a file so they can be accessed by all processors
-        np.save(op.join(savepath,fename),ro.fault_edges)
-        np.save(op.join(savepath,fsname),ro.fault_dict['fault_surfaces'])
+        np.save(fename,ro.fault_edges)
+        np.save(fsname,ro.fault_dict['fault_surfaces'])
 
         
     time.sleep(10)
  
-    return input_list
+    if return_objects: 
+        return input_list,ro_list
+    else:
+        return input_list
 
 def object2dict(Object):
     """
@@ -551,8 +558,7 @@ def run_subvolumes(input_list,subvolume_size,rank,return_objects=False,tmp_outfi
     count = 0   
      
     #print "running subvolumes for tmp outfile {}".format(tmp_outfile)
-    
-    time.sleep(10)
+
     for input_dict in input_list:
         input_dict['aperture_type'] = 'list'
         input_dict['fault_assignment'] = 'list'
@@ -562,8 +568,10 @@ def run_subvolumes(input_list,subvolume_size,rank,return_objects=False,tmp_outfi
             # only reload if it's a different file to previous, save reloading the file multiple times
             #if faultedge_file == input_dict['faultedge_file']:
         # wait for file to appear
-        while not op.exists(input_dict['aperturelist_file']):
-            time.sleep(5)
+        while not op.exists(input_dict['faultsurface_file']):
+            time.sleep(1)
+        time.sleep(np.amax(subvolume_size))
+        
         faultedge_list = np.load(input_dict['faultedge_file'])
         aperture_list = np.load(input_dict['aperturelist_file'])
         #        faultedge_file = input_dict['faultedge_file']
@@ -1139,19 +1147,23 @@ def setup_and_run_segmented_volume(arguments):
             if tt > 600:
                 break
 
-
-
-    t0 = time.time()
-    # create inputs for master rock volumes
-    list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats,wd2)
-
-    time.sleep(2)
-    
     # determine whether we need the segmented rock volumes for future analysis/comparison
-    if 'array' in list_of_inputs_master[0]['comparison_arrays']:
+    if 'array' in fixed_parameters['comparison_arrays']:
         return_objects = True
     else:
         return_objects = False
+
+    t0 = time.time()
+    # create inputs for master rock volumes
+    if return_objects:
+        list_of_inputs_master,ro_list = initialise_inputs_master(fixed_parameters, loop_parameters, repeats,wd2)
+    else:
+        list_of_inputs_master = initialise_inputs_master(fixed_parameters, loop_parameters, repeats,wd2)
+
+
+    time.sleep(2)
+    
+
 
 
     # initialise outfile name
