@@ -250,7 +250,7 @@ class Rock_volume():
                         addfaults = True
                     else:
                         pass
-                        print "Invalid fault edges"
+                        #print "Invalid fault edges"
                     
                         
             # option to specify a single fault in the centre of the yz plane
@@ -346,7 +346,8 @@ class Rock_volume():
                 # define probability of connection and normalise
                 pxyz = np.array(self.pconnection)/float(sum(self.pconnection))
                 # get fault edges
-                fracturecoords = rnaf.get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,a=3.5,alpha=10.)
+                fracturecoords = rnaf.get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,
+                                                          a=self.fault_dict['a'],alpha=self.fault_dict['alpha'])
                 self.fault_edges = rnaf.coords2indices(fracturecoords,networksize,[nx,ny,nz])
                 addfaults = True
             else:
@@ -396,7 +397,7 @@ class Rock_volume():
                             aperture_input[key] = self.fault_dict[key]
     
             if self.build_arrays:
-                    ap,apc,aph,self.aperture,self.aperture_hydraulic, \
+                    ap,aph,apc,self.aperture,self.aperture_hydraulic, \
                     self.aperture_electric,self.fault_dict['fault_surfaces'] = \
                     rnaf.assign_fault_aperture(self.fault_edges,
                                                np.array(self.ncells)+self.array_buffer*2,
@@ -404,23 +405,21 @@ class Rock_volume():
     
                     self.fault_dict['aperture_list'] = [ap,apc,aph]  
             else:
-                ap,apc,aph,self.fault_dict['fault_surfaces'] = \
+                ap,aph,apc,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
                 self.fault_dict['aperture_list'] = [ap,apc,aph]            
                 
             if self.aperture is not None:
                 # get the aperture values from the faulted part of the volume to do some calculations on
-                faultapvals = [self.aperture[:,:,:,i][(self.fault_array[:,:,:,i].astype(bool))&(np.isfinite(self.aperture[:,:,:,i]))] \
-                              for i in range(3)]
-        
-                self.aperture_mean = [np.mean(faultapvals[i]) for i in range(3)]
-        #        print self.aperture_mean,"separation",self.fault_dict['fault_separation']
-                self.contact_area = []
-                for i in range(3):
-                    if np.size(faultapvals[i]) > 0:
-                        self.contact_area.append(float(len(faultapvals[i][faultapvals[i] <= 1e-50]))/np.size(faultapvals[i]))
-                    else:
-                        self.contact_area.append(0.) 
+                # get the aperture values from the faulted part of the volume to do some calculations on
+                mask = self.aperture.copy()
+                mask[np.isnan(mask)] = 0.
+                mask = mask.astype(bool)
+                
+                faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
+                
+                self.aperture_mean = np.array([np.nanmean([np.nanmean(ffv) for ffv in fv]) for fv in faultapvals])
+                self.contact_area = np.array([np.nanmean([float(len(ffv[ffv<1e-49]))/len(ffv) for ffv in fv]) for fv in faultapvals])
                         
                 if self.aperture_hydraulic is None:
                     self.aperture_hydraulic = self.aperture.copy()
@@ -431,7 +430,7 @@ class Rock_volume():
                 # but only if it's a 2d network or there are only faults in one direction
                 if self.update_cellsize_tf:
                     self.update_cellsize()
-
+                    
   
     def update_cellsize(self):
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
