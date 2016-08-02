@@ -263,7 +263,7 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     
     # make a list containing the variable names to store
     # start with variables with three directions (x,y and z)
-    variablekeys = ['aperture_mean','contact_area','permeability','resistivity']
+    variablekeys = [param+dd for param in ['aperture_mean','contact_area','permeability','resistivity'] for dd in 'xyz']
     # add single-valued variables
     variablekeys += ['fault_separation','repeat','rank','run_no']
         
