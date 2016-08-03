@@ -266,7 +266,8 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     variablekeys = [param+dd for param in ['aperture_mean','contact_area','permeability','resistivity'] for dd in 'xyz']
     # add single-valued variables
     variablekeys += ['fault_separation','repeat','rank','run_no']
-        
+    if hasattr(ro,'permeability_bulk'):
+        ro.permeability_bulk[ro.permeability_bulk==0] = np.nan
     # output line
 #    print ro.aperture_mean[dno],ro.contact_area[dno],\
 #                            ro.permeability[dno],ro.resistivity[dno],\
@@ -276,7 +277,7 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     output_line = np.hstack([ro.aperture_mean,ro.contact_area,
                             ro.permeability_bulk,ro.resistivity_bulk,
                             np.median(ro.fault_dict['fault_separation']),
-                            dno,repeatno,rank,runno])
+                            repeatno,rank,runno])
                
     # create a dictionary containing fixed variables
     fixeddict = {}
@@ -333,16 +334,32 @@ def gather_outputs(outputs_gathered, wd, outfile) :
             except IOError:
                 print "Failed to find file {}, skipping and moving to the next file".format(outfn)
         count += 1
-        
-        
 
     np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
+
+    outarray[np.isinf(outarray)] = np.nan
+
+    # get rid of nans
+    count = 0
+    for r in np.unique(outarray[:,-3]):
+        for fs in np.unique(outarray[:,-4]):
+            ind = np.where(np.all([outarray[:,-3]==r,outarray[:,-4]==fs],axis=0))[0]
+            line = np.nanmax(outarray[ind],axis=0)
+            if count == 0:
+                outarray2 = line.copy()
+            else:
+                outarray2 = np.vstack([outarray2,line])
+            count += 1
+        if count == 1:
+            outarray2 = np.array([outarray2])
+
+    np.savetxt(op.join(wd,outfile[:-4]+'f.dat'),outarray2,header=header,fmt='%.3e',comments='')
 
     for outfn in outputs_gathered:
         if outfile not in outfn:
             os.remove(outfn)    
 
-def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
+def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=None):
     #print "list_of_inputs",list_of_inputs
     
     ofb = op.basename(outfilename)
@@ -355,10 +372,15 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
        
     newfile = True 
     runno=1
+    print "running rock volumes on rank {}".format(rank)
     for ii,input_dict in enumerate(list_of_inputs):
         
+        if array_savepath == None:
+            array_savepath = input_dict['workdir']
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
+        input_dict['fault_assignment'] = 'list'
+
         rno = input_dict['repeat']
         
         # determine whether this is a new volume
@@ -375,17 +397,23 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
         sdno = list('xyz').index(sd)
         
         ro = rn.Rock_volume(**input_dict)
-        
+        if save_array:
+            np.save(op.join(array_savepath,'aperture_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
+            np.save(op.join(array_savepath,'faultarray_fs%.1e.npy'%input_dict['fault_separation']),ro.fault_array)
+       
+ 
         Vstart = None
-        if not newvol:
-            if input_dict['solve_properties'] == 'current':
-                Vstart = ro.voltage[:,:,:,sd].copy().transpose(1,0,2)
-            elif input_dict['solve_properties'] == 'fluid':
-                Vstart = ro.pressure[:,:,:,sd].copy().transpose(1,0,2)
+        
+        if input_dict['solve_method'] == 'relaxation':
+            if not newvol:
+                if input_dict['solve_properties'] == 'current':
+                    Vstart = ro.voltage[:,:,:,sd].copy().transpose(1,0,2)
+                elif input_dict['solve_properties'] == 'fluid':
+                    Vstart = ro.pressure[:,:,:,sd].copy().transpose(1,0,2)
                 
         Vsurf,Vbase = get_boundary_conditions(ro,input_dict,sdno,input_dict['solve_properties'])
                 
-        
+        t0 = time.time() 
         if input_dict['solve_method'] == 'direct':
             ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='direct')
@@ -393,7 +421,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True):
             ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
-
+        print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
         write_output(ro, outfilename, newfile, rno, rank, runno, input_dict['solve_direction'])
         runno += 1
         newfile = False
@@ -460,7 +488,8 @@ def setup_and_run_suite(arguments, argument_names):
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
-                       op.join(wd,outfile))
+                       op.join(wd,outfile),
+                       array_savepath=wd2)
 
     outputs_gathered = comm.gather(outfilenames,root=0)
     

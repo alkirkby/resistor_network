@@ -412,7 +412,7 @@ class Rock_volume():
             if ((self.aperture is not None) and (self.fault_array is not None)):
                 # get the aperture values from the faulted part of the volume to do some calculations on
                 # get the aperture values from the faulted part of the volume to do some calculations on
-                mask = self.aperture.copy()
+                mask = self.fault_array.copy()
                 mask[np.isnan(mask)] = 0.
                 if np.amax(mask) > 0:
                     mask = mask.astype(bool)
@@ -420,9 +420,10 @@ class Rock_volume():
                     faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
                     # get rid of nans
                     faultapvals = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals]
+                    
                     nfc = [[max(1,len(ffv)) for ffv in fv] for fv in faultapvals]                    
-
-                    self.aperture_mean = np.array([np.mean([np.mean(ffv) for ffv in fv]) for fv in faultapvals])
+                    apmean1 = [np.array([np.mean(ffv) for ffv in fv]) for fv in faultapvals]
+                    self.aperture_mean = np.array([np.mean(fv[np.isfinite(fv)]) for fv in apmean1])
                     self.contact_area = np.array([np.mean([float(len(faultapvals[j][i][faultapvals[j][i]<1e-49]))/nfc[j][i] for i in range(len(faultapvals[j]))]) for j in range(len(faultapvals))])
                 else:
                     self.aperture_mean = np.zeros(3)
