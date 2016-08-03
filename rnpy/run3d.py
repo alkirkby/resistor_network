@@ -27,6 +27,7 @@ argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
                   ['offset',None,'number of cells offset between fault surfaces',1,float],
                   ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
                   ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
+                  ['alpha',None,'alpha value (scaling constant) for fault network',1,float],
                   ['mismatch_wavelength_cutoff',None,
                   'wavelength cutoff for matching between faults',1,float],
                   ['elevation_scalefactor',None,
@@ -373,6 +374,9 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
     newfile = True 
     runno=1
     print "running rock volumes on rank {}".format(rank)
+    # stagger the starts to hopefully prevent memory crash
+    if np.amax(list_of_inputs[0]['ncells']) > 50:
+        time.sleep(rank%16*30)
     for ii,input_dict in enumerate(list_of_inputs):
         
         if array_savepath == None:
@@ -398,8 +402,9 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
         
         ro = rn.Rock_volume(**input_dict)
         if save_array:
-            np.save(op.join(array_savepath,'aperture_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
-            np.save(op.join(array_savepath,'faultarray_fs%.1e.npy'%input_dict['fault_separation']),ro.fault_array)
+            if rno == 0:
+                np.save(op.join(array_savepath,'aperture_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
+                np.save(op.join(array_savepath,'faultarray.npy'),ro.fault_array)
        
  
         Vstart = None
@@ -422,6 +427,15 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
         print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
+
+        if save_array:
+            if rno == 0:
+                if 'current' in input_dict['solve_properties']:
+                    np.save(op.join(array_savepath,'current_fs%.1e.npy'%input_dict['fault_separation']),ro.current)
+                elif 'fluid' in input_dict['solve_properties']:
+                    np.save(op.join(array_savepath,'flowrate_fs%.1e.npy'%input_dict['fault_separation']),ro.flowrate)
+
+
         write_output(ro, outfilename, newfile, rno, rank, runno, input_dict['solve_direction'])
         runno += 1
         newfile = False
@@ -454,13 +468,10 @@ def setup_and_run_suite(arguments, argument_names):
     # define a subdirectory to store arrays
     wd2 = os.path.join(wd,'arrays')
 
+    if rank == 0:
+        list_of_inputs = initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size)
+        inputs = divide_inputs(list_of_inputs,size)
 
-    list_of_inputs = initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size)
-
-    time.sleep(10)
-    # divide inputs
-    inputs = divide_inputs(list_of_inputs,size)
-    if rank == 0:        
         # make working directories
         if not os.path.exists(wd):
             os.mkdir(wd)

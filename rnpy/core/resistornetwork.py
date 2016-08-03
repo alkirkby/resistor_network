@@ -395,6 +395,8 @@ class Rock_volume():
                         'mismatch_wavelength_cutoff','aperture_type',
                         'correct_aperture_for_geometry','aperture_list']:
                             aperture_input[key] = self.fault_dict[key]
+            if self.fault_dict['fault_surfaces'] is None:
+                print "fault surfaces none!"
     
             if self.build_arrays:
                     ap,aph,apc,self.aperture,self.aperture_hydraulic, \
