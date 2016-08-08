@@ -310,7 +310,7 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
             outfile.write('\n'+' '.join(['%.3e'%oo for oo in output_line]))
 
 
-def gather_outputs(outputs_gathered, wd, outfile) :
+def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
     """
     gathers all the outputs written to individual files for each rank, to a 
     master file.
@@ -345,20 +345,22 @@ def gather_outputs(outputs_gathered, wd, outfile) :
     for r in np.unique(outarray[:,-3]):
         for fs in np.unique(outarray[:,-4]):
             ind = np.where(np.all([outarray[:,-3]==r,outarray[:,-4]==fs],axis=0))[0]
-            line = np.nanmax(outarray[ind],axis=0)
-            if count == 0:
-                outarray2 = line.copy()
-            else:
-                outarray2 = np.vstack([outarray2,line])
-            count += 1
+            if len(ind) > 0:
+                line = np.nanmax(outarray[ind],axis=0)
+                if count == 0:
+                    outarray2 = line.copy()
+                else:
+                    outarray2 = np.vstack([outarray2,line])
+                count += 1
         if count == 1:
             outarray2 = np.array([outarray2])
 
     np.savetxt(op.join(wd,outfile[:-4]+'f.dat'),outarray2,header=header,fmt='%.3e',comments='')
 
-    for outfn in outputs_gathered:
-        if outfile not in outfn:
-            os.remove(outfn)    
+    if delete_originals:
+        for outfn in outputs_gathered:
+            if outfile not in outfn:
+                os.remove(outfn)    
 
 def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=None):
     #print "list_of_inputs",list_of_inputs
@@ -402,9 +404,9 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
         
         ro = rn.Rock_volume(**input_dict)
         if save_array:
-            if rno == 0:
-                np.save(op.join(array_savepath,'aperture_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
-                np.save(op.join(array_savepath,'faultarray.npy'),ro.fault_array)
+            if ((rno == 0) and (sd=='z')):
+                np.save(op.join(array_savepath,'aperture0_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
+                np.save(op.join(array_savepath,'faultarray0.npy'),ro.fault_array)
        
  
         Vstart = None
@@ -429,11 +431,11 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
         print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
 
         if save_array:
-            if rno == 0:
+            if ((rno == 0) and (sd == 'z')):
                 if 'current' in input_dict['solve_properties']:
-                    np.save(op.join(array_savepath,'current_fs%.1e.npy'%input_dict['fault_separation']),ro.current)
+                    np.save(op.join(array_savepath,'current0z_fs%.1e.npy'%input_dict['fault_separation']),ro.current)
                 elif 'fluid' in input_dict['solve_properties']:
-                    np.save(op.join(array_savepath,'flowrate_fs%.1e.npy'%input_dict['fault_separation']),ro.flowrate)
+                    np.save(op.join(array_savepath,'flowrate0z_fs%.1e.npy'%input_dict['fault_separation']),ro.flowrate)
 
 
         write_output(ro, outfilename, newfile, rno, rank, runno, input_dict['solve_direction'])
