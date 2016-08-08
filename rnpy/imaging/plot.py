@@ -421,7 +421,7 @@ def plot_pt_vs_offset(ptfilelist, offset_vals, rratio_values, offset_units='mm',
     return ax
 
     
-def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None):
+def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None,mode='2ddash',bgcolor=(1,1,1)):
     """
     plot connectors from a resistor network in 3d. can plot aperture, resistance
     or permeability
@@ -480,28 +480,28 @@ def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None):
                                                              np.linspace(0,dz*(nz+1),nz+2))]
     # maximum color value, same for each array
     vmax=ap.max()
-    mlab.figure()
+    mlab.figure(bgcolor=bgcolor)
     ## xconnectors
     ux,vx,wx = [np.ones_like(x)*sc for sc in [dx*1e3,0.,0.]]
     ux[ap[:,:,:,0] == 0.] = 0.
-    quiv = mlab.quiver3d(x,y,z,ux,vx,wx,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,0],vmin=0.,vmax=vmax)
+    quiv = mlab.quiver3d(x,y,z,ux,vx,wx,mode=mode,scale_factor=0.9,scalars=ap[:,:,:,0],vmin=0.,vmax=vmax)
     quiv.glyph.color_mode = 'color_by_scalar'
     
     # y connectors
     uy,vy,wy = [np.ones_like(y)*sc for sc in [0.,dy*1e3,0.]]
     vy[ap[:,:,:,1] == 0.] = 0.
-    quiv = mlab.quiver3d(x,y,z,uy,vy,wy,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,1],vmin=0.,vmax=vmax)
+    quiv = mlab.quiver3d(x,y,z,uy,vy,wy,mode=mode,scale_factor=0.9,scalars=ap[:,:,:,1],vmin=0.,vmax=vmax)
     quiv.glyph.color_mode = 'color_by_scalar'
     
     # z connectors
     uz,vz,wz = [np.ones_like(z)*sc for sc in [0.,0.,dz*1e3]]
     wz[ap[:,:,:,2] == 0.] = 0.
-    quiv = mlab.quiver3d(x,y,z,uz,vz,wz,mode='2ddash',scale_factor=0.9,scalars=ap[:,:,:,2],vmin=0.,vmax=vmax)
+    quiv = mlab.quiver3d(x,y,z,uz,vz,wz,mode=mode,scale_factor=0.9,scalars=ap[:,:,:,2],vmin=0.,vmax=vmax)
     quiv.glyph.color_mode = 'color_by_scalar'    
 
 
 def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz',scale_factor = None,arrows='single',
-               vmin=None,vmax=None,line_width=2.):
+               vmin=None,vmax=None,line_width=2.,bgcolor=(1,1,1)):
     import mayavi.mlab as mlab
     # make a copy of the array for plotting
     arr = flow_array.copy()
@@ -509,10 +509,13 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
     # set nan and small apertures to 0.
     arr[np.isnan(arr)] = 0.
     arr[np.abs(arr)<thresh] = 0.
-    if vmax is None:
-        vmax = np.nanmax(arr)
-    if vmin is None:
-        vmin = np.nanmin(arr)
+    arr[arr>vmax] = vmax
+    arr[arr<vmin] = vmin
+#    print vmax,vmin
+#    if vmax is None:
+#        vmax = np.nanmax(arr)
+#    if vmin is None:
+#        vmin = np.nanmin(arr)
     # get number of cells and cellsize
     nz,ny,nx = np.array(arr.shape[:3]) - 2.
     if type(cellsize) in [float,int]:
@@ -525,7 +528,7 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
                                                                np.linspace(0,dy*(ny+1),ny+2),
                                                                np.linspace(0,dz*(nz+1),nz+2))]
     
-    mlab.figure()
+    mlab.figure(bgcolor=bgcolor)
     
     if 'x' in direction:
         ## x currents
@@ -548,13 +551,82 @@ def plot3dflow(flow_array,cellsize,thresh=1e-40,model_direction=2,direction='xyz
 #        quiv = 
     else:
         wz = np.zeros_like(z)
+
     optargs = dict(mode='2darrow',vmin=vmin,vmax=vmax,line_width=line_width)
+    
+    
+    
     if scale_factor is not None:
         optargs['scale_factor'] = scale_factor
+#    print optargs
     if arrows == 'single':
-        
+        optargs['scalars'] = (ux**2 + vy**2 + wz**2)**0.5
         mlab.quiver3d(x,y,z,ux,vy,wz,**optargs)
+    
     elif arrows == 'broken':
+        optargs['scalars'] = (ux**2 + vx**2 + wx**2)**0.5
         mlab.quiver3d(x,y,z,ux,vx,wx,**optargs)
+        optargs['scalars'] = (uy**2 + vy**2 + wy**2)**0.5
         mlab.quiver3d(x,y,z,uy,vy,wy,**optargs)
+        optargs['scalars'] = (uz**2 + vz**2 + wz**2)**0.5
         mlab.quiver3d(x,y,z,uz,vz,wz,**optargs)
+
+def plot3dfaults(faultedges, ncells = None, aperture=None, thresh=1e-49):
+        
+    import mayavi.mlab as mlab
+    
+
+    mask = None
+    uvw0 = np.amin(faultedges,axis=(1,2))
+    uvw1 = np.amax(faultedges,axis=(1,2))
+    
+    if ncells is not None:
+        uvw0[uvw0>np.amax(ncells)+2] = np.amax(ncells)+2
+        uvw1[uvw1>np.amax(ncells)+2] = np.amax(ncells)+2
+    
+    
+    mlab.figure(bgcolor=(1,1,1))
+    cs = 2.5e-4
+    
+    #ro = rn.Rock_volume(cellsize=[cs,cs,cs],ncells=ncells)
+    fs = 2e-5
+    for ff in range(len(uvw0)):
+        # fracture coordinates as indices
+        xyzi = [np.arange(uvw0[ff][i],uvw1[ff][i]) for i in range(3)]
+        dp = [len(arr) for arr in xyzi].index(0)
+        
+        # local fracture plane uvw as indices
+        u,v = [xyzi[i] for i in range(3) if i!= dp]
+        u,v = np.meshgrid(u,v)
+        w = np.ones_like(u,dtype=int)*uvw0[ff][dp]    
+    
+        
+        # convert to actual coordinates
+        xyz = [u*cs,v*cs]
+        xyz.insert(dp,w*cs)
+        x,y,z = xyz
+        x0,y0,z0 = xyz
+        x1,y1,z1 = xyz
+        
+
+        if aperture is not None:
+            
+            if dp == 0:
+                scalars = aperture[v,u,w,2,0]
+                x0 = x+aperture[v,u,w,2,0]/2.+fs/2
+                x1 = x-aperture[v,u,w,2,0]/2.-fs/2
+            elif dp == 1:
+                y0 = y-aperture[v,w,u,2,1]/2.-fs/2
+                y1 = y+aperture[v,w,u,2,1]/2. +fs/2
+                scalars = aperture[v,w,u,2,1]
+            elif dp == 2:
+                z0 = z+aperture[w,v,u,1,2]/2.+fs/2
+                z1 = z-aperture[w,v,u,1,2]/2.-fs/2 
+                scalars = aperture[w,v,u,1,2]
+
+
+        else:
+            scalars=np.zeros_like(x0)
+            
+        mlab.mesh(x0,y0,z0,scalars=scalars)#
+        mlab.mesh(x1,y1,z1,scalars=scalars)#
