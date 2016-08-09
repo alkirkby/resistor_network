@@ -228,15 +228,20 @@ def add_faults_to_array(faultarray,fractureind):
     faultarray *= 0.
     
     for fi in fractureind:
-        x0,y0,z0 = np.amin(fi,axis=(0,1))
-        x1,y1,z1 = fi.max(axis=(0,1)) + 1
+        u0,v0,w0 = np.amin(fi,axis=(0,1))
+        u1,v1,w1 = fi.max(axis=(0,1))
         size = fi.max(axis=(0,1)) - fi.min(axis=(0,1))
         perp = list(size).index(min(size))
-        i1 = [i for i in range(3) if i != perp]
 
-        for ii in i1:
-            faultarray[z0:z1,y0:y1,x0:x1,ii,perp] = 1.
-
+        if perp == 0:
+            faultarray[w0:w1,v0:v1+1,u0,2,0] = 1.
+            faultarray[w0:w1+1,v0:v1,u0,1,0] = 1.
+        elif perp == 1:
+            faultarray[w0:w1,v0,u0:u1+1,2,1] = 1.
+            faultarray[w0:w1+1,v0,u0:u1,0,1] = 1.
+        elif perp == 2:
+            faultarray[w0,v0:v1,u0:u1+1,1,2] = 1.
+            faultarray[w0,v0:v1+1,u0:u1,0,2] = 1.
     
 
     faultarray = rna.add_nulls(faultarray)
