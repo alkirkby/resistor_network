@@ -418,15 +418,18 @@ class Rock_volume():
                 mask[np.isnan(mask)] = 0.
                 if np.amax(mask) > 0:
                     mask = mask.astype(bool)
-                
-                    faultapvals = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
+                    # mean aperture calculated in terms of direction of the connector, x y or z
+                    faultapvals1 = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
+                    # contact area calculated in terms of faults in yz,xz or xy planes (opening direction x, y or z)
+                    faultapvals2 = [[self.aperture[:,:,:,j,i][mask[:,:,:,j,i]] for j in range(3) if j!=i] for i in range(3)]
                     # get rid of nans
-                    faultapvals = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals]
+                    faultapvals1 = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals1]
+                    faultapvals2 = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals2]
                     
-                    nfc = [[max(1,len(ffv)) for ffv in fv] for fv in faultapvals]                    
-                    apmean1 = [np.array([np.mean(ffv) for ffv in fv]) for fv in faultapvals]
+                    nfc = [[max(1,len(ffv)) for ffv in fv] for fv in faultapvals2]                    
+                    apmean1 = [np.array([np.mean(ffv) for ffv in fv]) for fv in faultapvals1]
                     self.aperture_mean = np.array([np.mean(fv[np.isfinite(fv)]) for fv in apmean1])
-                    self.contact_area = np.array([np.mean([float(len(faultapvals[j][i][faultapvals[j][i]<1e-49]))/nfc[j][i] for i in range(len(faultapvals[j]))]) for j in range(len(faultapvals))])
+                    self.contact_area = np.array([np.mean([float(len(faultapvals2[j][i][faultapvals2[j][i]<1e-49]))/nfc[j][i] for i in range(len(faultapvals2[j]))]) for j in range(len(faultapvals2))])
                 else:
                     self.aperture_mean = np.zeros(3)
                     self.contact_area = np.ones(3)                    

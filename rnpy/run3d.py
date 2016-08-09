@@ -264,7 +264,9 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     
     # make a list containing the variable names to store
     # start with variables with three directions (x,y and z)
-    variablekeys = [param+dd for param in ['aperture_mean','contact_area','permeability','resistivity'] for dd in 'xyz']
+    variablekeys = ['aperture_mean' + dd for dd in 'xyz']
+    variablekeys += ['contact_area' + dd for dd in ['yz','xz','xy']]
+    variablekeys += [param+dd for param in ['permeability','resistivity'] for dd in 'xyz']
     # add single-valued variables
     variablekeys += ['fault_separation','repeat','rank','run_no']
     if hasattr(ro,'permeability_bulk'):
