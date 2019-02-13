@@ -140,11 +140,19 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         if prop in fixed_parameters['solve_properties']:
             solveproperties.append(prop)
     
-    kmvals,rmvals,rfvals = [loop_parameters[key] for key in \
-    ['permeability_matrix','resistivity_matrix','resistivity_fluid']]
+    propvals = []
+    for key in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
+        if key in loop_parameters.keys():
+            propvals.append(loop_parameters[key])
+        else:
+            propvals.append([fixed_parameters[key]])
+            
+    kmvals,rmvals,rfvals = propvals
+    
+    if not np.iterable(repeats):
+        repeats = range(repeats)
 
-
-    for r in range(repeats):
+    for r in repeats:
         # define names for fault edge and fault surface arrays to be saved
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
@@ -163,7 +171,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         input_dict['fault_edgesname'] = fename
         input_dict['fault_surfacename'] = fsname
 
-        # loop through solve directions        
+        # loop through solve directions  
+        print rmvals,rfvals
         for i,sd in enumerate(solvedirections):
                 # update input dict so we deal with one solve direction at a time
                 input_dict['solve_direction'] = sd
@@ -181,6 +190,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
                                 tmp_list.append(input_dict.copy())
                             input_list.append(tmp_list)
                     elif prop == 'current':
+                        
                         for rm,rf in itertools.product(rmvals,rfvals):
                             input_dict['resistivity_matrix'] = rm
                             input_dict['resistivity_fluid'] = rf
@@ -321,13 +331,13 @@ def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
     """
     outfn = outputs_gathered[0]
     outarray = np.loadtxt(outfn)
-    outfile0 = open(outfn)
-    line = outfile0.readline()
-    header = ''
-
-    while line[0] == '#':
-        header += line
+    with open(outfn) as outfile0:
         line = outfile0.readline()
+        header = ''
+    
+        while line[0] == '#':
+            header += line
+            line = outfile0.readline()
     header = header.strip()
     count = 0
     for outfn in outputs_gathered:
@@ -360,6 +370,7 @@ def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
     np.savetxt(op.join(wd,outfile[:-4]+'f.dat'),outarray2,header=header,fmt='%.3e',comments='')
 
     if delete_originals:
+        time.sleep(5)
         for outfn in outputs_gathered:
             if outfile not in outfn:
                 os.remove(outfn)    
@@ -379,12 +390,14 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
     runno=1
     print "running rock volumes on rank {}".format(rank)
     # stagger the starts to hopefully prevent memory crash
-    if np.amax(list_of_inputs[0]['ncells']) > 50:
-        time.sleep(rank%16*30)
+    if 'ncells' in list_of_inputs[0].keys():
+        if np.amax(list_of_inputs[0]['ncells']) > 50:
+            time.sleep(rank%16*30)
     for ii,input_dict in enumerate(list_of_inputs):
         
         if array_savepath == None:
             array_savepath = input_dict['workdir']
+
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_assignment'] = 'list'
@@ -452,13 +465,20 @@ def setup_and_run_suite(arguments, argument_names):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
-    from mpi4py import MPI
+    try:
+        from mpi4py import MPI
+        mpi_import = True
+        # sort out rank and size info
+        comm = MPI.COMM_WORLD
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        name = MPI.Get_processor_name()
+    except:
+        mpi_import = False
+        size=1
+        rank=0
+        name='Fred'
     
-    # sort out rank and size info
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    name = MPI.Get_processor_name()
     print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
    
     # get inputs from the command line
@@ -498,15 +518,21 @@ def setup_and_run_suite(arguments, argument_names):
         outfile = 'outputs.dat'
         
     #print "sending jobs out, rank {}".format(rank)
-    inputs_sent = comm.scatter(inputs,root=0)
-    #print "inputs have been sent", len(inputs_sent), "rank", rank
+    if mpi_import:
+        inputs_sent = comm.scatter(inputs,root=0)
+        #print "inputs have been sent", len(inputs_sent), "rank", rank
+    else:
+        inputs_sent = inputs[0]
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
                        op.join(wd,outfile),
                        array_savepath=wd2)
 
-    outputs_gathered = comm.gather(outfilenames,root=0)
+    if mpi_import:
+        outputs_gathered = comm.gather(outfilenames,root=0)
+    else:
+        outputs_gathered = [outfilenames]
     
     if rank == 0:
         gather_outputs(outputs_gathered, wd, outfile)
