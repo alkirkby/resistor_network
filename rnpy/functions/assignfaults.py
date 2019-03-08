@@ -341,9 +341,11 @@ def assign_fault_aperture(fault_array,fault_uvw,
         
         if correct_aperture_for_geometry:
             bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+
         else:
             bf, bc = [b]*2
-        for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
+#        for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
+        for i,bb in enumerate([[b]*2,bf,bc]):  
             b0,b1 = bb
             if direction == 0:
                 # faults perpendicular to x direction, i.e. yz plane

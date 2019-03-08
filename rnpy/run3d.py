@@ -94,19 +94,19 @@ def read_arguments(arguments, argument_names):
                 value = np.reshape(at[1],(nf,3,2))
             else:
                 value = at[1]
-                
             if at[0] == 'repeats':
                 repeats = at[1][0]
             elif at[0] in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
                 loop_parameters[at[0]] = value
             elif type(value) == list:
                 if len(value) > 0:
-                    if len(value) == 1:
+                    if ((len(value) == 1) and (at[0]!='fault_separation')):
                         fixed_parameters[at[0]] = value[0]
                     elif at[0] in ['ncells','cellsize']:
                         fixed_parameters[at[0]] = value
                     else:
                         loop_parameters[at[0]] = value
+
             else:
                 fixed_parameters[at[0]] = value
                 
@@ -276,7 +276,9 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     # start with variables with three directions (x,y and z)
     variablekeys = ['aperture_mean' + dd for dd in 'xyz']
     variablekeys += ['contact_area' + dd for dd in ['yz','xz','xy']]
+    variablekeys += ['conductive_fraction']
     variablekeys += [param+dd for param in ['permeability','resistivity'] for dd in 'xyz']
+
     # add single-valued variables
     variablekeys += ['fault_separation','repeat','rank','run_no']
     if hasattr(ro,'permeability_bulk'):
@@ -288,10 +290,11 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
 #                            ro.permeability_matrix,ro.fault_dict['fault_separation'],\
 #                            repeatno,rank,runno
     output_line = np.hstack([ro.aperture_mean,ro.contact_area,
+                             [ro.conductive_fraction],
                             ro.permeability_bulk,ro.resistivity_bulk,
                             np.median(ro.fault_dict['fault_separation']),
                             repeatno,rank,runno])
-               
+        
     # create a dictionary containing fixed variables
     fixeddict = {}
     for param in ['cellsize','ncells','pconnection']:
@@ -418,6 +421,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
         sdno = list('xyz').index(sd)
         
         ro = rn.Rock_volume(**input_dict)
+        
         if save_array:
             if ((rno == 0) and (sd=='z')):
                 np.save(op.join(array_savepath,'aperture0_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
@@ -443,6 +447,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
             ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
+        ro.compute_conductive_fraction()
         print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
 
         if save_array:

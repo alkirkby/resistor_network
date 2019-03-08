@@ -192,7 +192,7 @@ class Rock_volume():
             self.build_faults(create_array=False)
             self.build_aperture()
             
-        
+    
         
         
 
@@ -443,7 +443,57 @@ class Rock_volume():
                 # but only if it's a 2d network or there are only faults in one direction
                 if self.update_cellsize_tf:
                     self.update_cellsize()
-                    
+    
+    
+    def compute_conductive_fraction(self):
+        nx,ny,nz = self.ncells
+        csx,csy,csz = self.cellsize
+        
+        # all apertures opening in x direction (yz plane)
+        apx = np.zeros((nz+1,ny+1,nx+1)) 
+        # y and z connectors in yz plane are equal except last row and column
+        # last row - z connectors missing, last column - y connectors missing
+        apx[:-1] = self.aperture[1:-1,1:,1:,2,0] # z connectors opening in x direction (yz)
+        apx[:,:-1] = self.aperture[1:,1:-1,1:,1,0] # y connectors opening in x direction (yz)
+        # fill missing aperture in corner
+        apx[-1,-1] = np.mean([apx[-2,-1],apx[-1,-2]],axis=0)
+        
+        # all apertures opening in y direction (xz plane)
+        apy = np.zeros_like(apx) 
+        # x and z connectors in xz plane are equal except last row and column
+        # last row - z connectors missing, last column - x connectors missing
+        apy[:-1] = self.aperture[1:-1,1:,1:,2,1] # z connectors opening in y direction
+        apy[:,:,:-1] = self.aperture[1:,1:,1:-1,0,1] # x connectors opening in y direction
+        # fill missing aperture in corner
+        apy[-1,:,-1] = np.mean([apy[-2,:,-1],apy[-1,:,-2]],axis=0)
+        
+        # all apertures opening in z direction (xy plane)
+        apz = np.zeros_like(apx) # all apertures opening in z direction (xy plane)
+        # x and y connectors in xz plane are equal except last row and column
+        # last row - y connectors missing, last column - x connectors missing
+        apz[:,:-1] = self.aperture[1:,1:-1,1:,1,2]
+        apz[:,:,:-1] = self.aperture[1:,1:,1:-1,0,2]
+        # fill missing aperture in corner
+        apz[:,-1,-1] = np.mean([apz[:,-2,-1],apz[:,-1,-2]],axis=0)
+        
+        # conductive volume - add the sum of 3 directions (multiplied by cell area to get volume)
+        cv1 = (apx.sum()*csy*csz + apy.sum()*csx*csz + apz.sum()*csx*csy)
+        # subtract overlapping areas
+        oxy = (apx * apy).sum()*csz
+        oxz = (apx * apz).sum()*csy
+        oyz = (apy * apz).sum()*csx
+        oxyz = (apx * apy * apz).sum()
+        
+        total_volume = np.product(apx.shape)*csx*csy*csz
+        
+        cv = cv1 - oxy - oxz - oyz + 2.*oxyz
+        
+        
+        self.conductive_fraction = cv/total_volume
+        
+
+
+              
   
     def update_cellsize(self):
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\

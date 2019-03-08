@@ -17,6 +17,18 @@ import rnpy.functions.faultaperture as rnfa
 import scipy.optimize as so
     
 def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
+    """
+    
+    updated now to include fat faults with width greater than cell size.
+    this is achieved by finding all the cells with aperture > cell size and
+    expanding the fault at this point, in a direction perpendicular to the
+    fault, in both directions. Therefore, the fault is always an odd number of
+    cells wide, i.e. 1,3,5,7... cells wide, depending on the aperture.
+    
+    the resistance in the outer cells of the fault is calculated as a weighted 
+    mean of the matrix and fluid resistivity based on the leftover portion of
+    fault that hasn't been assigned to a full cell.
+    """
     
     ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]   
     
