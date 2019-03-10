@@ -449,6 +449,8 @@ class Rock_volume():
         nx,ny,nz = self.ncells
         csx,csy,csz = self.cellsize
         
+        aperture = rnap.update_all_apertures(self.aperture,self.cellsize)
+        
         # all apertures opening in x direction (yz plane)
         apx = np.zeros((nz+1,ny+1,nx+1)) 
         # y and z connectors in yz plane are equal except last row and column
