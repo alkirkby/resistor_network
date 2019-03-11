@@ -119,7 +119,7 @@ def update_all_apertures(aperture_array,d):
                 aperture_array,ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
     
             
-            aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]] = d[od]
+            aperture_array[:,:,:,i,od][np.where(aperture_array[:,:,:,i,od] > d[od])] = d[od]
     
             
     return aperture_array

@@ -455,8 +455,8 @@ class Rock_volume():
         apx = np.zeros((nz+1,ny+1,nx+1)) 
         # y and z connectors in yz plane are equal except last row and column
         # last row - z connectors missing, last column - y connectors missing
-        apx[:-1] = self.aperture[1:-1,1:,1:,2,0] # z connectors opening in x direction (yz)
-        apx[:,:-1] = self.aperture[1:,1:-1,1:,1,0] # y connectors opening in x direction (yz)
+        apx[:-1] = aperture[1:-1,1:,1:,2,0] # z connectors opening in x direction (yz)
+        apx[:,:-1] = aperture[1:,1:-1,1:,1,0] # y connectors opening in x direction (yz)
         # fill missing aperture in corner
         apx[-1,-1] = np.mean([apx[-2,-1],apx[-1,-2]],axis=0)
         
@@ -464,8 +464,8 @@ class Rock_volume():
         apy = np.zeros_like(apx) 
         # x and z connectors in xz plane are equal except last row and column
         # last row - z connectors missing, last column - x connectors missing
-        apy[:-1] = self.aperture[1:-1,1:,1:,2,1] # z connectors opening in y direction
-        apy[:,:,:-1] = self.aperture[1:,1:,1:-1,0,1] # x connectors opening in y direction
+        apy[:-1] = aperture[1:-1,1:,1:,2,1] # z connectors opening in y direction
+        apy[:,:,:-1] = aperture[1:,1:,1:-1,0,1] # x connectors opening in y direction
         # fill missing aperture in corner
         apy[-1,:,-1] = np.mean([apy[-2,:,-1],apy[-1,:,-2]],axis=0)
         
@@ -473,8 +473,8 @@ class Rock_volume():
         apz = np.zeros_like(apx) # all apertures opening in z direction (xy plane)
         # x and y connectors in xz plane are equal except last row and column
         # last row - y connectors missing, last column - x connectors missing
-        apz[:,:-1] = self.aperture[1:,1:-1,1:,1,2]
-        apz[:,:,:-1] = self.aperture[1:,1:,1:-1,0,2]
+        apz[:,:-1] = aperture[1:,1:-1,1:,1,2]
+        apz[:,:,:-1] = aperture[1:,1:,1:-1,0,2]
         # fill missing aperture in corner
         apz[:,-1,-1] = np.mean([apz[:,-2,-1],apz[:,-1,-2]],axis=0)
         
@@ -486,7 +486,7 @@ class Rock_volume():
         oyz = (apy * apz).sum()*csx
         oxyz = (apx * apy * apz).sum()
         
-        total_volume = np.product(apx.shape)*csx*csy*csz
+        total_volume = (np.product(apx.shape))*csx*csy*csz
         
         cv = cv1 - oxy - oxz - oyz + 2.*oxyz
         
