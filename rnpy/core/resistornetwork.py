@@ -140,7 +140,7 @@ class Rock_volume():
                     continue 
         
         if type(self.ncells) in [float,int]:
-            self.ncells = np.ones(3)*self.ncells
+            self.ncells = (np.ones(3)*self.ncells).astype(int)
         if type(self.cellsize) in [float,int]:
             self.cellsize = np.ones(3)*self.cellsize
         else:
