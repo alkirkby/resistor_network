@@ -58,14 +58,14 @@ def plot_data(data, input_params, pnames, rnos, parameter_names,
     
 
 
-    for vals in itertools.product(*(input_params.values())):
+    for vals in itertools.product(*(list(input_params.values()))):
         
         idict = {}
         for i, key in enumerate(input_params.keys()):
             idict[key] = vals[i]
             
         # get the x and y parameters to get the percolation threshold on
-        xall,yall,data1,kbulk,rbulk = rnro.get_xy(data,input_params.keys(),
+        xall,yall,data1,kbulk,rbulk = rnro.get_xy(data,list(input_params.keys()),
                                                        vals,parameter_names[0],
                                                        parameter_names[1],
                                                        direction=direction, 
@@ -269,7 +269,7 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cutf = 1e-19, cutc = 1e-9,  cmap
 #            climf = np.percentile(np.log10(np.abs(wf[(np.isfinite(wf))&(wf>0.)])),[0,100])
             climc,climf = [np.log10([cut,np.amax(ww)]) for cut,ww in [[cutc,wc],[cutf,wf]]]
             
-            print climc,climf
+            print(climc,climf)
     
         if plot_aperture:    
             axes.append(plt.subplot(nrows,ncols,subplots[ii]))
@@ -296,7 +296,7 @@ def plot_fluidcurrent(wd, searchlist, cellsize, cutf = 1e-19, cutc = 1e-9,  cmap
 
 #            if ii == 0:
 #                clim = np.percentile(np.log10(np.abs(w[(np.isfinite(w))&(w>0.)])),[50,100])
-            print clim,cut,np.amax(w[np.isfinite(w)]),np.amin(w[np.isfinite(w)])
+            print(clim,cut,np.amax(w[np.isfinite(w)]),np.amin(w[np.isfinite(w)]))
             plt.clim(*clim)
             set_axes(n,o,cellsize)
             if plot_labels:
@@ -464,8 +464,8 @@ def plot3dconnectors(connector_array,cellsize,connector_type=None,thresh=None,mo
 
 
     
-    print 'connector_type',connector_type
-    print 'thresh',thresh
+    print('connector_type',connector_type)
+    print('thresh',thresh)
     
     # get number of cells and cellsize
     nz,ny,nx = np.array(ap.shape[:3]) - 2.

@@ -45,11 +45,11 @@ def prepare_ifft_inputs(y1a):
     """
     size = int(y1a.shape[0] - 1)
     y1 = np.zeros((size+1,size+1),dtype=complex)
-    y1[1:,1:size/2+1] = y1a[1:,1:]
-    y1[1:size/2+1,size/2+1:] = np.real(y1a[size/2+1:,1:][::-1,::-1]) \
-                          - 1j*np.imag(y1a[size/2+1:,1:][::-1,::-1])
-    y1[size/2+1:,size/2+1:] = np.real(y1a[1:size/2+1,1:][::-1,::-1]) \
-                         - 1j*np.imag(y1a[1:size/2+1,1:][::-1,::-1])    
+    y1[1:,1:int(size/2)+1] = y1a[1:,1:]
+    y1[1:int(size/2)+1,int(size/2)+1:] = np.real(y1a[int(size/2)+1:,1:][::-1,::-1]) \
+                          - 1j*np.imag(y1a[int(size/2)+1:,1:][::-1,::-1])
+    y1[int(size/2)+1:,int(size/2)+1:] = np.real(y1a[1:int(size/2)+1,1:][::-1,::-1]) \
+                         - 1j*np.imag(y1a[1:int(size/2)+1,1:][::-1,::-1])    
     
     return y1
 
@@ -108,7 +108,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
     pl[0] = 1.
     # define frequencies in 2d
-    p,q = np.meshgrid(pl[:size/2+1],pl)
+    p,q = np.meshgrid(pl[:int(size/2)+1],pl)
     # define f
     
     f = 1./(1./p**2+1./q**2)**0.5#*(2**.5)

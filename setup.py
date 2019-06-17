@@ -5,7 +5,7 @@
 try:
     from setuptools import setup
 except ImportError:
-    print "no setup tools"
+    print("no setup tools")
     setuptools = False
     from distutils.core import setup
 else:

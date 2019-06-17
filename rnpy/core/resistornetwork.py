@@ -103,13 +103,13 @@ class Rock_volume():
         update_dict = {}
         #correcting dictionary for upper case keys
         input_parameters_nocase = {}
-        for key in input_parameters.keys():
+        for key in list(input_parameters.keys()):
             # only assign if it's a valid attribute
             if hasattr(self,key):
                 input_parameters_nocase[key.lower()] = input_parameters[key]
             else:
                 for dictionary in [self.fault_dict]:
-                    if key in dictionary.keys():
+                    if key in list(dictionary.keys()):
                         input_parameters_nocase[key] = input_parameters[key]
                 
 
@@ -130,7 +130,7 @@ class Rock_volume():
                 setattr(self,key,value)
             except:
                 try:
-                    if key in self.fault_dict.keys():
+                    if key in list(self.fault_dict.keys()):
                         try:
                             value = float(update_dict[key])
                         except:
@@ -146,7 +146,7 @@ class Rock_volume():
         else:
             if (type(self.fault_assignment) == 'single_yz') and len(self.cellsize == 3):
                 if self.cellsize[1] != self.cellsize[2]:
-                    print "y cellsize not equal to z cellsize, updating z cellsize"
+                    print("y cellsize not equal to z cellsize, updating z cellsize")
                     self.cellsize[2] = self.cellsize[1]
                 else:
                     self.cellsize = [np.amin(self.cellsize)]*3
@@ -221,7 +221,7 @@ class Rock_volume():
             if self.fault_array.shape != (nz+2 + self.array_buffer*2,
                                           ny+2 + self.array_buffer*2,
                                           nx+2 + self.array_buffer*2,3,3):
-                print "Fault array does not conform to dimensions of network, creating a new array!"
+                print("Fault array does not conform to dimensions of network, creating a new array!")
                 self.fault_array= None
                 
         
@@ -396,7 +396,7 @@ class Rock_volume():
                         'correct_aperture_for_geometry','aperture_list']:
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
-                print "fault surfaces none!"
+                print("fault surfaces none!")
     
             if self.build_arrays:
                     ap,aph,apc,self.aperture,self.aperture_hydraulic, \
@@ -587,7 +587,7 @@ class Rock_volume():
         
 
 
-        for pname in property_arrays.keys():
+        for pname in list(property_arrays.keys()):
             nz,ny,nx = np.array(np.shape(property_arrays[pname]))[:-1] - 2
             oa = np.zeros([nz+2,ny+2,nx+2,3,3])#*np.nan
 
@@ -595,7 +595,7 @@ class Rock_volume():
                 if dname in self.solve_direction:
                     if nn == 0:
                         self.solve_direction = self.solve_direction.strip(dname)
-                        print "not solving {} as there are no resistors in this direction".format(dname)
+                        print("not solving {} as there are no resistors in this direction".format(dname))
 
             if 'x' in self.solve_direction:
                 prop = 1.*property_arrays[pname].transpose(2,1,0,3)
@@ -682,7 +682,7 @@ class Rock_volume():
         
             
 
-        for pname in property_arrays.keys():
+        for pname in list(property_arrays.keys()):
             output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
 
             for sd in self.solve_direction:

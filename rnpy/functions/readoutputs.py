@@ -57,8 +57,8 @@ def read_data(wd,filelist):
         data0 = np.genfromtxt(op.join(wd,fn),names=pnames)
     
         # get the special parameters defined in input_params dictionary
-        for key in input_params.keys():
-            if key in fixed_params.keys():
+        for key in list(input_params.keys()):
+            if key in list(fixed_params.keys()):
                 # check the value is not already there
                 if fixed_params[key] not in input_params[key]:
                     input_params[key].append(fixed_params[key])
@@ -68,7 +68,7 @@ def read_data(wd,filelist):
                     if uval not in input_params[key]:
                         input_params[key].append(uval)
             else:
-                print "no {}!!!".format(key)
+                print("no {}!!!".format(key))
                 break
         
         if rnos is None:
@@ -85,13 +85,13 @@ def read_data(wd,filelist):
     return data, input_params, fixed_params, pnames, rnos
 
 def get_rratios(data,fixed_params):  
-    if 'resistivity_fluid' in fixed_params.keys():
+    if 'resistivity_fluid' in list(fixed_params.keys()):
         rf = fixed_params['resistivity_fluid']
     else:
         rf = data['resistivity_fluid']
         
 
-    if 'resistivity_matrix' in fixed_params.keys():
+    if 'resistivity_matrix' in list(fixed_params.keys()):
         rm = fixed_params['resistivity_matrix']
     else:
         rm = data['resistivity_matrix']        
@@ -337,14 +337,14 @@ def get_gradient_threshold(wd, filelist, outfilename = None,
 
     thresholds = []
     # cycle through unique values
-    for vals in itertools.product(*(input_params.values())):
+    for vals in itertools.product(*(list(input_params.values()))):
         
         idict = {}
         for i, key in enumerate(input_params.keys()):
             idict[key] = vals[i]     
             
         # get the x and y parameters to get the percolation threshold on
-        xall,yall,data1,kbulk,rbulk = get_xy(data,input_params.keys(),
+        xall,yall,data1,kbulk,rbulk = get_xy(data,list(input_params.keys()),
                                                  vals,parameter_names[0],
                                                  parameter_names[1],
                                                  direction=direction, 
@@ -412,7 +412,7 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
     # get the array containing the data
     data, input_params, fixed_params, pnames, rnos = read_data(wd,filelist)
     
-    outputs = np.zeros([np.product([len(val) for val in input_params.values()]),len(rnos)],
+    outputs = np.zeros([np.product([len(val) for val in list(input_params.values())]),len(rnos)],
                         dtype = [('rm/rf','f64'),('offset','f64'),('km','f64'),('repeat','i5'),
                                  ('x0','f64'),('x1','f64'),('y0','f64'),('y1','f64'),
                                  ('cs0','f64'),('cs1','f64'),('ap0','f64'),('ap1','f64'),
@@ -420,14 +420,14 @@ def get_percolation_thresholds(wd,filelist, method='2', factor=0.3,
 
     
     iv = 0
-    for vals in itertools.product(*(input_params.values())):
+    for vals in itertools.product(*(list(input_params.values()))):
     
         idict = {}
         for i, key in enumerate(input_params.keys()):
             idict[key] = vals[i]     
         
         # get the x and y parameters to get the percolation threshold on
-        xall,yall,data1,kbulk,rbulk = get_xy(data,input_params.keys(),
+        xall,yall,data1,kbulk,rbulk = get_xy(data,list(input_params.keys()),
                                                   vals,parameter_names[0],
                                                   parameter_names[1],
                                                   direction=direction, 

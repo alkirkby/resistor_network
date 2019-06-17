@@ -42,6 +42,10 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
         Vn[:,1:-1] = slinalg.spsolve(A,b).reshape(ny+1,nz-1,nx+1)
         r = 0
         
+    elif method == 'bicg':
+        Vn = Vo.copy()
+        Vn[:,1:-1] = slinalg.bicg(A,b)[0].reshape(ny+1,nz-1,nx+1)
+        
     elif method in ['jacobi','gauss','ssor']:
         c = 1
     
@@ -66,8 +70,7 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
         elif method == 'ssor':
             ilid = linalg.solve_triangular(Dmd - w*Ld,np.identity(len(D)),lower=True)
             mult,cst = ilid.dot((1.-w)*Dmd + w*Ud), w*ilid.dot(b)
-            
-        print "mult, cst calculated"
+        
         r = np.abs(rnmb.residual(dx,dy,dz,Vn,C))#/Vn[1:-1,1:-1,1:-1]
         #vsum = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
         while 1:
@@ -76,7 +79,7 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
 
     
             if c == 1e6:
-                print 'Reached maximum number of iterations','mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r)
+                print(('Reached maximum number of iterations','mean residual %1e'%np.mean(r),'median residual %1e'%np.median(r)))
                 r = rnmb.residual(dx,dy,dz,Vn,C)
                 termination = 0
                 break
@@ -90,16 +93,16 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
                 #vsumnew = ((Vn[1:]-Vn[:-1])*C.u[1:]).sum()
                 #dvchange = (max(vsumnew/vsum,vsum/vsumnew) - 1.)/itstep
 #                print "sum of last row",vsumnew,'% change',dvchange*100,"residual",np.mean(rnew)
-                print "residual",np.mean(rnew)
+                print(("residual",np.mean(rnew)))
                 #vsum = vsumnew
 #                if ((np.nanmean(r) < tol) or (rchange < tol)):
                 if np.mean(rnew) < tol:# or (dvchange < tol)):
-                    print ' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(rnew),'median residual %1e'%np.median(rnew),
+                    print((' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(rnew),'median residual %1e'%np.median(rnew)), end=' ')
 
                     if np.mean(rnew) < tol:
-                        print "reached tol"
+                        print("reached tol")
                     else:
-                        print "change less than threshold"
+                        print("change less than threshold")
                     termination = 1
                     break
                 r = rnew
@@ -142,17 +145,17 @@ def solve_matrix3(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
         Vn = Vsolve3d(nx,dx,ny,dy,nz,dz,Vo,C,w)
 #        Vn = Vsolve3d2(Vo,C,w,dx,dy,dz)
         if c == 1e5:
-            print 'Reached maximum number of iterations',
+            print(('Reached maximum number of iterations',))
             break
         if c % itstep == 0:
     #        change = np.amax(np.abs(V`n - Vo))
     #        print change
             r = np.abs(rnmb.residual(dx,dy,dz,Vn,C))
-            print ' %.6f'%(np.amax(r))
+            print(' %.6f'%(np.amax(r)))
             if np.amax(r) < tol:
     #            r = residual(dx,dz,Vn)
                 
-                print ' Completed in %i iterations'%c,
+                print((' Completed in %i iterations'%c,))
                 break    
 
         Vo = Vn
