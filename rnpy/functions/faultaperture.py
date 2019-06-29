@@ -71,13 +71,15 @@ def get_faultpair_defaults(cs, lc):
 
 
 
-def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matchingmethod='me',beta=0.6):
+def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matchingmethod='me',beta=0.6):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
     fault surfaces
     =================================inputs====================================
     size, integer = dimensions (number of cells across) for fault (fault will be square)
+    size_noclip = size of fault prior to clipping to size of volume (used
+                  to calculate scaling of elevation)
     D, float = fractal dimension of returned fault, recommended values in range 
                [2.,2.5]
     std, float = scaling factor for heights, heights are adjusted so their 
@@ -102,7 +104,8 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     if scalefactor is None:
         scalefactor = 1e-3
         
-    std = scalefactor*(cs*size)**(3.-D)
+    std = scalefactor*(cs*size_noclip)**(3.-D)
+    print("scaling factor is",std)
     
     # get frequency components
     pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
@@ -172,6 +175,7 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
         scaling_factor = std/meanstd
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
+        print("new standard deviation of heights is",np.average([np.std(line) for line in h1]))
     
     return h1, h2
 

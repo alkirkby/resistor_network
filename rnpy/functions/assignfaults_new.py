@@ -362,7 +362,11 @@ def assign_fault_aperture(fault_uvw,
         # get minimum and maximum x,y and z coordinates
         u0,v0,w0 = np.amin(nn, axis=(0,1))
         u1,v1,w1 = np.amax(nn, axis=(0,1))
+        
+        # get size of original fault so we get correct scale factor
+        size_noclip = max(u1-u0,v1-v0,w1-w0)
 
+        # make sure extents are within the array
         u1 = min(u1,nx + 1)
         v1 = min(v1,ny + 1)
         w1 = min(w1,nz + 1)
@@ -447,7 +451,7 @@ def assign_fault_aperture(fault_uvw,
             if build:
 #                print "building new faults",
                 if aperture_type == 'random':
-                    h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
+                    h1,h2 = rnfa.build_fault_pair(size, size_noclip, **faultpair_inputs)
                 else:
                     h1,h2 = [np.zeros((size,size))]*2
     
