@@ -105,7 +105,6 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,f
         scalefactor = 1e-3
         
     std = scalefactor*(cs*size_noclip)**(3.-D)
-    print("scaling factor is",std)
     
     # get frequency components
     pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
@@ -175,8 +174,7 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,f
         scaling_factor = std/meanstd
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
-        print("new standard deviation of heights is",np.average([np.std(line) for line in h1]))
-    
+        
     return h1, h2
 
 

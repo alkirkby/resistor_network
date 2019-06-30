@@ -424,7 +424,6 @@ def assign_fault_aperture(fault_uvw,
                                                     elevation_scalefactor,
                                                     mismatch_wavelength_cutoff,
                                                     cs)
-            
                 
                 
             build = False

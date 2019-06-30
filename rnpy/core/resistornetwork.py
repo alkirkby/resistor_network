@@ -389,7 +389,7 @@ class Rock_volume():
             rnfa.get_faultpair_defaults(cellsize,
                                         self.fault_dict['mismatch_wavelength_cutoff'] 
                                         )
-    
+            aperture_input['cs'] = np.median(self.cellsize)
             for key in ['fractal_dimension','fault_separation','offset',
                         'elevation_scalefactor', 'fault_surfaces',
                         'mismatch_wavelength_cutoff','aperture_type',
