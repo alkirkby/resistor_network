@@ -416,6 +416,10 @@ def assign_fault_aperture(fault_uvw,
                 aperture_type = 'random'
         
         if aperture_type in ['random','constant']:
+            # if offset between 0 and 1, assume it is a fraction of fault size
+            if 0 < offset < 1:
+                offset = int(np.round(offset*size_noclip))
+            
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)

@@ -41,10 +41,16 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
         Vn = Vo.copy()
         Vn[:,1:-1] = slinalg.spsolve(A,b).reshape(ny+1,nz-1,nx+1)
         r = 0
+#        print("solved matrix using direct method")
         
     elif method == 'bicg':
         Vn = Vo.copy()
-        Vn[:,1:-1] = slinalg.bicg(A,b)[0].reshape(ny+1,nz-1,nx+1)
+        if Vstart is not None:
+            x0 = Vstart[:,1:-1].flatten()
+            xvals, r = slinalg.bicg(A,b,x0 = x0,atol=1e-5*np.linalg.norm(b))
+        xvals,r = slinalg.bicg(A,b,atol=1e-5*np.linalg.norm(b))
+        Vn[:,1:-1] = xvals.reshape(ny+1,nz-1,nx+1)
+#        print("solved matrix using bicg method")
         
     elif method in ['jacobi','gauss','ssor']:
         c = 1

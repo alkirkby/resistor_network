@@ -643,6 +643,7 @@ class Rock_volume():
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,1.)
 
+        
     
     def solve_resistor_network2(self, Vstart=None, Vsurf=0., Vbase=1., 
                                 method = 'direct', itstep=100, tol=0.1,
@@ -693,17 +694,22 @@ class Rock_volume():
                 if sd == 'x':
                     # transpose, and swap x and z in the array by reversing the order
                     Rm = R.copy().transpose(2,1,0,3)[:,:,:,::-1]
-                    if Vstart is not None:
-                        Vstart = Vstart.transpose(2,1,0)
+#                    if Vstart is not None:
+#                        Vstart = Vstart.transpose(2,1,0)
                 elif sd == 'y':
                     Rm = R.copy().transpose(1,0,2,3)
                     # swap the order of y and z in the array
                     Rm[:,:,:,-2:] = Rm[:,:,:,-2:][:,:,:,::-1]
-                    if Vstart is not None:
-                        Vstart = Vstart.transpose(1,0,2)
+#                    if Vstart is not None:
+#                        Vstart = Vstart.transpose(1,0,2)
                 elif sd == 'z':
                     Rm = R.copy()
                 
+                if Vstart is not None:
+                    if sd == 'x':
+                        Vstart = Vstart.transpose(1,2,0)
+                    elif sd == 'z':
+                        Vstart = Vstart.transpose(1,0,2)
                 
                 Vn = rnms.solve_matrix2(Rm,self.cellsize,Vsurf=Vsurf,Vbase=Vbase,Vstart=Vstart,
                                         method=method,tol = tol, itstep=itstep)
@@ -715,6 +721,7 @@ class Rock_volume():
                     i = 1
                 elif sd == 'z':
                     i = 2
+                    
                 output_array[1:-1,1:,1:,i,2] = (Vn[1:]-Vn[:-1])*dx*dy/(R[1:-1,1:,1:,2]*dz)
                 output_array[1:,1:-1,1:,i,1] = (Vn[:,1:]-Vn[:,:-1])*dx*dz/(R[1:,1:-1,1:,1]*dy)
                 output_array[1:,1:,1:-1,i,0] = (Vn[:,:,1:]-Vn[:,:,:-1])*dy*dz/(R[1:,1:,1:-1,0]*dx)
