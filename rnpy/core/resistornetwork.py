@@ -382,7 +382,7 @@ class Rock_volume():
                 self.aperture_electric = self.aperture.copy()
                 self.aperture_hydraulic = self.aperture.copy()
 
-        else:                    
+        else:
             aperture_input = {}
             
             self.fault_dict['mismatch_wavelength_cutoff'], fc = \
@@ -449,6 +449,7 @@ class Rock_volume():
         nx,ny,nz = self.ncells
         csx,csy,csz = self.cellsize
         
+        
         aperture = rnap.update_all_apertures(self.aperture,self.cellsize)
         
         # all apertures opening in x direction (yz plane)
@@ -488,11 +489,9 @@ class Rock_volume():
         
         total_volume = (np.product(apx.shape))*csx*csy*csz
         
-        cv = cv1 - oxy - oxz - oyz + 2.*oxyz
-        
+        cv = cv1 - oxy - oxz - oyz + oxyz
         
         self.conductive_fraction = cv/total_volume
-        
 
 
               
