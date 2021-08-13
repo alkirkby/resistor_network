@@ -9,4 +9,4 @@ This repository is licensed under the GNU General Public License, version 3. See
 ## Contacts
 **Alison Kirkby**  
 Geoscience Australia  
-<alison.kirkby@ga.gov.au>
+<alison.kirkby@gns.cri.nz>
