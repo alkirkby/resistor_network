@@ -8,5 +8,5 @@ This repository is licensed under the GNU General Public License, version 3. See
 
 ## Contacts
 **Alison Kirkby**  
-Geoscience Australia  
+GNS Science 
 <alison.kirkby@gns.cri.nz>
