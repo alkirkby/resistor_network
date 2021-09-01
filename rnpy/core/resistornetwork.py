@@ -112,7 +112,7 @@ class Rock_volume():
                     if key in list(dictionary.keys()):
                         input_parameters_nocase[key] = input_parameters[key]
                 
-
+        
         update_dict.update(input_parameters_nocase)
         for key in update_dict:
             try:
@@ -152,6 +152,8 @@ class Rock_volume():
                     self.cellsize = [np.amin(self.cellsize)]*3
 
         nx,ny,nz = self.ncells
+        
+        self._verify_solve_direction()
 
 
         if self.build_arrays:
@@ -193,7 +195,10 @@ class Rock_volume():
             self.build_aperture()
             
     
-        
+    def _verify_solve_direction(self):
+        for i, sd in enumerate('xyz'):
+            if self.ncells[i] <=2:
+                self.solve_direction = self.solve_direction.replace(sd,'')
         
 
     def build_faults(self,create_array=True):
@@ -241,7 +246,7 @@ class Rock_volume():
             addfaults = False
 
             # option to specify fault edges as a list
-            if self.fault_assignment == 'list':
+            if ((self.fault_assignment == 'list') or (self.fault_assignment[0]=='list')):
                 if self.fault_edges is not None:
                     # check the dimensions of the fault edges
                     if np.shape(self.fault_edges)[-3:] == (2,2,3):
@@ -367,14 +372,30 @@ class Rock_volume():
 
             
     def build_aperture(self):
-        
+
+
+            
+            
         if self.fault_assignment == 'single_yz':
             # if (and only if) all faults are along yz plane cellsize perpendicular 
             # is allowed to be different from cell size along fault.
-            cellsize = self.cellsize[1]
-        else:
-            cellsize = np.amin(self.cellsize)
-        
+            # to build aperture we just need cellsize along the fault plane
+            cellsize_faultplane = self.cellsize[1]
+        elif self.fault_edges is not None:
+            planelist = np.array([rnfa.get_plane(self.fault_edges[i]) for i in \
+                                  range(len(self.fault_edges))])
+            if (np.all(planelist==0) or np.all(planelist==1)):
+                # if all in the yz or xz planes, we can use the z cellsize
+                cellsize_faultplane = self.cellsize[2]
+            elif np.all(planelist==2):
+                # else if all faults in the xy plane use the y cellsize
+                cellsize_faultplane = self.cellsize[1]
+            else:
+                # else cellsize **should** be same in all directions
+                cellsize_faultplane = self.cellsize[2]
+
+            
+            
 
         if self.fault_assignment == 'none':
             if self.fault_array is not None:
@@ -384,12 +405,11 @@ class Rock_volume():
 
         else:
             aperture_input = {}
-            
             self.fault_dict['mismatch_wavelength_cutoff'], fc = \
-            rnfa.get_faultpair_defaults(cellsize,
+            rnfa.get_faultpair_defaults(cellsize_faultplane,
                                         self.fault_dict['mismatch_wavelength_cutoff'] 
                                         )
-            aperture_input['cs'] = np.median(self.cellsize)
+            aperture_input['cs'] = cellsize_faultplane
             for key in ['fractal_dimension','fault_separation','offset',
                         'elevation_scalefactor', 'fault_surfaces',
                         'mismatch_wavelength_cutoff','aperture_type',
@@ -397,6 +417,7 @@ class Rock_volume():
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")
+                
     
             if self.build_arrays:
                     ap,aph,apc,self.aperture,self.aperture_hydraulic, \
@@ -405,11 +426,12 @@ class Rock_volume():
                                                np.array(self.ncells)+self.array_buffer*2,
                                                fill_array=True,**aperture_input)
     
-                    self.fault_dict['aperture_list'] = [ap,apc,aph]  
+                    self.fault_dict['aperture_list'] = [ap,aph,apc]  
             else:
                 ap,aph,apc,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
-                self.fault_dict['aperture_list'] = [ap,apc,aph]            
+                self.fault_dict['aperture_list'] = [ap,aph,apc] 
+                
                 
             if ((self.aperture is not None) and (self.fault_array is not None)):
                 # get the aperture values from the faulted part of the volume to do some calculations on
@@ -449,7 +471,6 @@ class Rock_volume():
         nx,ny,nz = self.ncells
         csx,csy,csz = self.cellsize
         
-        
         aperture = rnap.update_all_apertures(self.aperture,self.cellsize)
         
         # all apertures opening in x direction (yz plane)
@@ -459,7 +480,14 @@ class Rock_volume():
         apx[:-1] = aperture[1:-1,1:,1:,2,0] # z connectors opening in x direction (yz)
         apx[:,:-1] = aperture[1:,1:-1,1:,1,0] # y connectors opening in x direction (yz)
         # fill missing aperture in corner
-        apx[-1,-1] = np.mean([apx[-2,-1],apx[-1,-2]],axis=0)
+        try:
+            apx[-1,-1] = np.mean([apx[-2,-1],apx[-1,-2]],axis=0)
+        # if 2d network
+        except IndexError:
+            if self.ncells[1] == 0:
+                apx[-1,-1] = apx[-2,-1]
+            elif self.ncells[0] == 0:
+                apx[-1,-1] = apx[-1,-2]
         
         # all apertures opening in y direction (xz plane)
         apy = np.zeros_like(apx) 
@@ -468,7 +496,13 @@ class Rock_volume():
         apy[:-1] = aperture[1:-1,1:,1:,2,1] # z connectors opening in y direction
         apy[:,:,:-1] = aperture[1:,1:,1:-1,0,1] # x connectors opening in y direction
         # fill missing aperture in corner
-        apy[-1,:,-1] = np.mean([apy[-2,:,-1],apy[-1,:,-2]],axis=0)
+        try:
+            apy[-1,:,-1] = np.mean([apy[-2,:,-1],apy[-1,:,-2]],axis=0)
+        except IndexError:
+            if self.ncells[2] == 0:
+                apy[-1,:,-1] = apy[-1,:,-2]
+            elif self.ncells[0] == 0:
+                apy[-1,:,-1] = apy[-2,:,-1]
         
         # all apertures opening in z direction (xy plane)
         apz = np.zeros_like(apx) # all apertures opening in z direction (xy plane)
@@ -477,7 +511,13 @@ class Rock_volume():
         apz[:,:-1] = aperture[1:,1:-1,1:,1,2]
         apz[:,:,:-1] = aperture[1:,1:,1:-1,0,2]
         # fill missing aperture in corner
-        apz[:,-1,-1] = np.mean([apz[:,-2,-1],apz[:,-1,-2]],axis=0)
+        try:
+            apz[:,-1,-1] = np.mean([apz[:,-2,-1],apz[:,-1,-2]],axis=0)
+        except IndexError:
+            if self.ncells[1] == 0:
+                apz[:,-1,-1] = apz[:,-1,-2]
+            elif self.ncells[0] == 0:
+                apz[:,-1,-1] = apz[:,-2,-1]
         
         # conductive volume - add the sum of 3 directions (multiplied by cell area to get volume)
         cv1 = (apx.sum()*csy*csz + apy.sum()*csx*csz + apz.sum()*csx*csy)
@@ -648,7 +688,9 @@ class Rock_volume():
                                 method = 'direct', itstep=100, tol=0.1,
                                 solve_properties=None,solve_direction=None):
         """
-        generate and solve a random resistor network using the relaxation method
+        generate and solve a random resistor network by solving for potential
+        or pressure rather than current/flow rate.
+ 
         properties = string or list containing properties to solve for,
         'current','fluid' or a combination e.g. 'currentfluid'
         direction = string containing directions, 'x','y','z' or a combination
@@ -680,7 +722,6 @@ class Rock_volume():
         dx,dy,dz = self.cellsize
         nx,ny,nz = self.ncells
         
-            
 
         for pname in list(property_arrays.keys()):
             output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
