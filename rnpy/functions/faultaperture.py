@@ -349,3 +349,100 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     bf[2] = np.mean([aperture[:-1,:-1],aperture[:-1,1:],aperture[1:,:-1],aperture[1:,1:]],axis=0)    
 
     return bf, bc
+
+
+def subsample_fault_edges(fault_edges,subsample_factor):
+    # update fault edges for a subsampled rock volume
+    
+    return ((fault_edges - 1)/subsample_factor+1).astype(int)
+
+
+
+def get_plane(fault_edges):
+    # get plane (e.g. xy, xz, yz plane). Returns an integer representing
+    # index of orthogonal direction to plane (0=yz, 1=xz, 2=xy)
+    return np.where(np.ptp(fault_edges,axis=(0,1))==0)[0][0]
+
+def subsample_aperture(aperture_list, fault_edges, factor):
+    if factor % 2 != 0:
+        factor = max(factor-1, 2)
+    
+    hw = int(factor/2)
+    
+    mean_aperture_c = np.zeros_like(aperture_list)
+    new_aperture_list = []
+    
+    # loop through physical aperture, hydraulic aperture (1) and electric aperture (2)
+    for i in range(3):
+        new_aperture_list.append([])
+        # loop through fault surfaces in list:
+        for iii in range(len(aperture_list[i])):
+            # if hydraulic aperture, hydraulic resistance proportional to aperture**3
+            # need to account for this in averaging
+            if i==1:
+                pp = 3
+            else:
+                pp = 1
+            # work out which plane the fault is in (0=yz, 1=xz, 2=xy)
+            plane = get_plane(fault_edges[iii])
+            # if faults are in the yz plane
+            if plane == 0:
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,0] = aperture_list[i][iii][:,:,:,0]
+                mean_aperture_c[i][iii][:-hw,:-hw,:,0] = np.mean([aperture_list[i][iii][:-hw,:-hw,:,0],
+                                                          aperture_list[i][iii][:-hw,hw:,:,0],
+                                                          aperture_list[i][iii][:-hw,:-hw,:,0],
+                                                          aperture_list[i][iii][hw:,:-hw,:,0]],
+                                                        axis=0)
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:-hw,:,1] = stats.hmean([aperture_list[i][iii][:,:-hw,:,1]**pp,
+                                                          aperture_list[i][iii][:,hw:,:,1]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:-hw,:,:,2] = stats.hmean([aperture_list[i][iii][:-hw,:,:,2]**pp,
+                                                          aperture_list[i][iii][hw:,:,:,2]**pp],
+                                                        axis=0)**(1./pp)
+                
+                new_aperture = mean_aperture_c[i][iii][::2,::2]
+
+            
+            elif plane == 1:
+                # if faults are in the xz plane
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,1] = aperture_list[i][iii][:,:,:,1]
+                mean_aperture_c[i][iii][:-hw,:,:-hw,1] = np.mean([aperture_list[i][iii][:-hw,:,:-hw,1],
+                                                          aperture_list[i][iii][:-hw,:,hw:,1],
+                                                          aperture_list[i][iii][:-hw,:,:-hw,1],
+                                                          aperture_list[i][iii][hw:,:,:-hw,1]],
+                                                        axis=0)
+                
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:,:-hw,0] = stats.hmean([aperture_list[i][iii][:,:,:-hw,0]**pp,
+                                                          aperture_list[i][iii][:,:,hw:,0]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:-hw,:,:,2] = stats.hmean([aperture_list[i][iii][:-hw,:,:,2]**pp,
+                                                          aperture_list[i][iii][hw:,:,:,2]**pp],
+                                                        axis=0)**(1./pp)
+                new_aperture = mean_aperture_c[i][iii][::2,:,::2]
+
+            elif plane == 2:
+                # if faults are in the xz plane
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,2] = aperture_list[i][iii][:,:,:,2]
+                mean_aperture_c[i][iii][:,:-hw,:-hw,2] = np.mean([aperture_list[i][iii][:,:-hw,:-hw,2],
+                                                          aperture_list[i][iii][:,:-hw,hw:,2],
+                                                          aperture_list[i][iii][:,:-hw,:-hw,2],
+                                                          aperture_list[i][iii][:,hw:,:-hw,2]],
+                                                        axis=0)
+                
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:,:-hw,0] = stats.hmean([aperture_list[i][iii][:,:,:-hw,0]**pp,
+                                                          aperture_list[i][iii][:,:,hw:,0]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:,:-hw,:,1] = stats.hmean([aperture_list[i][iii][:,:-hw,:,1]**pp,
+                                                          aperture_list[i][iii][:,hw:,:,1]**pp],
+                                                        axis=0)**(1./pp)
+                new_aperture = mean_aperture_c[i][iii][:,::2,::2]
+
+            new_aperture_list[i].append(new_aperture)
+    
+    return new_aperture_list
