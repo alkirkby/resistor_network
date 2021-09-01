@@ -15,7 +15,6 @@ import argparse
 import time
 
 trace_mem = True
-save_arrays = False
 if trace_mem:
     import tracemalloc
 
@@ -166,7 +165,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         cfractions = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones_like(fault_separations)*np.nan
         kbulk = np.ones_like(fault_separations)*np.nan
-        props_to_save = ['aperture','current','fault_surfaces']
+        props_to_save = ['aperture','current','fault_surfaces','fault_edges']
         
         # run initial set of runs
         for i, fs in enumerate(fault_separations):
@@ -193,15 +192,14 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             else:
                 stat = 'w'
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime, fs, peaksetup, peaksolve,input_parameters['solver_type']))
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4f %.4f %s\n'%(nx,ny,nx,iruntime, fs, peaksetup, peaksolve,input_parameters['solver_type']))
          
             RockVolI.compute_conductive_fraction()
             cfractions[i] = RockVolI.conductive_fraction
             resbulk[i] = RockVolI.resistivity_bulk[2]
             kbulk[i] = RockVolI.permeability_bulk[2]
             if r == 0:
-                if save_arrays:
-                    save_arrays(RockVolI,props_to_save,'r%1i'%r)
+                save_arrays(RockVolI,props_to_save,'r%1i'%r)
     
         # run infilling runs
         count = len(fault_separations)
@@ -241,7 +239,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             iruntime=time.time()-t0
             print('time taken',iruntime)
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime,newfs, peaksetup, peaksolve,input_parameters['solver_type']))
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4f %.4f %s\n'%(nx,ny,nx,iruntime,newfs, peaksetup, peaksolve,input_parameters['solver_type']))
          
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk[2])
@@ -253,8 +251,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             fault_separations = np.insert(fault_separations,i+1,newfs)
             
             if r == 0:
-                if save_arrays:
-                    save_arrays(RockVol,props_to_save,'r%1i'%r)
+                save_arrays(RockVol,props_to_save,'r%1i'%r)
             
             count += 1
             
