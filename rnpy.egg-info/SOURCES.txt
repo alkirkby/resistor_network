@@ -3,6 +3,7 @@ setup.py
 rnpy/__init__.py
 rnpy/run.py
 rnpy/run3d.py
+rnpy/run3d_adaptive_aperture.py
 rnpy/run_embedded.py
 rnpy.egg-info/PKG-INFO
 rnpy.egg-info/SOURCES.txt
