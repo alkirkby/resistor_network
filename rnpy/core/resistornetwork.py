@@ -141,6 +141,7 @@ class Rock_volume():
         
         if type(self.ncells) in [float,int]:
             self.ncells = (np.ones(3)*self.ncells).astype(int)
+            
         if type(self.cellsize) in [float,int]:
             self.cellsize = np.ones(3)*self.cellsize
         else:
@@ -155,7 +156,6 @@ class Rock_volume():
         
         self._verify_solve_direction()
 
-
         if self.build_arrays:
 #            print "building arrays"
             #if self.fault_array is None:
@@ -164,7 +164,6 @@ class Rock_volume():
             #if self.aperture is None:
             self.build_aperture()
                 
-
             self.initialise_electrical_resistance()
             self.initialise_permeability()
 
@@ -196,6 +195,7 @@ class Rock_volume():
             
     
     def _verify_solve_direction(self):
+        
         for i, sd in enumerate('xyz'):
             if self.ncells[i] <=2:
                 self.solve_direction = self.solve_direction.replace(sd,'')
@@ -708,10 +708,13 @@ class Rock_volume():
              [zx,    zy,    zz]] <-- current z
         
         """
+        
         if solve_properties is not None:
             self.solve_properties = solve_properties
         if solve_direction is not None:
             self.solve_direction = solve_direction
+            
+        
 
         property_arrays = {}
         if 'current' in self.solve_properties:
@@ -722,9 +725,9 @@ class Rock_volume():
         dx,dy,dz = self.cellsize
         nx,ny,nz = self.ncells
         
-
         for pname in list(property_arrays.keys()):
             output_array = np.zeros([nz+2,ny+2,nx+2,3,3])
+            
 
             for sd in self.solve_direction:
                 R = property_arrays[pname].copy()

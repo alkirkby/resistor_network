@@ -74,6 +74,11 @@ def parse_arguments(arguments):
             value = at[1]
             if at[0] == 'repeats':
                 repeats = value[0]
+            elif at[0] in ['ncells','cellsize']:
+                if len(value) == 1:
+                    input_parameters[at[0]] = [value[0]]*3
+                else:
+                    input_parameters[at[0]] = value
             elif at[0] in suite_parameters.keys():
                 suite_parameters[at[0]] = value[0]
             else:
@@ -150,7 +155,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     
     wd = input_parameters['workdir']
     iruntimefn = os.path.join(wd,'iruntime.dat')
-    nx,ny,nz = [input_parameters['ncells']]*3
+    nx,ny,nz = input_parameters['ncells']
     
     
     
@@ -244,8 +249,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk[2])
             kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk[2])
-            #print(resbulk)
-            #print(kbulk)
+            
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
             fault_separations = np.insert(fault_separations,i+1,newfs)
@@ -445,7 +449,8 @@ def setup_and_run_suite(arguments):
         else:
             stat = 'w'
         
-        nx,ny,nz = [input_parameters['ncells']]*3
+        nx,ny,nz = input_parameters['ncells']
+        print(runtimefn)
         with open(runtimefn,stat) as runtimefile:
             runtimefile.write('%1i %1i %1i %.4f %s\n'%(nx,ny,nz,runtime,input_parameters['solver_type']))
     
