@@ -63,7 +63,7 @@ def parse_arguments(arguments):
     args = parser.parse_args(arguments[1:])
     
     # initialise defaults (other defaults defined internally in rock_volume object)
-    input_parameters = {'workdir':os.getcwd()}  
+    input_parameters = {'workdir':os.getcwd(), 'solver_type':'direct'}  
     suite_parameters = {'outfile':'outputs','num_fault_separation':10}
     repeats = 1
     
@@ -141,6 +141,12 @@ def save_arrays(RockVol,property_names,suffix):
         np.save(os.path.join(dirpath,att+suffix),data)
         
         
+def get_solver_type(solver_type,fs,ncells):
+    if solver_type == 'adapt':
+        if ((np.abs(fs) < 5e-5) or (np.product(np.array(ncells)+1) < 10000)):
+            solver_type = 'direct'
+        else:
+            solver_type = 'bicg'
 
 def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     """
@@ -184,7 +190,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 current, peaksetup = tracemalloc.get_traced_memory()
                 tracemalloc.stop()
                 tracemalloc.start()
-            RockVolI.solve_resistor_network2(method=input_parameters['solver_type'])
+                
+            solver_type = get_solver_type(input_parameters['solver_type'],fs, RockVolI.ncells)
+                
+            RockVolI.solve_resistor_network2(method=solver_type)
             
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
@@ -235,7 +244,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 tracemalloc.stop()
                 tracemalloc.start()
 
-            RockVol.solve_resistor_network2(method=input_parameters['solver_type'])
+            solver_type = get_solver_type(input_parameters['solver_type'],newfs, RockVol.ncells)
+
+            RockVol.solve_resistor_network2(method=solver_type)
 
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
