@@ -195,7 +195,6 @@ class Rock_volume():
             
     
     def _verify_solve_direction(self):
-        
         for i, sd in enumerate('xyz'):
             if self.ncells[i] <=2:
                 self.solve_direction = self.solve_direction.replace(sd,'')

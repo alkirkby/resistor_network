@@ -83,7 +83,7 @@ def parse_arguments(arguments):
                 suite_parameters[at[0]] = value[0]
             else:
                 input_parameters[at[0]] = value[0]
-            
+    
     return input_parameters, suite_parameters, repeats
     
 def initialise_inputs(input_parameters):
@@ -147,6 +147,7 @@ def get_solver_type(solver_type,fs,ncells):
             solver_type = 'direct'
         else:
             solver_type = 'bicg'
+    return solver_type
 
 def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     """
