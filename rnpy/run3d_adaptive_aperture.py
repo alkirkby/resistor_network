@@ -183,6 +183,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             if trace_mem:
                 tracemalloc.start()
             input_parameters_new['fault_separation'] = fs
+            t0a = time.time()
             RockVolI = Rock_volume(**input_parameters_new)
     
             t0 = time.time()
@@ -200,13 +201,16 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 tracemalloc.stop()
 
             iruntime=time.time()-t0
+            setuptime = t0 - t0a
             print('time taken',iruntime)
             if os.path.isfile(iruntimefn):
                 stat = 'a'
             else:
                 stat = 'w'
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4f %.4f %s\n'%(nx,ny,nx,iruntime, fs, peaksetup, peaksolve,input_parameters['solver_type']))
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime, setuptime,
+                                                                           fs, peaksetup, peaksolve,
+                                                                           input_parameters['solver_type']))
          
             RockVolI.compute_conductive_fraction()
             cfractions[i] = RockVolI.conductive_fraction
@@ -236,6 +240,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             if trace_mem:
                 tracemalloc.start()
                 
+            t0a = time.time()
             RockVol = Rock_volume(**input_parameters_new)
             t0 = time.time()
 #            print(input_parameters['solver_type'])
@@ -253,9 +258,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 tracemalloc.stop()            
             
             iruntime=time.time()-t0
+            setuptime = t0 - t0a
             print('time taken',iruntime)
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4f %.4f %s\n'%(nx,ny,nx,iruntime,newfs, peaksetup, peaksolve,input_parameters['solver_type']))
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime, setuptime,
+                                                                           newfs, peaksetup, peaksolve,input_parameters['solver_type']))
          
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk[2])

@@ -827,8 +827,5 @@ class Rock_volume():
                             self.effective_hydraulic_aperture[i,odir] = \
                             rnap.get_hydraulic_aperture(width,keff,km)
 #                            rnap.get_hydraulic_aperture(keff)
-                
-        
-        
-        
+
         
