@@ -81,6 +81,7 @@ class Rock_volume():
                                aperture_list = None,
                                fault_surfaces = None,
                                correct_aperture_for_geometry = True,
+                               preserve_negative_apertures = False,
                                fault_spacing = 2)
         self.fault_array = None      
         self.fault_edges = None
@@ -412,7 +413,8 @@ class Rock_volume():
             for key in ['fractal_dimension','fault_separation','offset',
                         'elevation_scalefactor', 'fault_surfaces',
                         'mismatch_wavelength_cutoff','aperture_type',
-                        'correct_aperture_for_geometry','aperture_list']:
+                        'correct_aperture_for_geometry','aperture_list',
+                        'preserve_negative_apertures']:
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")
@@ -428,12 +430,12 @@ class Rock_volume():
                     self.fault_dict['aperture_list'] = [ap,aph,apc]  
             else:
                 ap,aph,apc,self.fault_dict['fault_surfaces'] = \
-                rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,fill_array=False,**aperture_input)
+                rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,
+                                           fill_array=False,**aperture_input)
                 self.fault_dict['aperture_list'] = [ap,aph,apc] 
                 
                 
             if ((self.aperture is not None) and (self.fault_array is not None)):
-                # get the aperture values from the faulted part of the volume to do some calculations on
                 # get the aperture values from the faulted part of the volume to do some calculations on
                 mask = self.fault_array.copy()
                 mask[np.isnan(mask)] = 0.

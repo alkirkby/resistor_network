@@ -201,6 +201,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # midpoint at original nodes
     rz = faultsurface_1 + aperture/2.
     
+    aperture = np.copy(aperture)
     aperture[aperture<1e-50] = 1e-50    
     
     # height values at nodes

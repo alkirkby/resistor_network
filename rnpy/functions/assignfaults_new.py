@@ -291,7 +291,8 @@ def assign_fault_aperture(fault_uvw,
                           fill_array = True,
                           aperture_list=None,
                           aperture_list_electric = None,
-                          aperture_list_hydraulic = None
+                          aperture_list_hydraulic = None,
+                          preserve_negative_apertures = False
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -477,7 +478,10 @@ def assign_fault_aperture(fault_uvw,
                 b = h1 - h2 + fault_separation[i]
                 
             # set zero values to really low value to allow averaging
-            b[b <= 1e-50] = 1e-50
+            print("preserve_negative_apertures",preserve_negative_apertures)
+            if not preserve_negative_apertures:
+                b[b <= 1e-50] = 1e-50
+            print(np.amin(b[b!=0]))
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
             
@@ -487,16 +491,17 @@ def assign_fault_aperture(fault_uvw,
                     bc = aperture_list_electric[i]
                     bf = aperture_list_hydraulic[i]
                 else:
-                    
+                    print(np.amin(b[b!=0]))
                     if correct_aperture_for_geometry:
                         bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+                        print("after",np.amin(b[b!=0]))
                     else:
                         bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             else:
                 bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             tmp_aplist = []
             
-            
+            print(np.amin(b[b!=0]))
             
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
@@ -621,7 +626,6 @@ def assign_fault_aperture(fault_uvw,
           
 #        ap_array[i] *= fault_array
 
-    
     if fill_array:
         for ii in range(3):
             rna.add_nulls(ap_array[ii])
@@ -630,11 +634,11 @@ def assign_fault_aperture(fault_uvw,
             aperture_list_f = aperture_list[1]
             aperture_list_c = aperture_list[2]
             aperture_list = aperture_list[0]
-        ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
+        if not preserve_negative_apertures:
+            ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
         aperture_c = ap_array[2]
         aperture_f = ap_array[1]
         aperture_array = ap_array[0]
-
         return aperture_list,aperture_list_f,aperture_list_c,\
                aperture_array,aperture_f,aperture_c,faultheights
     else:
