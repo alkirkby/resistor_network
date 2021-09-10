@@ -358,7 +358,7 @@ def assign_fault_aperture(fault_uvw,
     aperture_list_c = []
     aperture_list_f = []
 
-    if type(fault_separation) is float:
+    if not np.iterable(fault_separation):
         fault_separation = np.ones(len(fault_uvw))*fault_separation
         
 #    ap_array[0] *= 1e-50
@@ -478,10 +478,8 @@ def assign_fault_aperture(fault_uvw,
                 b = h1 - h2 + fault_separation[i]
                 
             # set zero values to really low value to allow averaging
-            print("preserve_negative_apertures",preserve_negative_apertures)
             if not preserve_negative_apertures:
                 b[b <= 1e-50] = 1e-50
-            print(np.amin(b[b!=0]))
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
             
@@ -491,17 +489,14 @@ def assign_fault_aperture(fault_uvw,
                     bc = aperture_list_electric[i]
                     bf = aperture_list_hydraulic[i]
                 else:
-                    print(np.amin(b[b!=0]))
                     if correct_aperture_for_geometry:
                         bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
-                        print("after",np.amin(b[b!=0]))
                     else:
                         bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             else:
                 bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             tmp_aplist = []
             
-            print(np.amin(b[b!=0]))
             
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
