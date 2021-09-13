@@ -213,7 +213,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             else:
                 stat = 'w'
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime, setuptime,
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
                                                                            fs, peaksetup, peaksolve,
                                                                            input_parameters['solver_type']))
          
@@ -266,7 +266,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             setuptime = t0 - t0a
             print('time taken',iruntime)
             with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nx,iruntime, setuptime,
+                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
                                                                            newfs, peaksetup, peaksolve,input_parameters['solver_type']))
          
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
