@@ -83,6 +83,10 @@ def parse_arguments(arguments):
                 suite_parameters[at[0]] = value[0]
             else:
                 input_parameters[at[0]] = value[0]
+
+    for key in input_parameters.keys():
+        if type(input_parameters[key]) == 'str':
+            input_parameters[key] = input_parameters[key].strip()
     
     return input_parameters, suite_parameters, repeats
     

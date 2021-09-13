@@ -36,7 +36,7 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
     A,D = rnmb.buildmatrix(C,dx,dy,dz)
     b = rnmb.buildb(C,dz,Vsurf,Vbase)
 
-    
+    method = method.strip()
     if method == 'direct':
         Vn = Vo.copy()
         Vn[:,1:-1] = slinalg.spsolve(A,b).reshape(ny+1,nz-1,nx+1)
