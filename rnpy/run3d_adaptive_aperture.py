@@ -33,6 +33,7 @@ def parse_arguments(arguments):
                                                'if list need to provide fault edges',1,str],
                       ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
                       ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
+                      ['offset',None,'offset on fault, (distance in m)',1,float],
                       ['alpha',None,'alpha value (scaling constant) for fault network',1,float],
                       ['num_fault_separation','nfs','number of fault separation '+\
                        'values, code will auto choose these values',1,float],
@@ -204,6 +205,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             solver_type = get_solver_type(input_parameters['solver_type'],fs, RockVolI.ncells)
                 
             RockVolI.solve_resistor_network2(method=solver_type)
+            print("offset",RockVolI.fault_dict['offset'])
             
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
