@@ -26,7 +26,7 @@ def parse_arguments(arguments):
     
     
     argument_names = [['ncells','n','number of cells x,y and z direction',3,int],
-                      ['cellsize','c','cellsize in x,y and z direction',1,float],
+                      ['cellsize','c','cellsize in x,y and z direction',3,float],
                       ['resistivity_matrix','rm','resistivity of matrix rock','*',float],
                       ['resistivity_fluid','rf','resistivity of fluid filling fractures','*',float],
                       ['fault_assignment',None,'how to assign faults, random or list, '\
@@ -184,7 +184,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         props_to_save = ['aperture','current','fault_surfaces','fault_edges']
         
         # run initial set of runs
-        for i, fs in enumerate(fault_separations):
+        # compute in reverse order. Then the cellsize is increased to the
+        # max aperture from the first run
+        # for i, fs in enumerate(fault_separations):
+        for i in np.arange(len(fault_separations))[::-1]:
+            fs = fault_separations[i]
             if trace_mem:
                 tracemalloc.start()
             input_parameters_new['fault_separation'] = fs
@@ -223,7 +227,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             kbulk[i] = RockVolI.permeability_bulk[2]
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
-    
+                
         # run infilling runs
         count = len(fault_separations)
         
