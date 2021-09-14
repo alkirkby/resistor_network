@@ -237,9 +237,18 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             resjump = np.log10(resbulk[:-1])-np.log10(resbulk[1:])
             kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
             
-            # index after which we have the maximum jump
-            #i = int(np.where(resjump==max(resjump))[0])
-            i = int(np.where(kjump == max(kjump))[0])
+            # find whether we have a bigger jump (relative to the total range)
+            # somewhere in the permeability curve, or in the resistivity curve
+            if np.amax(kjump)/(np.log10(kbulk[-1]) - np.log10(kbulk[0])) >\
+                np.amax(resjump)/(np.log10(resbulk[0]) - np.log10(resbulk[-1])):
+                    print("using jump in permeability curve")
+                    # if in permeability curve, find where kjump is maximised
+                    i = int(np.where(kjump == max(kjump))[0])
+            else:
+                # else use resistivity curve
+                print("using jump in resistivity curve")
+                i = int(np.where(resjump == max(resjump))[0])
+            
             
             # new fault separation to insert (halfway across max jump)
             newfs = np.mean(fault_separations[i:i+2])
