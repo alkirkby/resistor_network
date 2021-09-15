@@ -205,7 +205,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             solver_type = get_solver_type(input_parameters['solver_type'],fs, RockVolI.ncells)
                 
             RockVolI.solve_resistor_network2(method=solver_type)
-            print("offset",RockVolI.fault_dict['offset'])
             
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
@@ -348,7 +347,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
             fixeddict[param] = str(value)
     for param in ['resistivity_matrix','resistivity_fluid','fault_assignment',
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
-                'a','elevation_scalefactor','aperture_type']:
+                'a','elevation_scalefactor','aperture_type','offset']:
         if param in input_parameters.keys():
             fixeddict[param] = input_parameters[param]
 

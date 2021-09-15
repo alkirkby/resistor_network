@@ -468,10 +468,13 @@ def assign_fault_aperture(fault_uvw,
                 else:
                     h1,h2 = [np.zeros((size,size))]*2
 
-                        # if offset between 0 and 1, assume it is a fraction of fault size
+            # if offset between 0 and 1, assume it is a fraction of fault size
             if 0 < offset < 1:
                 offset = int(np.round(offset*size_noclip))
-
+            else:
+                # ensure it is an integer
+                offset = int(offset)
+            
             if offset > 0:
                 b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
             else:
