@@ -177,7 +177,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         time.sleep(rank*10)
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
-        fault_separations = np.array([-1.,0.,10.])*input_parameters_new['cellsize'][2]
+        # fault_separations = np.array([-1.,0.,10.])*input_parameters_new['cellsize'][2]
+        fault_separations = np.array([-0.3,0.,0.3])*input_parameters_new['cellsize'][0]
         # initialise arrays to contain bulk resistivity and conductive fractions
         cfractions = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones_like(fault_separations)*np.nan
