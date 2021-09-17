@@ -183,6 +183,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         cfractions = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones_like(fault_separations)*np.nan
         kbulk = np.ones_like(fault_separations)*np.nan
+        xcellsizes = np.ones_like(fault_separations)*np.nan
         props_to_save = ['aperture','current','fault_surfaces','fault_edges']
         
         # run initial set of runs
@@ -227,6 +228,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cfractions[i] = RockVolI.conductive_fraction
             resbulk[i] = RockVolI.resistivity_bulk[2]
             kbulk[i] = RockVolI.permeability_bulk[2]
+            xcellsizes[i] = RockVolI.cellsize[0]
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
                 
@@ -287,6 +289,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk[2])
             kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk[2])
+            xcellsizes = np.insert(xcellsizes, i+1, RockVol.cellsize[0])
             
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
@@ -304,6 +307,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             kb_master = kbulk.copy()
             cf_master = cfractions.copy()
             rp_master = np.ones(len(fs_master))*r
+            cs_master = xcellsizes.copy()
             first = False
         else:
             fs_master = np.hstack([fs_master,fault_separations])
@@ -311,16 +315,16 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             kb_master = np.hstack([kb_master,kbulk])
             cf_master = np.hstack([cf_master,cfractions])
             rp_master = np.hstack([rp_master,np.ones(len(fault_separations))*r])
-            
+            cs_master = np.hstack([cs_master,xcellsizes])
 
         
         
-        write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master, rank, outfilename)
+        write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, rank, outfilename)
         
     return outfilename
 
 
-def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,repeatno, rank, outfilename):
+def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,repeatno,cellsizex, rank, outfilename):
     """
     write outputs to a file
     
@@ -330,13 +334,15 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
     variablekeys += ['resistivity_bulk_z']
     variablekeys += ['permeability_bulk_z']
     variablekeys += ['repeat']
+    variablekeys += ['cellsize_x']
 
     # values for above headings
     output_lines = np.vstack([fault_separations,
                               cfractions,
                               resbulk,
                               kbulk,
-                              repeatno]).T
+                              repeatno,
+                              cellsizex]).T
 
     # create a dictionary containing fixed variables
     fixeddict = {}
