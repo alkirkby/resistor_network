@@ -169,7 +169,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     iruntimefn = os.path.join(wd,'iruntime.dat')
     nx,ny,nz = input_parameters['ncells']
     
-    
+    cellsizex_input = input_parameters['cellsize'][0]
     
     for r in repeats:
         input_parameters_new = {'fault_assignment':'random'}
@@ -177,8 +177,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         time.sleep(rank*10)
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
-        # fault_separations = np.array([-1.,0.,10.])*input_parameters_new['cellsize'][2]
-        fault_separations = np.array([-0.3,0.,0.3])*input_parameters_new['cellsize'][0]
+        
+        fault_separations = np.array([-0.3,0.,0.5])*cellsizex_input
+        
         # initialise arrays to contain bulk resistivity and conductive fractions
         cfractions = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones_like(fault_separations)*np.nan
