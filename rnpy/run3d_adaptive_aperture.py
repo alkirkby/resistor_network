@@ -112,7 +112,7 @@ def initialise_inputs(input_parameters):
     for att in ['ncells','resistivity_matrix','resistivity_fluid','fault_assignment',
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
                 'a','elevation_scalefactor','aperture_type','fault_edges',
-                'fault_surfaces','cellsize']:
+                'fault_surfaces','cellsize','offset']:
         # check if it is an attribute in RockVol
         if hasattr(RockVol,att):
             attval = getattr(RockVol,att)
@@ -178,7 +178,17 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
         
-        fault_separations = np.array([-0.3,0.,0.5])*cellsizex_input
+        if offset < 1.:
+            offset_cm = input_parameters['ncells'][1]*input_parameters['cellsize'][1]*input_parameters['offset']*100
+        else:
+            offset_cm = input_parameters['cellsize'][1]*input_parameters['offset']*100
+            
+        # maximum fault size determined by trial and error, linear function of offset
+        fsmax = offset_cm*0.00165 +0.0005
+        
+        fault_separations = np.array([-0.3*cellsizex_input,
+                                      0.,
+                                      fsmax])
         
         # initialise arrays to contain bulk resistivity and conductive fractions
         cfractions = np.ones_like(fault_separations)*np.nan
