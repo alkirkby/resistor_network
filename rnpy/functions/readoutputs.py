@@ -4,8 +4,24 @@ Created on Mon Nov  1 16:12:34 2021
 
 @author: alisonk
 """
+import numpy as np
+from scipy.interpolate import interp1d
 
 def interpolate_to_all_fs(outputs):
+    """
+    Interpolate outputs from simulations to all fault separations
+
+    Parameters
+    ----------
+    outputs : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    data_dict1 : TYPE
+        DESCRIPTION.
+
+    """
     data_dict1 = {}
     data_dict1['fs'] = np.unique(outputs[:,:,0])
     nrpts = outputs.shape[0]
