@@ -184,11 +184,12 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             offset_cm = input_parameters['cellsize'][1]*input_parameters_new['offset']*100
             
         # maximum fault size determined by trial and error, linear function of offset
-        fsmax = offset_cm*0.0017 +0.0005
+        # fsmax = offset_cm*0.0017 +0.0005
+        fsmax = offset_cm*0.00218 + 0.00031
         
         fault_separations = np.array([-0.5*fsmax,
                                       0.,
-                                      10.0*fsmax])
+                                      fsmax])
         
         # initialise arrays to contain bulk resistivity and conductive fractions
         cfractions = np.ones_like(fault_separations)*np.nan
