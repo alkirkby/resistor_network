@@ -178,17 +178,17 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
         
-        if offset < 1.:
-            offset_cm = input_parameters['ncells'][1]*input_parameters['cellsize'][1]*input_parameters['offset']*100
+        if input_parameters_new['offset'] < 1.:
+            offset_cm = input_parameters['ncells'][1]*input_parameters['cellsize'][1]*input_parameters_new['offset']*100
         else:
-            offset_cm = input_parameters['cellsize'][1]*input_parameters['offset']*100
+            offset_cm = input_parameters['cellsize'][1]*input_parameters_new['offset']*100
             
         # maximum fault size determined by trial and error, linear function of offset
-        fsmax = offset_cm*0.00165 +0.0005
+        fsmax = offset_cm*0.0017 +0.0005
         
-        fault_separations = np.array([-0.3*cellsizex_input,
+        fault_separations = np.array([-0.5*fsmax,
                                       0.,
-                                      fsmax])
+                                      10.0*fsmax])
         
         # initialise arrays to contain bulk resistivity and conductive fractions
         cfractions = np.ones_like(fault_separations)*np.nan
@@ -201,7 +201,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # compute in reverse order. Then the cellsize is increased to the
         # max aperture from the first run
         # for i, fs in enumerate(fault_separations):
-        for i in np.arange(len(fault_separations))[::-1]:
+        for i in np.arange(len(fault_separations)):
+            # set x cell size to a small number if it's a 2d array
+            for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
+                input_parameters['cellsize'][idx] = 1e-8
             fs = fault_separations[i]
             if trace_mem:
                 tracemalloc.start()
@@ -247,7 +250,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         count = len(fault_separations)
         
         while count < numfs:
-                
+            # set x cell size to a small number if it's a 2d array
+            for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
+                input_parameters['cellsize'][idx] = 1e-8
             # compute differences between adjacent resistivity points on curve
             resjump = np.log10(resbulk[:-1])-np.log10(resbulk[1:])
             kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
