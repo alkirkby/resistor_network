@@ -8,6 +8,7 @@ Created on Mon May 16 12:55:34 2016
 import numpy as np
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
+from scipy.interpolate import interp1d
 
 
 
@@ -640,3 +641,37 @@ def assign_fault_aperture(fault_uvw,
                aperture_array,aperture_f,aperture_c,faultheights
     else:
         return aperture_list,aperture_list_f,aperture_list_c,faultheights
+
+
+
+def update_from_precalculated(rv,effective_apertures_fn,permeability_matrix=1e-18):
+    effective_apertures = np.loadtxt(effective_apertures_fn)
+
+    # add extreme values so that we cover the entire interpolation range
+    # < min; hydraulic aperture = sqrt(matrix permeability * 12); electric aperture = 1e-50
+    # > max; fault sep = hydraulic aperture = electric aperture
+    first_row = [-1,np.sqrt(12*permeability_matrix),1e-50]
+    last_row = [1,1,1]
+    effective_apertures = np.concatenate([[first_row],effective_apertures,[last_row]],axis=0)
+    
+    # create interpolation functions for effective apertures
+    feah = interp1d(effective_apertures[:,0],effective_apertures[:,1])
+    feae = interp1d(effective_apertures[:,0],effective_apertures[:,2])
+    
+    # update aperture values
+    for i in range(len(rv.aperture)):
+        for j in range(len(rv.aperture[0])):
+            for k in range(len(rv.aperture[0,0])):
+                for ii in range(3):
+                    jjlist = [0,1,2]
+                    jjlist.remove(ii)
+                    for jj in jjlist:                       
+                        if (rv.fault_array[i,j,k,jj,ii] and np.isfinite(rv.aperture[i,j,k,jj,ii])):
+                            rv.aperture_hydraulic[i,j,k,jj,ii] = feah(rv.aperture[i,j,k,jj,ii])
+                            rv.aperture_electric[i,j,k,jj,ii] = feae(rv.aperture[i,j,k,jj,ii])
+    
+    # initialise electrical and hydraulic resistance
+    rv.initialise_electrical_resistance()
+    rv.initialise_permeability()
+    
+    return rv

@@ -7,6 +7,7 @@ Created on Wed Mar  6 14:06:10 2019
 
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignproperties import update_all_apertures
+from rnpy.functions.assignfaults_new import update_from_precalculated
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -41,8 +42,9 @@ def parse_arguments(arguments):
                       ['workdir','wd','working directory',1,str],
                       ['outfile','o','output file name',1,str],
                       ['solver_type','st','type of solver, bicg or direct',1,str],
+                      ['effective_apertures_fn',None,'file containing precalculated effective apertures',1,str],
                     #  ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
-                    #  ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
+                      ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
                       ['repeats','r','how many times to repeat each permutation',1,int]]
     
     parser = argparse.ArgumentParser()
@@ -106,7 +108,6 @@ def initialise_inputs(input_parameters):
     inputs['fractal_dimension'] = 2.4 # fractal dimension used to calculate surfaces
     inputs['a'] = 3.5
     inputs['solve_properties'] = 'current_fluid'
-    inputs['solve_direction'] = 'z'
     
     # store all parameters in input dict
     for att in ['ncells','resistivity_matrix','resistivity_fluid','fault_assignment',
@@ -178,6 +179,14 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
         
+        # if we are updating apertures then need to preserve negative apertures
+        if 'effective_apertures_fn' in input_parameters.keys():
+            if 'fault_dict' not in input_parameters_new.keys():
+                input_parameters_new['fault_dict'] = {}
+                
+            input_parameters_new['fault_dict']['preserve_negative_apertures'] = True
+            
+
         if input_parameters_new['offset'] < 1.:
             offset_cm = input_parameters['ncells'][1]*input_parameters['cellsize'][1]*input_parameters_new['offset']*100
         else:
@@ -192,10 +201,21 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                                       fsmax])
         
         # initialise arrays to contain bulk resistivity and conductive fractions
+        # cfractions = np.ones_like(fault_separations)*np.nan
+        # resbulk = np.ones_like(fault_separations)*np.nan
+        # kbulk = np.ones_like(fault_separations)*np.nan
+        # cellsizes = np.ones_like(fault_separations)*np.nan
+
         cfractions = np.ones_like(fault_separations)*np.nan
-        resbulk = np.ones_like(fault_separations)*np.nan
-        kbulk = np.ones_like(fault_separations)*np.nan
-        xcellsizes = np.ones_like(fault_separations)*np.nan
+        resbulk = np.ones((fault_separations.shape[0],3))*np.nan
+        kbulk = np.ones((fault_separations.shape[0],3))*np.nan
+        cellsizes = np.ones((fault_separations.shape[0],3))*np.nan
+
+        # cfractions = []
+        # resbulk = []
+        # kbulk = []
+        # cellsizes = []
+
         props_to_save = ['aperture','current','fault_surfaces','fault_edges']
         
         # run initial set of runs
@@ -209,6 +229,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             input_parameters_new['fault_separation'] = fs
             t0a = time.time()
             RockVolI = Rock_volume(**input_parameters_new)
+            
+            if 'effective_apertures_fn' in input_parameters.keys():
+            # if input_parameters['effective_apertures_fn'] in :
+                RockVolI = update_from_precalculated(RockVolI,input_parameters['effective_apertures_fn'])
     
             t0 = time.time()
             if trace_mem:
@@ -231,16 +255,27 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 stat = 'a'
             else:
                 stat = 'w'
-            with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
-                                                                           fs, peaksetup, peaksolve,
-                                                                           input_parameters['solver_type']))
+            if trace_mem:
+                with open(iruntimefn,stat) as iruntimefile:
+                    iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
+                                                                               fs, peaksetup, peaksolve,
+                                                                               input_parameters['solver_type']))
+            else:
+                with open(iruntimefn,stat) as iruntimefile:
+                    iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %s\n'%(nx,ny,nz,iruntime, setuptime,
+                                                                               fs, 
+                                                                               input_parameters['solver_type']))                
          
             RockVolI.compute_conductive_fraction()
             cfractions[i] = RockVolI.conductive_fraction
-            resbulk[i] = RockVolI.resistivity_bulk[2]
-            kbulk[i] = RockVolI.permeability_bulk[2]
-            xcellsizes[i] = RockVolI.cellsize[0]
+            resbulk[i] = RockVolI.resistivity_bulk
+            kbulk[i] = RockVolI.permeability_bulk
+            cellsizes[i] = RockVolI.cellsize
+            # cfractions.append(RockVolI.conductive_fraction)
+            # resbulk.append(RockVolI.resistivity_bulk)
+            # kbulk.append(RockVolI.permeability_bulk)
+            # cellsizes.append(RockVolI.cellsize)
+
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
                 
@@ -255,10 +290,14 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             resjump = np.log10(resbulk[:-1])-np.log10(resbulk[1:])
             kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
             
+            kjump = kjump[:,2]
+            resjump = resjump[:,2]
+            
             # find whether we have a bigger jump (relative to the total range)
             # somewhere in the permeability curve, or in the resistivity curve
-            if np.amax(kjump)/(np.log10(kbulk[-1]) - np.log10(kbulk[0])) >\
-                np.amax(resjump)/(np.log10(resbulk[0]) - np.log10(resbulk[-1])):
+            maxkjump = np.amax(kjump)/(np.log10(kbulk[-1][2]) - np.log10(kbulk[0][2]))
+            maxrjump = np.amax(resjump)/(np.log10(resbulk[0][2]) - np.log10(resbulk[-1][2]))
+            if maxkjump > maxrjump:
                     print("using jump in permeability curve")
                     # if in permeability curve, find where kjump is maximised
                     i = int(np.where(kjump == max(kjump))[0])
@@ -277,7 +316,13 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 tracemalloc.start()
                 
             t0a = time.time()
+
+                
             RockVol = Rock_volume(**input_parameters_new)
+            
+            if 'effective_apertures_fn' in input_parameters.keys():
+            # if input_parameters['effective_apertures_fn']:
+                RockVol = update_from_precalculated(RockVol,input_parameters['effective_apertures_fn'])
             t0 = time.time()
 #            print(input_parameters['solver_type'])
             if trace_mem:
@@ -296,17 +341,30 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             iruntime=time.time()-t0
             setuptime = t0 - t0a
             print('time taken',iruntime)
-            with open(iruntimefn,stat) as iruntimefile:
-                iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
-                                                                           newfs, peaksetup, peaksolve,input_parameters['solver_type']))
-         
+            if trace_mem:
+                with open(iruntimefn,stat) as iruntimefile:
+                    iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %.4f %.4f %s\n'%(nx,ny,nz,iruntime, setuptime,
+                                                                               newfs, peaksetup, peaksolve,input_parameters['solver_type']))
+            else:
+                with open(iruntimefn,stat) as iruntimefile:
+                    iruntimefile.write('%1i %1i %1i %.4f %.4f %.4e %s\n'%(nx,ny,nz,iruntime, setuptime,
+                                                                           newfs, input_parameters['solver_type']))
+ 
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
-            resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk[2])
-            kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk[2])
-            xcellsizes = np.insert(xcellsizes, i+1, RockVol.cellsize[0])
+            resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk,axis=0)
+            kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk,axis=0)
+            cellsizes = np.insert(cellsizes, i+1, RockVol.cellsize,axis=0)
             
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
+
+            # resbulk.insert(i+1,RockVol.resistivity_bulk[2])
+            # kbulk.insert(i+1, RockVol.permeability_bulk[2])
+            # cellsizes.insert(i+1, RockVol.cellsize[0])
+            
+            # RockVol.compute_conductive_fraction()
+            # cfractions.insert(i+1,RockVol.conductive_fraction)
+
             fault_separations = np.insert(fault_separations,i+1,newfs)
             
             if r == 0:
@@ -321,17 +379,16 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             kb_master = kbulk.copy()
             cf_master = cfractions.copy()
             rp_master = np.ones(len(fs_master))*r
-            cs_master = xcellsizes.copy()
+            cs_master = cellsizes.copy()
             first = False
         else:
             fs_master = np.hstack([fs_master,fault_separations])
-            rb_master = np.hstack([rb_master,resbulk])
-            kb_master = np.hstack([kb_master,kbulk])
+            rb_master = np.concatenate([rb_master,resbulk])
+            kb_master = np.concatenate([kb_master,kbulk])
             cf_master = np.hstack([cf_master,cfractions])
             rp_master = np.hstack([rp_master,np.ones(len(fault_separations))*r])
-            cs_master = np.hstack([cs_master,xcellsizes])
+            cs_master = np.concatenate([cs_master,cellsizes])
 
-        
         
         write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, rank, outfilename)
         
@@ -345,18 +402,18 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
     """
     # variable names
     variablekeys = ['fault_separation','conductive_fraction']
-    variablekeys += ['resistivity_bulk_z']
-    variablekeys += ['permeability_bulk_z']
+    variablekeys += ['resistivity_bulk_%s'%val for val in 'xyz']
+    variablekeys += ['permeability_bulk_%s'%val for val in 'xyz']
+    variablekeys += ['cellsize_%s'%val for val in 'xyz']
     variablekeys += ['repeat']
-    variablekeys += ['cellsize_x']
 
     # values for above headings
     output_lines = np.vstack([fault_separations,
                               cfractions,
-                              resbulk,
-                              kbulk,
-                              repeatno,
-                              cellsizex]).T
+                              resbulk.T,
+                              kbulk.T,
+                              cellsizex.T,
+                              repeatno]).T
 
     # create a dictionary containing fixed variables
     fixeddict = {}

@@ -7,7 +7,7 @@ Created on Mon Nov  1 16:12:34 2021
 import numpy as np
 from scipy.interpolate import interp1d
 
-def interpolate_to_all_fs(outputs):
+def interpolate_to_all_fs(outputs,idx_dict=None):
     """
     Interpolate outputs from simulations to all fault separations
 
@@ -26,7 +26,8 @@ def interpolate_to_all_fs(outputs):
     data_dict1['fs'] = np.unique(outputs[:,:,0])
     nrpts = outputs.shape[0]
     
-    idx_dict = {'cf':1,'res':2,'k':3,'xcs':5}
+    if idx_dict is None:
+        idx_dict = {'cf':1,'res':2,'k':3,'xcs':5}
 
     for pname in idx_dict.keys():
         i = idx_dict[pname]
@@ -86,7 +87,27 @@ def bulk_resistivity(resistivity,x_cellsize,cellsize_max,
 def bulk_cfraction(cfraction,x_cellsize,cellsize_max):
     return cfraction*x_cellsize/cellsize_max
 
-def hydraulic_aperture(permeability,conductive_fraction,permeability_matrix = 1e-18):
-    aph = np.sqrt(12*(permeability-(1-conductive_fraction)*permeability_matrix)/conductive_fraction)
-    aph[aph < np.sqrt(12*permeability_matrix)] = np.sqrt(12*permeability_matrix)
-    return aph
+def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):
+    
+    # old approach
+    # aph = np.sqrt(12*(permeability-(1-conductive_fraction)*permeability_matrix)/conductive_fraction)
+    # aph[aph < np.sqrt(12*permeability_matrix)] = np.sqrt(12*permeability_matrix)
+    aperture = np.zeros_like(permeability)
+    
+    with np.nditer(aperture, flags=['multi_index']) as it:
+        for x in it:
+            i,j = it.multi_index
+            # find solutions to the equation d**3/(12*csmax) - km*d/csmax = kb - km
+            # where d is hydraulic aperture, csmax is cellsize_max, km is permeability_matrix 
+            # and kb is permeability, the bulk permeability of the fracture
+            roots = np.roots([1./(12.*cellsize_max),0.00,
+                              permeability_matrix/cellsize_max,
+                              permeability_matrix-permeability[i,j]])
+            
+            # we want the real root
+            idx = np.where(np.iscomplex(roots)==False)[0][0]  
+            
+            aperture[i,j] = np.real(roots[idx])
+    
+    
+    return aperture
