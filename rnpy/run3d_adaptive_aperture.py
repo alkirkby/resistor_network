@@ -14,7 +14,7 @@ import sys
 import argparse
 import time
 
-trace_mem = True
+trace_mem = False
 if trace_mem:
     import tracemalloc
 
@@ -199,9 +199,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         props_to_save = ['aperture','current','fault_surfaces','fault_edges']
         
         # run initial set of runs
-        # compute in reverse order. Then the cellsize is increased to the
-        # max aperture from the first run
-        # for i, fs in enumerate(fault_separations):
         for i in np.arange(len(fault_separations)):
             # set x cell size to a small number if it's a 2d array
             for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:

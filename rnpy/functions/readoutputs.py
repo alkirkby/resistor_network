@@ -87,4 +87,6 @@ def bulk_cfraction(cfraction,x_cellsize,cellsize_max):
     return cfraction*x_cellsize/cellsize_max
 
 def hydraulic_aperture(permeability,conductive_fraction,permeability_matrix = 1e-18):
-    return np.sqrt(12*(permeability-(1-conductive_fraction)*permeability_matrix)/conductive_fraction)
+    aph = np.sqrt(12*(permeability-(1-conductive_fraction)*permeability_matrix)/conductive_fraction)
+    aph[aph < np.sqrt(12*permeability_matrix)] = np.sqrt(12*permeability_matrix)
+    return aph

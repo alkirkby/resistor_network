@@ -500,7 +500,6 @@ def assign_fault_aperture(fault_uvw,
                 bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             tmp_aplist = []
             
-            
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
                 b0,b1,b2 = bb
@@ -633,7 +632,7 @@ def assign_fault_aperture(fault_uvw,
             aperture_list_c = aperture_list[2]
             aperture_list = aperture_list[0]
         if not preserve_negative_apertures:
-            ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
+            ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 2e-50
         aperture_c = ap_array[2]
         aperture_f = ap_array[1]
         aperture_array = ap_array[0]
