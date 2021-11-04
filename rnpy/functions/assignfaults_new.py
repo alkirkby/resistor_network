@@ -293,7 +293,8 @@ def assign_fault_aperture(fault_uvw,
                           aperture_list=None,
                           aperture_list_electric = None,
                           aperture_list_hydraulic = None,
-                          preserve_negative_apertures = False
+                          preserve_negative_apertures = False,
+                          random_numbers_dir=None,
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -440,7 +441,8 @@ def assign_fault_aperture(fault_uvw,
                                                     mismatch_wavelength_cutoff,
                                                     cs)
                 
-                
+            faultpair_inputs['random_numbers_dir'] = random_numbers_dir
+            
             build = False
             if fault_surfaces is None:
                 

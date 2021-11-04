@@ -80,7 +80,8 @@ class Rock_volume():
                                aperture_type = 'random',
                                aperture_list = None,
                                fault_surfaces = None,
-                               correct_aperture_for_geometry = True,
+                               random_numbers_dir=None,
+                               correct_aperture_for_geometry = False,
                                preserve_negative_apertures = False,
                                fault_spacing = 2)
         self.fault_array = None      
@@ -414,7 +415,7 @@ class Rock_volume():
                         'elevation_scalefactor', 'fault_surfaces',
                         'mismatch_wavelength_cutoff','aperture_type',
                         'correct_aperture_for_geometry','aperture_list',
-                        'preserve_negative_apertures']:
+                        'preserve_negative_apertures','random_numbers_dir']:
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")

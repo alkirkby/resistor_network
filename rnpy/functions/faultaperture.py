@@ -7,7 +7,7 @@ Created on Thu Apr 30 10:45:56 2015
 functions relating to creation of a fractal aperture geometry
 
 """
-
+import os
 import numpy as np
 import scipy.stats as stats
 import scipy.optimize as so
@@ -70,7 +70,9 @@ def get_faultpair_defaults(cs, lc):
 
 
 
-def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matchingmethod='me',beta=0.6):
+def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
+                     lc=None,fcw=None,matchingmethod='me',beta=0.6,
+                     random_numbers_dir=None):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
@@ -91,6 +93,8 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,f
                 fault surfaces will match at wavelengths greater than the 
                 cutoff frequency, default is 1mm (1e-3)
     fcw, float = window to include for tapering of wavelengths above cutoff.
+    random_numbers_dir = directory containing random numbers to use to generate
+                fault surfaces to use for testing purposes
 
     ===========================================================================    
     """
@@ -147,10 +151,15 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,f
 #    gamma[(gamma < 1)&(gamma > 0)] /= fcw
     
 #    gamma[f < 0.1] /= 2.
-    
+    if random_numbers_dir:
+        R1 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
+        R2 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
     # define 2 sets of uniform random numbers
-    R1 = np.random.random(size=np.shape(f))
-    R2 = np.random.random(size=np.shape(f))
+    else:
+        R1 = np.random.random(size=np.shape(f))
+        R2 = np.random.random(size=np.shape(f))
+    # np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
+    # np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
     # define fourier components
     y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     
