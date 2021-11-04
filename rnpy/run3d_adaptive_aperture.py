@@ -125,7 +125,7 @@ def initialise_inputs(input_parameters):
         elif att in RockVol.fault_dict.keys():
             inputs[att] = RockVol.fault_dict[att]
         
-    
+    inputs['correct_aperture_for_geometry'] = False
             
         
     return inputs
@@ -198,7 +198,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         
         fault_separations = np.array([-0.5*fsmax,
                                       0.,
-                                      fsmax])
+                                      10*fsmax])
         
         # initialise arrays to contain bulk resistivity and conductive fractions
         # cfractions = np.ones_like(fault_separations)*np.nan

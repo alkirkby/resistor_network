@@ -12,7 +12,6 @@ import numpy as np
 import scipy.stats as stats
 import scipy.optimize as so
 
-
 def R(freq):
 #    return freq**(-0.5*np.log10(freq))
     lfreq = np.log10(freq)
@@ -170,7 +169,10 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,f
     h2 = np.fft.irfftn(y2,y2.shape)
     # scale so that standard deviation is as specified
     if std is not None:
-        meanstd = np.average([np.std(line) for line in h1])
+        ic = int(h1.shape[1]/2)
+        i0 = int(ic-size_noclip/2)
+        i1 = int(ic+size_noclip/2)
+        meanstd = np.average([np.std(line[i0:i1]) for line in h1])
         scaling_factor = std/meanstd
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
@@ -227,15 +229,14 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # rzp = z component of normal vector perpendicular to flow
     rzp = [dl/((np.average([rz[1:,:-1],rz[1:,1:]],axis=0)-np.average([rz[:-1,:-1],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5,
            dl/((np.average([rz[1:,:-1],rz[:-1,:-1]],axis=0)-np.average([rz[1:,1:],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5]    
-    
+
     # aperture at centre of plane between nodes, defined for flow in x and y directions
     bpf = [np.mean([bnf[0][:,:-1],bnf[0][:,1:]],axis=0),
           np.mean([bnf[1][:-1],bnf[1][1:]],axis=0)]
     bpc = [np.mean([bnc[0][:,:-1],bnc[0][:,1:]],axis=0),
           np.mean([bnc[1][:-1],bnc[1][1:]],axis=0)]
-    
+
     # distance between node points, slightly > dl if the plates are sloping
-#    print(rzn)
     dr = [((dl)**2 + (rzn[0][:,:-1]-rzn[0][:,1:])**2)**0.5,
           ((dl)**2 + (rzn[1][:-1,:]-rzn[1][1:,:])**2)**0.5]
     drc = [((dl)**2 + (rznc[0][:,:-1]-rznc[0][:,1:])**2)**0.5,
@@ -250,6 +251,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # beta - correction factor when applying harmonic mean
     betaf = [nz[i]**3.*dl/dr[i] for i in range(2)]
     betac = [nzc[i]*dl/drc[i] for i in range(2)]
+    
 
     # calculate bc, or b corrected for geometry for current, for each of the first
     # and second half volumes associated with each node.
@@ -350,6 +352,8 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     bf[2] = np.mean([aperture[:-1,:-1],aperture[:-1,1:],aperture[1:,:-1],aperture[1:,1:]],axis=0)    
 
     return bf, bc
+    
+    
 
 
 def subsample_fault_edges(fault_edges,subsample_factor):
