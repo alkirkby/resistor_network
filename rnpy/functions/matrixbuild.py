@@ -5,7 +5,7 @@ Created on Thu Apr 30 10:45:56 2015
 @author: a1655681
 """
 
-from __future__ import division, print_function
+
 import numpy as np
 import scipy.sparse as sparse
     
@@ -181,7 +181,7 @@ def buildmatrix3d_normalisation(resistance):
     
     data3c2 = np.ones(ncxz)*resz[:,:,:-1].flatten()
     cols3c2 = np.hstack([np.arange(nx)]*(ny+1)*nz) \
-            + np.hstack([np.ones(nx)*(nx+1)*i for i in range(ny+1)*nz]) \
+            + np.hstack([np.ones(nx)*(nx+1)*i for i in list(range(ny+1))*nz]) \
             + np.hstack([np.ones(nx*(ny+1))*(nx+1)*(ny+1)*i for i in range(nz)]) \
             + nfx + nfy + (nx+1)*(ny+1)
             

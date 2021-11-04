@@ -7,11 +7,10 @@ Created on Thu Apr 30 10:45:56 2015
 functions relating to creation of a fractal aperture geometry
 
 """
-
+import os
 import numpy as np
 import scipy.stats as stats
 import scipy.optimize as so
-
 
 def R(freq):
 #    return freq**(-0.5*np.log10(freq))
@@ -45,11 +44,11 @@ def prepare_ifft_inputs(y1a):
     """
     size = int(y1a.shape[0] - 1)
     y1 = np.zeros((size+1,size+1),dtype=complex)
-    y1[1:,1:size/2+1] = y1a[1:,1:]
-    y1[1:size/2+1,size/2+1:] = np.real(y1a[size/2+1:,1:][::-1,::-1]) \
-                          - 1j*np.imag(y1a[size/2+1:,1:][::-1,::-1])
-    y1[size/2+1:,size/2+1:] = np.real(y1a[1:size/2+1,1:][::-1,::-1]) \
-                         - 1j*np.imag(y1a[1:size/2+1,1:][::-1,::-1])    
+    y1[1:,1:int(size/2)+1] = y1a[1:,1:]
+    y1[1:int(size/2)+1,int(size/2)+1:] = np.real(y1a[int(size/2)+1:,1:][::-1,::-1]) \
+                          - 1j*np.imag(y1a[int(size/2)+1:,1:][::-1,::-1])
+    y1[int(size/2)+1:,int(size/2)+1:] = np.real(y1a[1:int(size/2)+1,1:][::-1,::-1]) \
+                         - 1j*np.imag(y1a[1:int(size/2)+1,1:][::-1,::-1])    
     
     return y1
 
@@ -71,13 +70,17 @@ def get_faultpair_defaults(cs, lc):
 
 
 
-def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matchingmethod='me',beta=0.6):
+def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
+                     lc=None,fcw=None,matchingmethod='me',beta=0.6,
+                     random_numbers_dir=None):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
     fault surfaces
     =================================inputs====================================
     size, integer = dimensions (number of cells across) for fault (fault will be square)
+    size_noclip = size of fault prior to clipping to size of volume (used
+                  to calculate scaling of elevation)
     D, float = fractal dimension of returned fault, recommended values in range 
                [2.,2.5]
     std, float = scaling factor for heights, heights are adjusted so their 
@@ -90,6 +93,8 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
                 fault surfaces will match at wavelengths greater than the 
                 cutoff frequency, default is 1mm (1e-3)
     fcw, float = window to include for tapering of wavelengths above cutoff.
+    random_numbers_dir = directory containing random numbers to use to generate
+                fault surfaces to use for testing purposes
 
     ===========================================================================    
     """
@@ -102,13 +107,13 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     if scalefactor is None:
         scalefactor = 1e-3
         
-    std = scalefactor*(cs*size)**(3.-D)
+    std = scalefactor*(cs*size_noclip)**(3.-D)
     
     # get frequency components
     pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
     pl[0] = 1.
     # define frequencies in 2d
-    p,q = np.meshgrid(pl[:size/2+1],pl)
+    p,q = np.meshgrid(pl[:int(size/2)+1],pl)
     # define f
     
     f = 1./(1./p**2+1./q**2)**0.5#*(2**.5)
@@ -146,10 +151,15 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
 #    gamma[(gamma < 1)&(gamma > 0)] /= fcw
     
 #    gamma[f < 0.1] /= 2.
-    
+    if random_numbers_dir:
+        R1 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
+        R2 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
     # define 2 sets of uniform random numbers
-    R1 = np.random.random(size=np.shape(f))
-    R2 = np.random.random(size=np.shape(f))
+    else:
+        R1 = np.random.random(size=np.shape(f))
+        R2 = np.random.random(size=np.shape(f))
+    # np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
+    # np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
     # define fourier components
     y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     
@@ -168,11 +178,14 @@ def build_fault_pair(size,D=2.5,cs=2.5e-4,scalefactor=None,lc=None,fcw=None,matc
     h2 = np.fft.irfftn(y2,y2.shape)
     # scale so that standard deviation is as specified
     if std is not None:
-        meanstd = np.average([np.std(line) for line in h1])
+        ic = int(h1.shape[1]/2)
+        i0 = int(ic-size_noclip/2)
+        i1 = int(ic+size_noclip/2)
+        meanstd = np.average([np.std(line[i0:i1]) for line in h1])
         scaling_factor = std/meanstd
         h1 = h1*scaling_factor
         h2 = h2*scaling_factor
-    
+        
     return h1, h2
 
 
@@ -199,6 +212,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # midpoint at original nodes
     rz = faultsurface_1 + aperture/2.
     
+    aperture = np.copy(aperture)
     aperture[aperture<1e-50] = 1e-50    
     
     # height values at nodes
@@ -224,15 +238,14 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # rzp = z component of normal vector perpendicular to flow
     rzp = [dl/((np.average([rz[1:,:-1],rz[1:,1:]],axis=0)-np.average([rz[:-1,:-1],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5,
            dl/((np.average([rz[1:,:-1],rz[:-1,:-1]],axis=0)-np.average([rz[1:,1:],rz[:-1,1:]],axis=0))**2.+dl**2.)**0.5]    
-    
+
     # aperture at centre of plane between nodes, defined for flow in x and y directions
     bpf = [np.mean([bnf[0][:,:-1],bnf[0][:,1:]],axis=0),
           np.mean([bnf[1][:-1],bnf[1][1:]],axis=0)]
     bpc = [np.mean([bnc[0][:,:-1],bnc[0][:,1:]],axis=0),
           np.mean([bnc[1][:-1],bnc[1][1:]],axis=0)]
-    
+
     # distance between node points, slightly > dl if the plates are sloping
-#    print(rzn)
     dr = [((dl)**2 + (rzn[0][:,:-1]-rzn[0][:,1:])**2)**0.5,
           ((dl)**2 + (rzn[1][:-1,:]-rzn[1][1:,:])**2)**0.5]
     drc = [((dl)**2 + (rznc[0][:,:-1]-rznc[0][:,1:])**2)**0.5,
@@ -247,6 +260,7 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     # beta - correction factor when applying harmonic mean
     betaf = [nz[i]**3.*dl/dr[i] for i in range(2)]
     betac = [nzc[i]*dl/drc[i] for i in range(2)]
+    
 
     # calculate bc, or b corrected for geometry for current, for each of the first
     # and second half volumes associated with each node.
@@ -347,3 +361,102 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
     bf[2] = np.mean([aperture[:-1,:-1],aperture[:-1,1:],aperture[1:,:-1],aperture[1:,1:]],axis=0)    
 
     return bf, bc
+    
+    
+
+
+def subsample_fault_edges(fault_edges,subsample_factor):
+    # update fault edges for a subsampled rock volume
+    
+    return ((fault_edges - 1)/subsample_factor+1).astype(int)
+
+
+
+def get_plane(fault_edges):
+    # get plane (e.g. xy, xz, yz plane). Returns an integer representing
+    # index of orthogonal direction to plane (0=yz, 1=xz, 2=xy)
+    return np.where(np.ptp(fault_edges,axis=(0,1))==0)[0][0]
+
+def subsample_aperture(aperture_list, fault_edges, factor):
+    if factor % 2 != 0:
+        factor = max(factor-1, 2)
+    
+    hw = int(factor/2)
+    
+    mean_aperture_c = np.zeros_like(aperture_list)
+    new_aperture_list = []
+    
+    # loop through physical aperture, hydraulic aperture (1) and electric aperture (2)
+    for i in range(3):
+        new_aperture_list.append([])
+        # loop through fault surfaces in list:
+        for iii in range(len(aperture_list[i])):
+            # if hydraulic aperture, hydraulic resistance proportional to aperture**3
+            # need to account for this in averaging
+            if i==1:
+                pp = 3
+            else:
+                pp = 1
+            # work out which plane the fault is in (0=yz, 1=xz, 2=xy)
+            plane = get_plane(fault_edges[iii])
+            # if faults are in the yz plane
+            if plane == 0:
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,0] = aperture_list[i][iii][:,:,:,0]
+                mean_aperture_c[i][iii][:-hw,:-hw,:,0] = np.mean([aperture_list[i][iii][:-hw,:-hw,:,0],
+                                                          aperture_list[i][iii][:-hw,hw:,:,0],
+                                                          aperture_list[i][iii][:-hw,:-hw,:,0],
+                                                          aperture_list[i][iii][hw:,:-hw,:,0]],
+                                                        axis=0)
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:-hw,:,1] = stats.hmean([aperture_list[i][iii][:,:-hw,:,1]**pp,
+                                                          aperture_list[i][iii][:,hw:,:,1]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:-hw,:,:,2] = stats.hmean([aperture_list[i][iii][:-hw,:,:,2]**pp,
+                                                          aperture_list[i][iii][hw:,:,:,2]**pp],
+                                                        axis=0)**(1./pp)
+                
+                new_aperture = mean_aperture_c[i][iii][::2,::2]
+
+            
+            elif plane == 1:
+                # if faults are in the xz plane
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,1] = aperture_list[i][iii][:,:,:,1]
+                mean_aperture_c[i][iii][:-hw,:,:-hw,1] = np.mean([aperture_list[i][iii][:-hw,:,:-hw,1],
+                                                          aperture_list[i][iii][:-hw,:,hw:,1],
+                                                          aperture_list[i][iii][:-hw,:,:-hw,1],
+                                                          aperture_list[i][iii][hw:,:,:-hw,1]],
+                                                        axis=0)
+                
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:,:-hw,0] = stats.hmean([aperture_list[i][iii][:,:,:-hw,0]**pp,
+                                                          aperture_list[i][iii][:,:,hw:,0]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:-hw,:,:,2] = stats.hmean([aperture_list[i][iii][:-hw,:,:,2]**pp,
+                                                          aperture_list[i][iii][hw:,:,:,2]**pp],
+                                                        axis=0)**(1./pp)
+                new_aperture = mean_aperture_c[i][iii][::2,:,::2]
+
+            elif plane == 2:
+                # if faults are in the xz plane
+                # average for apertures perpendicular to fault plane (average of 4 surrounding cells)
+                mean_aperture_c[i][iii][:,:,:,2] = aperture_list[i][iii][:,:,:,2]
+                mean_aperture_c[i][iii][:,:-hw,:-hw,2] = np.mean([aperture_list[i][iii][:,:-hw,:-hw,2],
+                                                          aperture_list[i][iii][:,:-hw,hw:,2],
+                                                          aperture_list[i][iii][:,:-hw,:-hw,2],
+                                                          aperture_list[i][iii][:,hw:,:-hw,2]],
+                                                        axis=0)
+                
+                # average for apertures parallel to plane (harmonic means)
+                mean_aperture_c[i][iii][:,:,:-hw,0] = stats.hmean([aperture_list[i][iii][:,:,:-hw,0]**pp,
+                                                          aperture_list[i][iii][:,:,hw:,0]**pp],
+                                                        axis=0)**(1./pp)
+                mean_aperture_c[i][iii][:,:-hw,:,1] = stats.hmean([aperture_list[i][iii][:,:-hw,:,1]**pp,
+                                                          aperture_list[i][iii][:,hw:,:,1]**pp],
+                                                        axis=0)**(1./pp)
+                new_aperture = mean_aperture_c[i][iii][:,::2,::2]
+
+            new_aperture_list[i].append(new_aperture)
+    
+    return new_aperture_list

@@ -11,12 +11,24 @@ fault apertures, permeability, resistivity, etc
 - adding fault to an array
 
 """
-from __future__ import division, print_function
+
 import numpy as np
 import rnpy.functions.faultaperture as rnfa 
 import scipy.optimize as so
     
 def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
+    """
+    
+    updated now to include fat faults with width greater than cell size.
+    this is achieved by finding all the cells with aperture > cell size and
+    expanding the fault at this point, in a direction perpendicular to the
+    fault, in both directions. Therefore, the fault is always an odd number of
+    cells wide, i.e. 1,3,5,7... cells wide, depending on the aperture.
+    
+    the resistance in the outer cells of the fault is calculated as a weighted 
+    mean of the matrix and fluid resistivity based on the leftover portion of
+    fault that hasn't been assigned to a full cell.
+    """
     
     ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]   
     
@@ -75,6 +87,43 @@ def update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge):
 
     return aperture_array,ind0,ind2
     
+
+def update_all_apertures(aperture_array,d):
+    
+    aperture_array = np.copy(aperture_array)
+    for i in range(3):
+        # the two directions perpendicular to direction of flow, indices and cell sizes
+        dpi = [dd for dd in range(3) if dd != i]
+    
+        ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]
+        # first need to correct apertures to spread out any that are wider than the cellsize
+        # direction of opening, cycle through faults opening in x, y and z directions
+        
+        for od in dpi:
+            for k1,j1,i1 in np.array(np.where(aperture_array[:,:,:,i,od] > d[od])).T:
+                ncf = 3
+                apval = aperture_array[k1,j1,i1,i,od]
+            
+                while ncf < ncells[od]:
+                    # check if aperture is less than ncf * cellsize, if not add 2 (spread the fault further)
+                    if apval < ncf*d[od]:
+                        break
+                    ncf += 2
+    
+                # aperture value for the side bits
+                apedge = (apval - (ncf-2)*d[od])/2.
+    
+                # set the extra bits, first the internal points just set to minres
+                ind = int(ncf/2) - 1
+                
+                aperture_array,ind0,ind2 = update_apertures(aperture_array,i,k1,j1,i1,ind,od,d,apedge)
+    
+            
+            aperture_array[:,:,:,i,od][np.where(aperture_array[:,:,:,i,od] > d[od])] = d[od]
+    
+            
+    return aperture_array
+
 
 def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     """

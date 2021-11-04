@@ -94,19 +94,19 @@ def read_arguments(arguments, argument_names):
                 value = np.reshape(at[1],(nf,3,2))
             else:
                 value = at[1]
-                
             if at[0] == 'repeats':
                 repeats = at[1][0]
             elif at[0] in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
                 loop_parameters[at[0]] = value
             elif type(value) == list:
                 if len(value) > 0:
-                    if len(value) == 1:
+                    if ((len(value) == 1) and (at[0]!='fault_separation')):
                         fixed_parameters[at[0]] = value[0]
                     elif at[0] in ['ncells','cellsize']:
                         fixed_parameters[at[0]] = value
                     else:
                         loop_parameters[at[0]] = value
+
             else:
                 fixed_parameters[at[0]] = value
                 
@@ -140,11 +140,19 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         if prop in fixed_parameters['solve_properties']:
             solveproperties.append(prop)
     
-    kmvals,rmvals,rfvals = [loop_parameters[key] for key in \
-    ['permeability_matrix','resistivity_matrix','resistivity_fluid']]
+    propvals = []
+    for key in ['permeability_matrix','resistivity_matrix','resistivity_fluid']:
+        if key in loop_parameters.keys():
+            propvals.append(loop_parameters[key])
+        else:
+            propvals.append([fixed_parameters[key]])
+            
+    kmvals,rmvals,rfvals = propvals
+    
+    if not np.iterable(repeats):
+        repeats = range(repeats)
 
-
-    for r in range(repeats):
+    for r in repeats:
         # define names for fault edge and fault surface arrays to be saved
         fename,fsname = 'fault_edges%02i.npy'%r, 'fault_surfaces%02i.npy'%r
         input_dict = {}
@@ -163,7 +171,8 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         input_dict['fault_edgesname'] = fename
         input_dict['fault_surfacename'] = fsname
 
-        # loop through solve directions        
+        # loop through solve directions  
+        print rmvals,rfvals
         for i,sd in enumerate(solvedirections):
                 # update input dict so we deal with one solve direction at a time
                 input_dict['solve_direction'] = sd
@@ -181,6 +190,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
                                 tmp_list.append(input_dict.copy())
                             input_list.append(tmp_list)
                     elif prop == 'current':
+                        
                         for rm,rf in itertools.product(rmvals,rfvals):
                             input_dict['resistivity_matrix'] = rm
                             input_dict['resistivity_fluid'] = rf
@@ -266,7 +276,9 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
     # start with variables with three directions (x,y and z)
     variablekeys = ['aperture_mean' + dd for dd in 'xyz']
     variablekeys += ['contact_area' + dd for dd in ['yz','xz','xy']]
+    variablekeys += ['conductive_fraction']
     variablekeys += [param+dd for param in ['permeability','resistivity'] for dd in 'xyz']
+
     # add single-valued variables
     variablekeys += ['fault_separation','repeat','rank','run_no']
     if hasattr(ro,'permeability_bulk'):
@@ -278,10 +290,11 @@ def write_output(ro, outfilename, newfile, repeatno, rank, runno, direction):
 #                            ro.permeability_matrix,ro.fault_dict['fault_separation'],\
 #                            repeatno,rank,runno
     output_line = np.hstack([ro.aperture_mean,ro.contact_area,
+                             [ro.conductive_fraction],
                             ro.permeability_bulk,ro.resistivity_bulk,
                             np.median(ro.fault_dict['fault_separation']),
                             repeatno,rank,runno])
-               
+        
     # create a dictionary containing fixed variables
     fixeddict = {}
     for param in ['cellsize','ncells','pconnection']:
@@ -321,13 +334,13 @@ def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
     """
     outfn = outputs_gathered[0]
     outarray = np.loadtxt(outfn)
-    outfile0 = open(outfn)
-    line = outfile0.readline()
-    header = ''
-
-    while line[0] == '#':
-        header += line
+    with open(outfn) as outfile0:
         line = outfile0.readline()
+        header = ''
+    
+        while line[0] == '#':
+            header += line
+            line = outfile0.readline()
     header = header.strip()
     count = 0
     for outfn in outputs_gathered:
@@ -360,6 +373,7 @@ def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
     np.savetxt(op.join(wd,outfile[:-4]+'f.dat'),outarray2,header=header,fmt='%.3e',comments='')
 
     if delete_originals:
+        time.sleep(5)
         for outfn in outputs_gathered:
             if outfile not in outfn:
                 os.remove(outfn)    
@@ -379,12 +393,14 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
     runno=1
     print "running rock volumes on rank {}".format(rank)
     # stagger the starts to hopefully prevent memory crash
-    if np.amax(list_of_inputs[0]['ncells']) > 50:
-        time.sleep(rank%16*30)
+    if 'ncells' in list_of_inputs[0].keys():
+        if np.amax(list_of_inputs[0]['ncells']) > 50:
+            time.sleep(rank%16*30)
     for ii,input_dict in enumerate(list_of_inputs):
         
         if array_savepath == None:
             array_savepath = input_dict['workdir']
+
         input_dict['fault_surfaces'] = np.load(op.join(input_dict['workdir'],input_dict['fault_surfacename']))
         input_dict['fault_edges'] = np.load(op.join(input_dict['workdir'],input_dict['fault_edgesname']))
         input_dict['fault_assignment'] = 'list'
@@ -405,6 +421,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
         sdno = list('xyz').index(sd)
         
         ro = rn.Rock_volume(**input_dict)
+        
         if save_array:
             if ((rno == 0) and (sd=='z')):
                 np.save(op.join(array_savepath,'aperture0_fs%.1e.npy'%input_dict['fault_separation']),ro.aperture)
@@ -430,6 +447,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
             ro.solve_resistor_network2(Vstart=Vstart,Vsurf=Vsurf,Vbase=Vbase,
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
+        ro.compute_conductive_fraction()
         print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
 
         if save_array:
@@ -452,13 +470,20 @@ def setup_and_run_suite(arguments, argument_names):
     """
     set up and run a suite of runs in parallel using mpi4py
     """
-    from mpi4py import MPI
+    try:
+        from mpi4py import MPI
+        mpi_import = True
+        # sort out rank and size info
+        comm = MPI.COMM_WORLD
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        name = MPI.Get_processor_name()
+    except:
+        mpi_import = False
+        size=1
+        rank=0
+        name='Fred'
     
-    # sort out rank and size info
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    name = MPI.Get_processor_name()
     print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
    
     # get inputs from the command line
@@ -498,15 +523,21 @@ def setup_and_run_suite(arguments, argument_names):
         outfile = 'outputs.dat'
         
     #print "sending jobs out, rank {}".format(rank)
-    inputs_sent = comm.scatter(inputs,root=0)
-    #print "inputs have been sent", len(inputs_sent), "rank", rank
+    if mpi_import:
+        inputs_sent = comm.scatter(inputs,root=0)
+        #print "inputs have been sent", len(inputs_sent), "rank", rank
+    else:
+        inputs_sent = inputs[0]
     outfilenames = run(inputs_sent,
                        rank,
                        wd2,
                        op.join(wd,outfile),
                        array_savepath=wd2)
 
-    outputs_gathered = comm.gather(outfilenames,root=0)
+    if mpi_import:
+        outputs_gathered = comm.gather(outfilenames,root=0)
+    else:
+        outputs_gathered = [outfilenames]
     
     if rank == 0:
         gather_outputs(outputs_gathered, wd, outfile)

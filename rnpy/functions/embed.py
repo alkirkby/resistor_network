@@ -11,7 +11,7 @@ fault apertures, permeability, resistivity, etc
 - adding fault to an array
 
 """
-from __future__ import division, print_function
+
 import numpy as np
 
 

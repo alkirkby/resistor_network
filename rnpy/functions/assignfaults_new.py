@@ -8,6 +8,7 @@ Created on Mon May 16 12:55:34 2016
 import numpy as np
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
+from scipy.interpolate import interp1d
 
 
 
@@ -289,7 +290,11 @@ def assign_fault_aperture(fault_uvw,
                           correct_aperture_for_geometry = True,
                           aperture_type = 'random',
                           fill_array = True,
-                          aperture_list=None
+                          aperture_list=None,
+                          aperture_list_electric = None,
+                          aperture_list_hydraulic = None,
+                          preserve_negative_apertures = False,
+                          random_numbers_dir=None,
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -346,10 +351,16 @@ def assign_fault_aperture(fault_uvw,
 
     if ((aperture_type != 'list') or (aperture_list is None)):
         aperture_list = []
-        aperture_list_c = []
-        aperture_list_f = []
+        
+    # if either electric or hydraulic aperture is None, set them both to None
+    if aperture_list_electric is None:
+        aperture_list_hydraulic = None
+    if aperture_list_hydraulic is None:
+        aperture_list_electric = None
+    aperture_list_c = []
+    aperture_list_f = []
 
-    if type(fault_separation) is float:
+    if not np.iterable(fault_separation):
         fault_separation = np.ones(len(fault_uvw))*fault_separation
         
 #    ap_array[0] *= 1e-50
@@ -362,7 +373,11 @@ def assign_fault_aperture(fault_uvw,
         # get minimum and maximum x,y and z coordinates
         u0,v0,w0 = np.amin(nn, axis=(0,1))
         u1,v1,w1 = np.amax(nn, axis=(0,1))
+        
+        # get size of original fault so we get correct scale factor
+        size_noclip = max(u1-u0,v1-v0,w1-w0)
 
+        # make sure extents are within the array
         u1 = min(u1,nx + 1)
         v1 = min(v1,ny + 1)
         w1 = min(w1,nz + 1)
@@ -377,41 +392,46 @@ def assign_fault_aperture(fault_uvw,
         # the fault square as I am not sure if fft works properly for non-
         # square geometries
 
-        if aperture_type == 'list':
-            if aperture_list is not None:
-                du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
-                
-                for iii,ap in enumerate(aperture_list):
-                    dperp=list(duvw).index(0)
 
-                    if dperp == 0:
-                        try:
-                            ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]#np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
-                        except:
+        # if list of apertures provided, assign these to the array. Because these
+        # apertures have been pre-trimmed to fit the array, we assign them 
+        # differently to if they were calculated from scratch.
+        if ((aperture_type == 'list') and (aperture_list is not None)):
+            du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
+            
+            # loop through true aperture, hydraulic aperture, electric aperture
+            for iii,ap in enumerate(aperture_list):
+                dperp=list(duvw).index(0)
+
+                if dperp == 0:
+                    try:
+                        ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]#np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
+                    except:
 #                            print "aperture wrong shape, resetting fault extents"
-                            u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:dv1+1].shape[2::-1] - np.array([2,1,1])
+                        u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:dv1+1].shape[2::-1] - np.array([2,1,1])
 #                            print dperp,u0,v0,w0,u1,v1,w1
-                            ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]
-                    elif dperp == 1:
-                        try:
-                            ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]#np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
-                        except:
+                        ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1] += ap[i][:dw1+1,:dv1+1]
+                elif dperp == 1:
+                    try:
+                        ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]#np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
+                    except:
 #                            print "aperture wrong shape, resetting fault extents"
-                            u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:,:du1+1].shape[2::-1] - np.array([1,2,1])
+                        u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:dw1+1,:,:du1+1].shape[2::-1] - np.array([1,2,1])
 #                            print dperp,u0,v0,w0,u1,v1,w1
-                            ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]
-                    elif dperp == 2:
-                        try:
-                            ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]#np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
-                        except:
+                        ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1] += ap[i][:dw1+1,:,:du1+1]
+                elif dperp == 2:
+                    try:
+                        ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]#np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
+                    except:
 #                            print "aperture wrong shape, resetting fault extents"
-                            u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:,:dv1+1,:du1+1].shape[2::-1] - np.array([1,1,2])
+                        u1,v1,w1 = np.array([u0,v0,w0]) + ap[i][:,:dv1+1,:du1+1].shape[2::-1] - np.array([1,1,2])
 #                            print dperp,u0,v0,w0,u1,v1,w1
-                            ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]
-            else:
-                aperture_type = 'random'
+                        ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1] += ap[i][:,:dv1+1,:du1+1]
+        elif aperture_type not in ['random','constant']:
+            aperture_type = 'random'
         
         if aperture_type in ['random','constant']:
+            
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
@@ -420,9 +440,9 @@ def assign_fault_aperture(fault_uvw,
                                                     elevation_scalefactor,
                                                     mismatch_wavelength_cutoff,
                                                     cs)
+                
+            faultpair_inputs['random_numbers_dir'] = random_numbers_dir
             
-                
-                
             build = False
             if fault_surfaces is None:
                 
@@ -442,33 +462,47 @@ def assign_fault_aperture(fault_uvw,
                             raise                
                 except:
                     build = True
-                    print "fault surfaces wrong type"
+                    print("fault surfaces wrong type")
                 
             if build:
-                print "building new faults",
+#                print "building new faults",
                 if aperture_type == 'random':
-                    h1,h2 = rnfa.build_fault_pair(size, **faultpair_inputs)
+                    h1,h2 = rnfa.build_fault_pair(size, size_noclip, **faultpair_inputs)
                 else:
                     h1,h2 = [np.zeros((size,size))]*2
-    
+
+            # if offset between 0 and 1, assume it is a fraction of fault size
+            if 0 < offset < 1:
+                offset = int(np.round(offset*size_noclip))
+            else:
+                # ensure it is an integer
+                offset = int(offset)
+            
             if offset > 0:
                 b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
             else:
                 b = h1 - h2 + fault_separation[i]
                 
             # set zero values to really low value to allow averaging
-            b[b <= 1e-50] = 1e-50
+            if not preserve_negative_apertures:
+                b[b <= 1e-50] = 1e-50
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
             
-            if aperture_type == 'random':
-                if correct_aperture_for_geometry:
-                    bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+            if aperture_type in ['random', 'list']:
+                # opportunity to provide corrected apertures
+                if aperture_list_electric is not None:
+                    bc = aperture_list_electric[i]
+                    bf = aperture_list_hydraulic[i]
                 else:
-                    bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+                    if correct_aperture_for_geometry:
+                        bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+                    else:
+                        bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             else:
                 bf, bc = [np.array([b[:-1,:-1]]*3)]*2
             tmp_aplist = []
+            
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
                 b0,b1,b2 = bb
@@ -478,18 +512,18 @@ def assign_fault_aperture(fault_uvw,
                                            b2[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2+1]/2.
                     if fill_array:
                         if w1-w0+1 > int(np.shape(b2vals)[0]):
-                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
+                            print("indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0]))
                             w1 = int(np.shape(b2vals)[0])+w0-1
                         elif w1-w0+1 < int(np.shape(b2vals)[0]):
-                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
+                            print("indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0]))
                             b2vals = b2vals[:w1-w0+1]
                             b1vals = b1vals[:w1-w0]
                             b0vals = b0vals[:w1-w0+1]
                         if v1-v0+1 > int(np.shape(b2vals)[1]):
-                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1])
+                            print("indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1]))
                             v1 = int(np.shape(b2vals)[1])+v0-1
                         elif v1-v0+1 < int(np.shape(b2vals)[1]):
-                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1])
+                            print("indices don't match up, v0 {}, v1 {}, b2vals shape[1] {}".format(v0,v1,b2vals.shape[1]))
                             b2vals = b2vals[:,:v1-v0+1]
                             b1vals = b1vals[:,:v1-v0+1]
                             b0vals = b0vals[:,:v1-v0]
@@ -514,18 +548,18 @@ def assign_fault_aperture(fault_uvw,
                     if fill_array:
                         # correct for slight discrepancies in array shape
                         if w1-w0+1 > int(np.shape(b2vals)[0]):
-                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
+                            print("indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0]))
                             w1 = int(np.shape(b2vals)[0])+w0-1
                         elif w1-w0+1 < int(np.shape(b2vals)[0]):
-                            print "indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0])
+                            print("indices don't match up, w0 {}, w1 {}, b2vals shape[0] {}".format(w0,w1,b2vals.shape[0]))
                             b2vals = b2vals[:w1-w0+1]
                             b1vals = b1vals[:w1-w0]
                             b0vals = b0vals[:w1-w0+1]
                         if u1-u0+1 > int(np.shape(b2vals)[1]):
-                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            print("indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1]))
                             u1 = int(np.shape(b2vals)[1])+u0-1
                         elif u1-u0+1 < int(np.shape(b2vals)[1]):
-                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            print("indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1]))
                             b2vals = b2vals[:,:u1-u0+1]
                             b1vals = b1vals[:,:u1-u0+1]
                             b0vals = b0vals[:,:u1-u0]
@@ -550,18 +584,18 @@ def assign_fault_aperture(fault_uvw,
                     if fill_array:
                         # correct for slight discrepancies in array shape
                         if v1-v0+1 > int(np.shape(b2vals)[0]):
-                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0])
+                            print("indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0]))
                             v1 = int(np.shape(b2vals)[0])+v0-1
                         elif v1-v0+1 < int(np.shape(b2vals)[0]):
-                            print "indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0])
+                            print("indices don't match up, v0 {}, v1 {}, b2vals shape[0] {}".format(v0,v1,b2vals.shape[0]))
                             b2vals = b2vals[:v1-v0+1]
                             b1vals = b1vals[:v1-v0]
                             b0vals = b0vals[:v1-v0+1]
                         if u1-u0+1 > int(np.shape(b2vals)[1]):
-                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            print("indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1]))
                             u1 = int(np.shape(b2vals)[1])+u0-1
                         elif u1-u0+1 < int(np.shape(b2vals)[1]):
-                            print "indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1])
+                            print("indices don't match up, u0 {}, u1 {}, b2vals shape[1] {}".format(u0,u1,b2vals.shape[1]))
                             b2vals = b2vals[:,:u1-u0+1]
                             b1vals = b1vals[:,:u1-u0+1]
                             b0vals = b0vals[:,:u1-u0]
@@ -579,19 +613,19 @@ def assign_fault_aperture(fault_uvw,
                     aperture[1,:,:-1,0,2] = b0vals
                     aperture[1,:-1,:,1,2] = b1vals
                 
-
+    
                 tmp_aplist.append(aperture)
-
+    
                 bvals[-1].append([bb,b0,b1])
                 
             faultheights.append([h1,h2])
             aperture_list.append(tmp_aplist[0])
             aperture_list_f.append(tmp_aplist[1])
             aperture_list_c.append(tmp_aplist[2])
-              
-    #        ap_array[i] *= fault_array
 
-    
+          
+#        ap_array[i] *= fault_array
+
     if fill_array:
         for ii in range(3):
             rna.add_nulls(ap_array[ii])
@@ -600,12 +634,46 @@ def assign_fault_aperture(fault_uvw,
             aperture_list_f = aperture_list[1]
             aperture_list_c = aperture_list[2]
             aperture_list = aperture_list[0]
-        ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 0.
+        if not preserve_negative_apertures:
+            ap_array[(np.isfinite(ap_array))&(ap_array < 2e-50)] = 2e-50
         aperture_c = ap_array[2]
         aperture_f = ap_array[1]
         aperture_array = ap_array[0]
-
         return aperture_list,aperture_list_f,aperture_list_c,\
                aperture_array,aperture_f,aperture_c,faultheights
     else:
         return aperture_list,aperture_list_f,aperture_list_c,faultheights
+
+
+
+def update_from_precalculated(rv,effective_apertures_fn,permeability_matrix=1e-18):
+    effective_apertures = np.loadtxt(effective_apertures_fn)
+
+    # add extreme values so that we cover the entire interpolation range
+    # < min; hydraulic aperture = sqrt(matrix permeability * 12); electric aperture = 1e-50
+    # > max; fault sep = hydraulic aperture = electric aperture
+    first_row = [-1,np.sqrt(12*permeability_matrix),1e-50]
+    last_row = [1,1,1]
+    effective_apertures = np.concatenate([[first_row],effective_apertures,[last_row]],axis=0)
+    
+    # create interpolation functions for effective apertures
+    feah = interp1d(effective_apertures[:,0],effective_apertures[:,1])
+    feae = interp1d(effective_apertures[:,0],effective_apertures[:,2])
+    
+    # update aperture values
+    for i in range(len(rv.aperture)):
+        for j in range(len(rv.aperture[0])):
+            for k in range(len(rv.aperture[0,0])):
+                for ii in range(3):
+                    jjlist = [0,1,2]
+                    jjlist.remove(ii)
+                    for jj in jjlist:                       
+                        if (rv.fault_array[i,j,k,jj,ii] and np.isfinite(rv.aperture[i,j,k,jj,ii])):
+                            rv.aperture_hydraulic[i,j,k,jj,ii] = feah(rv.aperture[i,j,k,jj,ii])
+                            rv.aperture_electric[i,j,k,jj,ii] = feae(rv.aperture[i,j,k,jj,ii])
+    
+    # initialise electrical and hydraulic resistance
+    rv.initialise_electrical_resistance()
+    rv.initialise_permeability()
+    
+    return rv
