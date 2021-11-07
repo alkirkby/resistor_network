@@ -9,6 +9,8 @@ from unittest import TestCase
 from tests import TEST_DATA_ROOT
 from rnpy.core.resistornetwork import Rock_volume
 import numpy as np
+import os
+
 
 fslist = np.array([-5e-5,0,1e-4,1e-3])
 answers_random = np.array([[2.24332230e-18, 2.20290378e-18, 4.49777941e+02, 4.57030723e+02,
@@ -67,7 +69,6 @@ class testResistorNetwork2d(TestCase):
             rpar = rv.cellsize[0]/(fs/rv.resistivity_fluid + \
                                    (rv.cellsize[0]-fs)/rv.resistivity_matrix)
             
-            print(kpar,rv.permeability_bulk[1:])
             assert np.all(np.abs(np.log10(rv.permeability_bulk[1:]) - \
                                  np.log10(kpar)) < 1e-6)
             assert np.all(np.abs(np.log10(rv.resistivity_bulk[1:]) - \
