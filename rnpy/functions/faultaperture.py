@@ -70,7 +70,7 @@ def get_faultpair_defaults(cs, lc):
 
 
 
-def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
+def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=None,
                      lc=None,fcw=None,matchingmethod='me',beta=0.6,
                      random_numbers_dir=None):
     """
@@ -105,7 +105,7 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
     lc, fc = get_faultpair_defaults(cs, lc)
     
     if scalefactor is None:
-        scalefactor = 1e-3
+        scalefactor = 1.9e-3
         
     std = scalefactor*(cs*size_noclip)**(3.-D)
     
@@ -153,7 +153,7 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
 #    gamma[f < 0.1] /= 2.
     if random_numbers_dir:
         R1 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
-        R2 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
+        R2 = np.loadtxt(os.path.join(random_numbers_dir,'R2.dat'))
     # define 2 sets of uniform random numbers
     else:
         R1 = np.random.random(size=np.shape(f))
@@ -176,6 +176,7 @@ def build_fault_pair(size,size_noclip,D=2.5,cs=2.5e-4,scalefactor=None,
     # use inverse discrete fast fourier transform to get surface heights
     h1 = np.fft.irfftn(y1,y1.shape)
     h2 = np.fft.irfftn(y2,y2.shape)
+    
     # scale so that standard deviation is as specified
     if std is not None:
         ic = int(h1.shape[1]/2)
