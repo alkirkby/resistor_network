@@ -31,4 +31,5 @@ jobs:
     - name: Test with pytest
       run: |
         conda install pytest
+        PYTHONPATH=.
         pytest tests/core/test_resistor_network.py
