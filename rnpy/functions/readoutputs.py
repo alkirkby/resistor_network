@@ -6,6 +6,7 @@ Created on Mon Nov  1 16:12:34 2021
 """
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.stats import sem
 
 def interpolate_to_all_fs(outputs,idx_dict=None):
     """
@@ -111,3 +112,9 @@ def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):
     
     
     return aperture
+
+def getmean(vals,mtype='meanlog10',semm=0):
+    if mtype=='meanlog10':
+        return 10**(np.mean(np.log10(vals),axis=0)+semm*sem(np.log10(vals),axis=0))
+    elif mtype == 'median':
+        return np.median(np.log10(vals)) + semm*sem(np.log10(vals),axis=0)

@@ -155,6 +155,12 @@ def get_solver_type(solver_type,fs,ncells):
             solver_type = 'bicg'
     return solver_type
 
+
+def get_meanstd(h,size_noclip):
+    ic = int(h.shape[1]/2)
+    i0,i1 = ic - int(size_noclip/2), ic + int(size_noclip/2)
+    return np.mean([np.std(line[i0:i1]) for line in h])
+
 def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     """
     run a set of rock volumes with adaptive fault separation (auto calculated
@@ -229,6 +235,13 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             input_parameters_new['fault_separation'] = fs
             t0a = time.time()
             RockVolI = Rock_volume(**input_parameters_new)
+            print(get_meanstd(RockVolI.fault_dict['fault_surfaces'][0][0],input_parameters['ncells'][1]))
+            print(input_parameters_new['elevation_scalefactor'],
+                  input_parameters_new['cellsize'][1],
+                  input_parameters_new['fractal_dimension'])
+            print(input_parameters_new['elevation_scalefactor']*\
+                  (input_parameters['ncells'][1]*input_parameters_new['cellsize'][1])**\
+                      (3.-input_parameters_new['fractal_dimension']))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn'] in :
@@ -319,6 +332,13 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
                 
             RockVol = Rock_volume(**input_parameters_new)
+            print(get_meanstd(RockVol.fault_dict['fault_surfaces'][0][0],input_parameters['ncells'][1]))
+            print(input_parameters_new['elevation_scalefactor'],
+                  input_parameters_new['cellsize'][1],
+                  input_parameters_new['fractal_dimension'])
+            print(input_parameters_new['elevation_scalefactor']*\
+                  (input_parameters['ncells'][1]*input_parameters_new['cellsize'][1])**\
+                      (3.-input_parameters_new['fractal_dimension']))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn']:
