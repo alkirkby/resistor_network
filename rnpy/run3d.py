@@ -111,7 +111,7 @@ def read_arguments(arguments, argument_names):
                 fixed_parameters[at[0]] = value
                 
 
-    print "loop_parameters",loop_parameters
+    print("loop_parameters",loop_parameters)
     return fixed_parameters, loop_parameters, repeats
 
 

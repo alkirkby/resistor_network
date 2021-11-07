@@ -1044,7 +1044,7 @@ def divide_run_master(input_list,rank,size,comm,outfile,tmp_outfile=None):
 
 
     if tmp_outfile is not None:
-    tmp_outfile += str(rank)
+        tmp_outfile += str(rank)
     
     if comm is not None:
         # print "setting up comparison volumes in parallel"

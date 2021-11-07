@@ -489,7 +489,7 @@ def gather_outputs(outputs_gathered, wd, outfile) :
             try:
                 outarray = np.vstack([outarray,np.loadtxt(outfn)])
             except IOError:
-                print "Failed to find file {}, skipping and moving to the next file".format(outfn)
+                print("Failed to find file {}, skipping and moving to the next file".format(outfn))
         count += 1
 
     np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
