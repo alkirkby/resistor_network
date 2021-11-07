@@ -245,10 +245,10 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
     """
     
     count = 0
-    print 'calculating comparison volumes'
+    print('calculating comparison volumes')
     if np.amax(input_list[0]['ncells']) > 40:
         time.sleep(60*rank)
-        print "waiting to start for {} s".format(60*rank)
+        print("waiting to start for {} s".format(60*rank))
     for input_dict in input_list:
         input_dict = input_dict.copy()
         input_dict['fault_edges'] = np.load(input_dict['faultedge_file'])
@@ -279,7 +279,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     inputs['solve_direction'] = 'x'
                     ncells = nc.copy()
                     ncells[0] -= n[0]
-                    print "setting up comparison resistor network"
+                    print("setting up comparison resistor network")
                     romx = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romx,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:,1:,1:-n[0]-1,0]
@@ -288,9 +288,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     arr[:,-1,:,0] = boundary_res
                     arr[-1,:,:,0] = boundary_res
                     setattr(romx,att,rna.add_nulls(arr))
-                    print "solving comparison resistor network"
+                    print("solving comparison resistor network")
                     romx.solve_resistor_network2()
-                    print "comparison resistor network solved"
+                    print("comparison resistor network solved")
                     factor = (nc[1]*nc[2])/((nc[1]+1.)*(nc[2]+1.))
                     if att == 'resistivity':
                         bulk[0] = romx.resistivity_bulk[0]*factor
@@ -302,7 +302,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     inputs['solve_direction'] = 'y'
                     ncells = nc.copy()
                     ncells[1] -= n[1]
-                    print "setting up comparison resistor network"
+                    print("setting up comparison resistor network")
                     romy = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romy,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:,1:-n[1],1:-1,0]
@@ -311,9 +311,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     arr[-1,:,:,1] = boundary_res
                     arr[:,:,-1,1] = boundary_res
                     setattr(romy,att,rna.add_nulls(arr))
-                    print "solving comparison resistor network"
+                    print("solving comparison resistor network")
                     romy.solve_resistor_network2()
-                    print "comparison resistor network solved"
+                    print("comparison resistor network solved")
                     factor = (nc[0]*nc[2])/((nc[0]+1.)*(nc[2]+1.))
                     if att == 'resistivity':
                         bulk[1] = romy.resistivity_bulk[1]*factor
@@ -325,7 +325,7 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     inputs['solve_direction'] = 'z'
                     ncells = nc.copy()
                     ncells[2] -= n[2]
-                    print "setting up comparison resistor network"
+                    print("setting up comparison resistor network")
                     romz = rn.Rock_volume(ncells=ncells,**inputs)
                     arr = getattr(romz,att)
                     arr[1:,1:,1:-1,0] = arrtoset[1:-n[1],1:,1:-1,0]
@@ -334,9 +334,9 @@ def calculate_comparison_volumes(input_list,subvolume_size,rank,tmp_outfile=None
                     arr[:,-1,:,2] = boundary_res
                     arr[:,:,-1,2] = boundary_res
                     setattr(romz,att,rna.add_nulls(arr))
-                    print "solving comparison resistor network"
+                    print("solving comparison resistor network")
                     romz.solve_resistor_network2()
-                    print "comparison resistor network solved"
+                    print("comparison resistor network solved")
                     factor = (nc[0]*nc[1])/((nc[0]+1.)*(nc[1]+1.))
                     if att == 'resistivity':
                         bulk[2] = romz.resistivity_bulk[2]*factor
@@ -501,7 +501,7 @@ def write_outputs_subvolumes(outputs_gathered, outfile):
     count = 0
     for line in outputs_gathered:
         if len(line) == 2:
-            print "gathering ro list and outputs" 
+            print("gathering ro list and outputs")
             line1,rolist = line
             ro_masterlist += rolist
         else:
@@ -831,7 +831,7 @@ def run_comparison(input_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=
         tmp_outfile += str(rank)
     
     if comm is not None:
-        print "setting up comparison volumes in parallel"
+        # print "setting up comparison volumes in parallel"
         if rank == 0:
             inputlist_divided = divide_inputs(input_list,size)
         else:
@@ -841,7 +841,7 @@ def run_comparison(input_list,subvolume_size,rank,size,comm,outfile,tmp_outfile=
         outputs_gathered = comm.gather(bulk_props,root=0)
         
         if rank == 0:
-            print "writing comparison outputs"
+            # print "writing comparison outputs"
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
@@ -974,7 +974,7 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,
         tmp_outfile += str(rank)
     
     if comm is not None:
-        print "setting up comparison volumes in parallel"
+        # print "setting up comparison volumes in parallel"
         if rank == 0:
             rolist_divided = divide_inputs(ro_list,size)
         else:
@@ -985,7 +985,7 @@ def distribute_run_segmented(ro_list,subvolume_size,rank,size,comm,outfile,
         outputs_gathered = comm.gather(bulk_props,root=0)
         
         if rank == 0:
-            print "writing comparison outputs"
+            # print "writing comparison outputs"
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
@@ -1047,7 +1047,7 @@ def divide_run_master(input_list,rank,size,comm,outfile,tmp_outfile=None):
     tmp_outfile += str(rank)
     
     if comm is not None:
-        print "setting up comparison volumes in parallel"
+        # print "setting up comparison volumes in parallel"
         if rank == 0:
             inputlist_divided = divide_inputs(input_list,size)
         else:
@@ -1057,7 +1057,7 @@ def divide_run_master(input_list,rank,size,comm,outfile,tmp_outfile=None):
         outputs_gathered = comm.gather(bulk_props,root=0)
         
         if rank == 0:
-            print "writing comparison outputs"
+            # print "writing comparison outputs"
             write_outputs_comparison(outputs_gathered, outfile)
 
     else:
@@ -1074,7 +1074,7 @@ def setup_and_run_segmented_volume(arguments):
     try:
         from mpi4py import MPI
     except ImportError:
-        print "Cannot import mpi4py, running in serial"
+        # print "Cannot import mpi4py, running in serial"
         use_mpi = False
         
         
@@ -1084,7 +1084,7 @@ def setup_and_run_segmented_volume(arguments):
         size = comm.Get_size()
         rank = comm.Get_rank()
         name = MPI.Get_processor_name()
-        print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
+        # print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
     else:
         size,rank,comm = 1,0,None
 
@@ -1113,7 +1113,7 @@ def setup_and_run_segmented_volume(arguments):
                 os.mkdir(wdn)
 
     else:
-        print "waiting for directories on rank {}"
+        # print "waiting for directories on rank {}"
         # wait for rank 0 to generate folder up to max of 10 minutes
         tt = 0
         while not os.path.exists(wd3):
@@ -1155,7 +1155,7 @@ def setup_and_run_segmented_volume(arguments):
     if rank == 0:
         input_list = list_of_inputs_master
         input_list_sep = build_master(list_of_inputs_master,savepath=wd2)
-        print "Initialised master rock volumes in {} s".format(time.time()-t0)
+        # print "Initialised master rock volumes in {} s".format(time.time()-t0)
     else:
         input_list_sep, input_list = None, None
 
@@ -1174,7 +1174,7 @@ def setup_and_run_segmented_volume(arguments):
                            op.join(wd,'comparison_'+outfile),
                            tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
             if rank == 0:
-                print "Ran comparison arrays in {} s".format(time.time()-t1)
+                # print "Ran comparison arrays in {} s".format(time.time()-t1)
     
         # create subvolume inputs
         if rank == 0:
@@ -1187,7 +1187,7 @@ def setup_and_run_segmented_volume(arguments):
                 subvolume_input_list += initialise_inputs_subvolumes(input_dict['splitn'],
                                                                      input_dict,
                                                                      buf=4)
-            print "Initialised subvolume input list in {} s".format(time.time()-t2)
+            # print "Initialised subvolume input list in {} s".format(time.time()-t2)
         else:
             subvolume_input_list = None
             
@@ -1196,7 +1196,7 @@ def setup_and_run_segmented_volume(arguments):
         # run the subvolumes and return an array, containing results + indices +
         # rock volume ids + (optionally) rock volume objects
         t3 = time.time()
-        print "running subvolumes on rank {}"
+        # print "running subvolumes on rank {}"
         if return_objects:
             outarray,ro_list_seg = scatter_run_subvolumes(subvolume_input_list,list_of_inputs_master[0]['subvolume_size'],
                                                           size,rank,comm,
@@ -1207,9 +1207,9 @@ def setup_and_run_segmented_volume(arguments):
             # resistivity and hydraulic resistance and compare these to the
             # original ones.
             if rank == 0:
-                print "comparing segmented and original arrays"
+                # print "comparing segmented and original arrays"
                 testfaults,testap,testres,testhr = compare_arrays(ro_list,ro_list_seg,outarray[:,-5:],list_of_inputs_master[0]['subvolume_size'])
-                print testfaults,testap,testres,testhr
+                # print testfaults,testap,testres,testhr
         else:
             outarray = scatter_run_subvolumes(subvolume_input_list,list_of_inputs_master[0]['subvolume_size'],
                                               size,rank,comm,
@@ -1217,7 +1217,7 @@ def setup_and_run_segmented_volume(arguments):
                                               return_objects=False,
                                               tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
         if rank == 0:
-            print "Ran subvolumes in {} s".format(time.time()-t3)
+            # print "Ran subvolumes in {} s".format(time.time()-t3)
         
         # create and run master volume containing subvolume results
         if rank == 0:
@@ -1225,7 +1225,7 @@ def setup_and_run_segmented_volume(arguments):
             ro_list_sep = build_master_segmented(list_of_inputs_master,
                                                  outarray,
                                                  input_dict['subvolume_size'])
-            print "Built a master segmented volume in {} s".format(time.time()-t4)
+            # print "Built a master segmented volume in {} s".format(time.time()-t4)
         else:
             ro_list_sep = None
         #print "running master volume, ro_list_sep on rank",rank,ro_list_sep
@@ -1235,8 +1235,8 @@ def setup_and_run_segmented_volume(arguments):
                                  save_array=True,savepath=wd2,
                                  tmp_outfile=op.join(wd3,'master_'+outfile[:-4]+'.tmp'))
         if rank == 0:
-            print "Ran segmented volume in {} s".format(time.time()-t5)
-            print "Times: setup master: {} s, run comparison: {} s, setup subvolumes: {} s, run subvolumes: {} s, setup segmented (master): {} s, run segmented (master): {} s".format(t1-t0,t2-t1,t3-t2,t4-t3,t5-t4,time.time()-t5)
+            # print "Ran segmented volume in {} s".format(time.time()-t5)
+            # print "Times: setup master: {} s, run comparison: {} s, setup subvolumes: {} s, run subvolumes: {} s, setup segmented (master): {} s, run segmented (master): {} s".format(t1-t0,t2-t1,t3-t2,t4-t3,t5-t4,time.time()-t5)
 
                    
 if __name__ == "__main__":

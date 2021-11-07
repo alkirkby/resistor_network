@@ -429,8 +429,8 @@ def run(list_of_inputs,rank,wd,outfilename,loop_variables,save_array=True):
             ro.solve_resistor_network()
             t2 = time.time()
 
-            print 'time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1)
-            print "cellsize",ro.cellsize
+            print('time to solve a rock volume on rank {}, {} s'.format(rank, t2-t1))
+            print("cellsize",ro.cellsize)
 
             arr_shortnames = [''.join([word[0] for word in param.split('_')])+'{}' for param in loop_variables if param not in resk_pnames]
             arr_fn = ''.join(arr_shortnames).format(*[indict[key] for key in loop_variables if key not in resk_pnames])
@@ -511,7 +511,7 @@ def setup_and_run_suite(arguments, argument_names):
     size = comm.Get_size()
     rank = comm.Get_rank()
     name = MPI.Get_processor_name()
-    print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
+    print('Hello! My name is {}. I am process {} of {}'.format(name,rank,size))
    
     # get inputs from the command line
     fixed_parameters, loop_parameters, faultsurface_parameters = read_arguments(arguments, argument_names)
