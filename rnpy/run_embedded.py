@@ -1174,7 +1174,7 @@ def setup_and_run_segmented_volume(arguments):
                            op.join(wd,'comparison_'+outfile),
                            tmp_outfile=op.join(wd3,'comparison_'+outfile[:-4]+'.tmp'))
             if rank == 0:
-                # print "Ran comparison arrays in {} s".format(time.time()-t1)
+                print("Ran comparison arrays in {} s".format(time.time()-t1))
     
         # create subvolume inputs
         if rank == 0:
@@ -1207,7 +1207,7 @@ def setup_and_run_segmented_volume(arguments):
             # resistivity and hydraulic resistance and compare these to the
             # original ones.
             if rank == 0:
-                # print "comparing segmented and original arrays"
+                print("comparing segmented and original arrays")
                 testfaults,testap,testres,testhr = compare_arrays(ro_list,ro_list_seg,outarray[:,-5:],list_of_inputs_master[0]['subvolume_size'])
                 # print testfaults,testap,testres,testhr
         else:
@@ -1217,7 +1217,7 @@ def setup_and_run_segmented_volume(arguments):
                                               return_objects=False,
                                               tmp_outfile=op.join(wd3,'subvolumes_'+outfile[:-4]+'.tmp'))
         if rank == 0:
-            # print "Ran subvolumes in {} s".format(time.time()-t3)
+            print("Ran subvolumes in {} s".format(time.time()-t3))
         
         # create and run master volume containing subvolume results
         if rank == 0:
@@ -1235,8 +1235,8 @@ def setup_and_run_segmented_volume(arguments):
                                  save_array=True,savepath=wd2,
                                  tmp_outfile=op.join(wd3,'master_'+outfile[:-4]+'.tmp'))
         if rank == 0:
-            # print "Ran segmented volume in {} s".format(time.time()-t5)
-            # print "Times: setup master: {} s, run comparison: {} s, setup subvolumes: {} s, run subvolumes: {} s, setup segmented (master): {} s, run segmented (master): {} s".format(t1-t0,t2-t1,t3-t2,t4-t3,t5-t4,time.time()-t5)
+            print("Ran segmented volume in {} s".format(time.time()-t5))
+            print("Times: setup master: {} s, run comparison: {} s, setup subvolumes: {} s, run subvolumes: {} s, setup segmented (master): {} s, run segmented (master): {} s".format(t1-t0,t2-t1,t3-t2,t4-t3,t5-t4,time.time()-t5))
 
                    
 if __name__ == "__main__":

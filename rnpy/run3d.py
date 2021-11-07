@@ -172,7 +172,7 @@ def initialise_inputs(fixed_parameters, loop_parameters, repeats, rank, size):
         input_dict['fault_surfacename'] = fsname
 
         # loop through solve directions  
-        print rmvals,rfvals
+        print(rmvals,rfvals)
         for i,sd in enumerate(solvedirections):
                 # update input dict so we deal with one solve direction at a time
                 input_dict['solve_direction'] = sd
@@ -219,7 +219,7 @@ def divide_inputs(work_to_do,size):
         
     chunks = [[] for _ in range(size)]
     if size >= repeats:
-        print "size > repeats"
+        print("size > repeats")
         for i in range(size):
             procgroups[i%repeats].append(i)
         for i,pg in enumerate(procgroups):
@@ -348,7 +348,7 @@ def gather_outputs(outputs_gathered, wd, outfile, delete_originals=True) :
             try:
                 outarray = np.vstack([outarray,np.loadtxt(outfn)])
             except IOError:
-                print "Failed to find file {}, skipping and moving to the next file".format(outfn)
+                print("Filed to find file {}, skipping and moving to the next file".format(outfn))
         count += 1
 
     np.savetxt(op.join(wd,outfile),outarray,header=header,fmt='%.3e',comments='')
@@ -391,7 +391,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
        
     newfile = True 
     runno=1
-    print "running rock volumes on rank {}".format(rank)
+    print("running rock volumes on rank {}".format(rank))
     # stagger the starts to hopefully prevent memory crash
     if 'ncells' in list_of_inputs[0].keys():
         if np.amax(list_of_inputs[0]['ncells']) > 50:
@@ -448,7 +448,7 @@ def run(list_of_inputs,rank,arraydir,outfilename,save_array=True,array_savepath=
                                       method='relaxation',itstep=100,
                                       tol=input_dict['tolerance'])
         ro.compute_conductive_fraction()
-        print 'time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0)
+        print('time to solve {} using {} method on rank {}, {} s'.format(input_dict['solve_properties'],input_dict['solve_method'],rank,time.time()-t0))
 
         if save_array:
             if ((rno == 0) and (sd == 'z')):
@@ -484,7 +484,7 @@ def setup_and_run_suite(arguments, argument_names):
         rank=0
         name='Fred'
     
-    print 'Hello! My name is {}. I am process {} of {}'.format(name,rank,size)
+    print('Hello! My name is {}. I am process {} of {}'.format(name,rank,size))
    
     # get inputs from the command line
     fixed_parameters, loop_parameters, repeats = read_arguments(arguments, argument_names)
