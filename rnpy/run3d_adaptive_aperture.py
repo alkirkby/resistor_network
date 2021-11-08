@@ -183,6 +183,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # offset start time so we don't load all the memory
         time.sleep(rank*10)
         input_parameters_new.update(initialise_inputs(input_parameters))
+        print(input_parameters_new['solver_type'])
         input_parameters_new['fault_assignment'] = 'list'
         
         # if we are updating apertures then need to preserve negative apertures
@@ -235,13 +236,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             input_parameters_new['fault_separation'] = fs
             t0a = time.time()
             RockVolI = Rock_volume(**input_parameters_new)
-            print(get_meanstd(RockVolI.fault_dict['fault_surfaces'][0][0],input_parameters['ncells'][1]))
-            print(input_parameters_new['elevation_scalefactor'],
-                  input_parameters_new['cellsize'][1],
-                  input_parameters_new['fractal_dimension'])
-            print(input_parameters_new['elevation_scalefactor']*\
-                  (input_parameters['ncells'][1]*input_parameters_new['cellsize'][1])**\
-                      (3.-input_parameters_new['fractal_dimension']))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn'] in :

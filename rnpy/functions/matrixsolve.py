@@ -42,6 +42,12 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
         Vn[:,1:-1] = slinalg.spsolve(A,b).reshape(ny+1,nz-1,nx+1)
         r = 0
 #        print("solved matrix using direct method")
+
+    elif method == 'pardiso':
+        from pypardiso import spsolve as parspsolve
+        Vn = Vo.copy()
+        Vn[:,1:-1] = parspsolve(A,b).reshape(ny+1,nz-1,nx+1)
+        r = 0
         
     elif method == 'bicg':
         Vn = Vo.copy()
