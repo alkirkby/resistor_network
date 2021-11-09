@@ -405,7 +405,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cf_master = np.hstack([cf_master,cfractions])
             rp_master = np.hstack([rp_master,np.ones(len(fault_separations))*r])
             cs_master = np.concatenate([cs_master,cellsizes])
-            ca_master = np.hstack([ca_master,contact_area])
+            ca_master = np.hstack([ca_master,contactarea])
 
         
         write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, ca_master,rank, outfilename)
