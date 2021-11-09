@@ -20,7 +20,7 @@ def update_idx_dict(idx_dict):
     return idx_dict
     
 
-def interpolate_to_all_fs(outputs,idx_dict=None):
+def interpolate_to_all_fs(outputs,fs_list=None,idx_dict=None):
     """
     Interpolate outputs from simulations to all fault separations
 
@@ -36,7 +36,10 @@ def interpolate_to_all_fs(outputs,idx_dict=None):
 
     """
     data_dict1 = {}
-    data_dict1['fs'] = np.unique(outputs[:,:,0])
+    if fs_list is None:
+        data_dict1['fs'] = np.unique(outputs[:,:,0])
+    else:
+        data_dict1['fs'] = fs_list
     nrpts = outputs.shape[0]
     
     idx_dict = update_idx_dict(idx_dict)
@@ -175,6 +178,6 @@ def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):
 
 def getmean(vals,mtype='meanlog10',semm=0):
     if mtype=='meanlog10':
-        return 10**(np.mean(np.log10(vals),axis=0)+semm*sem(np.log10(vals),axis=0))
+        return 10**(np.nanmean(np.log10(vals),axis=0)+semm*sem(np.log10(vals),axis=0))
     elif mtype == 'median':
-        return 10**(np.median(np.log10(vals),axis=0) + semm*sem(np.log10(vals),axis=0))
+        return 10**(np.nanmedian(np.log10(vals),axis=0) + semm*sem(np.log10(vals),axis=0))

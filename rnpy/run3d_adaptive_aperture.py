@@ -183,7 +183,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # offset start time so we don't load all the memory
         time.sleep(rank*10)
         input_parameters_new.update(initialise_inputs(input_parameters))
-        print(input_parameters_new['solver_type'])
         input_parameters_new['fault_assignment'] = 'list'
         
         # if we are updating apertures then need to preserve negative apertures
@@ -214,6 +213,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # cellsizes = np.ones_like(fault_separations)*np.nan
 
         cfractions = np.ones_like(fault_separations)*np.nan
+        contactarea = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones((fault_separations.shape[0],3))*np.nan
         kbulk = np.ones((fault_separations.shape[0],3))*np.nan
         cellsizes = np.ones((fault_separations.shape[0],3))*np.nan
@@ -275,6 +275,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
          
             RockVolI.compute_conductive_fraction()
             cfractions[i] = RockVolI.conductive_fraction
+            contactarea[i] = RockVolI.contact_area[0]
             resbulk[i] = RockVolI.resistivity_bulk
             kbulk[i] = RockVolI.permeability_bulk
             cellsizes[i] = RockVolI.cellsize
@@ -371,6 +372,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
+            contactarea = np.insert(contactarea,i+1,RockVol.contact_area[0])
 
             # resbulk.insert(i+1,RockVol.resistivity_bulk[2])
             # kbulk.insert(i+1, RockVol.permeability_bulk[2])
@@ -394,6 +396,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cf_master = cfractions.copy()
             rp_master = np.ones(len(fs_master))*r
             cs_master = cellsizes.copy()
+            ca_master = contactarea.copy()
             first = False
         else:
             fs_master = np.hstack([fs_master,fault_separations])
@@ -402,14 +405,15 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cf_master = np.hstack([cf_master,cfractions])
             rp_master = np.hstack([rp_master,np.ones(len(fault_separations))*r])
             cs_master = np.concatenate([cs_master,cellsizes])
+            ca_master = np.hstack([ca_master,contact_area])
 
         
-        write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, rank, outfilename)
+        write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, ca_master,rank, outfilename)
         
     return outfilename
 
 
-def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,repeatno,cellsizex, rank, outfilename):
+def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,repeatno,cellsizex,contactarea, rank, outfilename):
     """
     write outputs to a file
     
@@ -419,7 +423,9 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
     variablekeys += ['resistivity_bulk_%s'%val for val in 'xyz']
     variablekeys += ['permeability_bulk_%s'%val for val in 'xyz']
     variablekeys += ['cellsize_%s'%val for val in 'xyz']
+    variablekeys += ['contact_area']
     variablekeys += ['repeat']
+    
 
     # values for above headings
     output_lines = np.vstack([fault_separations,
@@ -427,6 +433,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
                               resbulk.T,
                               kbulk.T,
                               cellsizex.T,
+                              contactarea,
                               repeatno]).T
 
     # create a dictionary containing fixed variables
