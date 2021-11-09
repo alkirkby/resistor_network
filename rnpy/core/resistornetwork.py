@@ -468,6 +468,7 @@ class Rock_volume():
                 if self.update_cellsize_tf:
                     self.update_cellsize()
     
+        
     
     def compute_conductive_fraction(self):
         nx,ny,nz = self.ncells
