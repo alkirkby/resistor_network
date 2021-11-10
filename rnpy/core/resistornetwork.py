@@ -437,26 +437,8 @@ class Rock_volume():
                 
                 
             if ((self.aperture is not None) and (self.fault_array is not None)):
-                # get the aperture values from the faulted part of the volume to do some calculations on
-                mask = self.fault_array.copy()
-                mask[np.isnan(mask)] = 0.
-                if np.amax(mask) > 0:
-                    mask = mask.astype(bool)
-                    # mean aperture calculated in terms of direction of the connector, x y or z
-                    faultapvals1 = [[self.aperture[:,:,:,i,j][mask[:,:,:,i,j]] for j in range(3) if j!=i] for i in range(3)]
-                    # contact area calculated in terms of faults in yz,xz or xy planes (opening direction x, y or z)
-                    faultapvals2 = [[self.aperture[:,:,:,j,i][mask[:,:,:,j,i]] for j in range(3) if j!=i] for i in range(3)]
-                    # get rid of nans
-                    faultapvals1 = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals1]
-                    faultapvals2 = [[ffv[np.isfinite(ffv)] for ffv in fv] for fv in faultapvals2]
-                    
-                    nfc = [[max(1,len(ffv)) for ffv in fv] for fv in faultapvals2]                    
-                    apmean1 = [np.array([np.mean(ffv) for ffv in fv]) for fv in faultapvals1]
-                    self.aperture_mean = np.array([np.mean(fv[np.isfinite(fv)]) for fv in apmean1])
-                    self.contact_area = np.array([np.mean([float(len(faultapvals2[j][i][faultapvals2[j][i]<1e-49]))/nfc[j][i] for i in range(len(faultapvals2[j]))]) for j in range(len(faultapvals2))])
-                else:
-                    self.aperture_mean = np.zeros(3)
-                    self.contact_area = np.ones(3)                    
+                self._get_contact_area()
+                self._get_mean_aperture()
     
                 if self.aperture_hydraulic is None:
                     self.aperture_hydraulic = self.aperture.copy()
@@ -468,6 +450,37 @@ class Rock_volume():
                 if self.update_cellsize_tf:
                     self.update_cellsize()
     
+    def _get_faulted_apertures(self):
+        apvals_list, fmask_list = [],[]
+        for j in [0,1,2]:
+            idxs = [0,1,2]
+            idxs.remove(j)
+            apvals = np.nanmax([self.aperture[:,:,:,i,j] for i in idxs],axis=0)
+            fmask = np.nanmax([self.fault_array[:,:,:,i,j] for i in idxs],axis=0)
+            apvals = apvals[np.isfinite(apvals)]
+            fmask = fmask[np.isfinite(fmask)]
+            apvals_list.append(apvals)
+            fmask_list.append(fmask)
+        return apvals_list,fmask_list
+    
+    def _get_contact_area(self):
+        self.contact_area = []
+        apvals_list,fmask_list = self._get_faulted_apertures()
+        for j in [0,1,2]:
+            apvals = apvals_list[j]
+            fmask = fmask_list[j]
+            ca = int(len(apvals[apvals<1e-49]))/fmask.sum()
+            if np.isinf(ca):
+                ca = 0.
+            self.contact_area = np.append(self.contact_area,ca)
+    
+    def _get_mean_aperture(self):
+        self.aperture_mean = []
+        apvals_list,fmask_list = self._get_faulted_apertures()
+        for j in [0,1,2]:
+            apvals = apvals_list[j]
+            fmask = fmask_list[j]
+            self.aperture_mean.append(np.mean(apvals*fmask))
         
     
     def compute_conductive_fraction(self):
