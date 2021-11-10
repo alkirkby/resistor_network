@@ -39,11 +39,15 @@ def parse_arguments(arguments):
                       ['num_fault_separation','nfs','number of fault separation '+\
                        'values, code will auto choose these values',1,float],
                       ['aperture_type',None,'type of aperture, random or constant',1,str],
+                      ['mismatch_wavelength_cutoff',None,'cutoff wavelength for '+\
+                       'mismatching of opposing surfaces in faults',1,float],
+                      ['elevation_scalefactor',None,'scaling factor to scale fault elevations by',1,float], 
+                      ['fractal_dimension',None,'fractal dimension used to calculate surfaces',1,float],
                       ['workdir','wd','working directory',1,str],
                       ['outfile','o','output file name',1,str],
                       ['solver_type','st','type of solver, bicg or direct',1,str],
                       ['effective_apertures_fn',None,'file containing precalculated effective apertures',1,str],
-                    #  ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
+                      ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
                       ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
                       ['repeats','r','how many times to repeat each permutation',1,int]]
     
@@ -103,10 +107,6 @@ def initialise_inputs(input_parameters):
     # set defaults
     inputs = {}
     inputs.update(input_parameters)
-    inputs['mismatch_wavelength_cutoff'] = 1e-3 # cutoff wavelength for mismatching of opposing surfaces in faults
-    inputs['elevation_scalefactor'] = 1.9e-3 # scaling factor to scale fault elevations by
-    inputs['fractal_dimension'] = 2.4 # fractal dimension used to calculate surfaces
-    inputs['a'] = 3.5
     inputs['solve_properties'] = 'current_fluid'
     
     # store all parameters in input dict
