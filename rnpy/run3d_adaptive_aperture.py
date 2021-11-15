@@ -306,8 +306,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             resjump = np.log10(resbulk[:-1])-np.log10(resbulk[1:])
             kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
             
-            kjump = kjump[:,2]
-            resjump = resjump[:,2]
+            kjump = np.amax(kjump,axis=1)
+            resjump = np.amax(resjump,axis=1)
             
             # find whether we have a bigger jump (relative to the total range)
             # somewhere in the permeability curve, or in the resistivity curve

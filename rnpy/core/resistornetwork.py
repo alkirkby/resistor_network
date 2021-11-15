@@ -796,11 +796,18 @@ class Rock_volume():
                 self.voltage[:,:,:,i] = Vn
                 self.resistivity_bulk, self.resistance_bulk = \
                 rnap.get_bulk_resistivity(self.current,self.cellsize,Vbase-Vsurf)
+                # limit maximum values to resistivity of matrix
+                self.resistivity_bulk[self.resistivity_bulk > self.resistivity_matrix] =\
+                    self.resistivity_matrix
             elif pname == 'fluid':
                 self.pressure[:,:,:,i] = Vn
                 self.flowrate = output_array*1.
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
-                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,Vbase-Vsurf)                
+                rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,Vbase-Vsurf)   
+                # limit minimum k to matrix k
+                self.permeability_bulk[self.permeability_bulk < self.permeability_matrix] =\
+                    self.permeability_matrix
+                
         
 
     def get_effective_apertures(self):
