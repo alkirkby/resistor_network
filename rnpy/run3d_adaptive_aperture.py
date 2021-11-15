@@ -95,9 +95,9 @@ def parse_arguments(arguments):
     for key in input_parameters.keys():
         if type(input_parameters[key]) == 'str':
             input_parameters[key] = input_parameters[key].strip()
-            # convert any None values to NoneType
-            if str.lower(input_parameters[key]) == 'none':
-                input_parameters[key] = None
+
+    if input_parameters['elevation_scalefactor'] == 0.:
+        input_parameters['elevation_scalefactor'] = None
     
     return input_parameters, suite_parameters, repeats
     
@@ -244,7 +244,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             
             RockVolI = Rock_volume(**input_parameters_new)
-            print("std SH",np.std(RockVolI.fault_dict['fault_surfaces'][0][0]))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn'] in :
@@ -336,13 +335,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
                 
             RockVol = Rock_volume(**input_parameters_new)
-            print(get_meanstd(RockVol.fault_dict['fault_surfaces'][0][0],input_parameters['ncells'][1]))
-            print(input_parameters_new['elevation_scalefactor'],
-                  input_parameters_new['cellsize'][1],
-                  input_parameters_new['fractal_dimension'])
-            print(input_parameters_new['elevation_scalefactor']*\
-                  (input_parameters['ncells'][1]*input_parameters_new['cellsize'][1])**\
-                      (3.-input_parameters_new['fractal_dimension']))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn']:
