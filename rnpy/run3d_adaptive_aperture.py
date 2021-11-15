@@ -244,6 +244,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             
             RockVolI = Rock_volume(**input_parameters_new)
+            print("std SH",np.std(RockVolI.fault_dict['fault_surfaces'][0][0]))
             
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn'] in :
