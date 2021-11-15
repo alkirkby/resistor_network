@@ -41,7 +41,8 @@ def parse_arguments(arguments):
                       ['aperture_type',None,'type of aperture, random or constant',1,str],
                       ['mismatch_wavelength_cutoff',None,'cutoff wavelength for '+\
                        'mismatching of opposing surfaces in faults',1,float],
-                      ['elevation_scalefactor',None,'scaling factor to scale fault elevations by',1,float], 
+                      ['elevation_scalefactor',None,'scaling factor to scale fault elevations by',1,float],
+                      ['elevation_prefactor',None,'prefactor to scale elevations by',1,float],
                       ['fractal_dimension',None,'fractal dimension used to calculate surfaces',1,float],
                       ['workdir','wd','working directory',1,str],
                       ['outfile','o','output file name',1,str],
@@ -94,6 +95,9 @@ def parse_arguments(arguments):
     for key in input_parameters.keys():
         if type(input_parameters[key]) == 'str':
             input_parameters[key] = input_parameters[key].strip()
+            # convert any None values to NoneType
+            if str.lower(input_parameters[key]) == 'none':
+                input_parameters[key] = None
     
     return input_parameters, suite_parameters, repeats
     

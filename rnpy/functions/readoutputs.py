@@ -176,8 +176,19 @@ def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):
     
     return aperture
 
-def getmean(vals,mtype='meanlog10',semm=0):
+def getmean(vals,mtype='meanlog10',stdtype='sem',semm=0):
+    
+    vals = np.log10(vals)
+    
+    if stdtype =='sem':
+        std = sem(vals,axis=0)
+    elif stdtype == 'std':
+        std = np.std(vals,axis=0)
+    
     if mtype=='meanlog10':
-        return 10**(np.nanmean(np.log10(vals),axis=0)+semm*sem(np.log10(vals),axis=0))
+        mean = np.nanmean(vals,axis=0)
+
     elif mtype == 'median':
-        return 10**(np.nanmedian(np.log10(vals),axis=0) + semm*sem(np.log10(vals),axis=0))
+        mean =  np.nanmedian(vals,axis=0)
+                             
+    return 10**(mean+semm*std)

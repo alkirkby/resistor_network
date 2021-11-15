@@ -77,6 +77,7 @@ class Rock_volume():
                                a = 3.5,
                                mismatch_wavelength_cutoff = None,
                                elevation_scalefactor = 1e-3,
+                               elevation_prefactor=1,
                                aperture_type = 'random',
                                aperture_list = None,
                                fault_surfaces = None,
@@ -412,7 +413,7 @@ class Rock_volume():
                                         )
             aperture_input['cs'] = cellsize_faultplane
             for key in ['fractal_dimension','fault_separation','offset',
-                        'elevation_scalefactor', 'fault_surfaces',
+                        'elevation_scalefactor', 'fault_surfaces', 'elevation_prefactor',
                         'mismatch_wavelength_cutoff','aperture_type',
                         'correct_aperture_for_geometry','aperture_list',
                         'preserve_negative_apertures','random_numbers_dir']:

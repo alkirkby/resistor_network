@@ -70,9 +70,9 @@ def get_faultpair_defaults(cs, lc):
 
 
 
-def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=None,
+def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
                      lc=None,fcw=None,matchingmethod='me',beta=0.6,
-                     random_numbers_dir=None):
+                     random_numbers_dir=None,prefactor=1.):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
@@ -103,11 +103,8 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=None,
         size += 1
     
     lc, fc = get_faultpair_defaults(cs, lc)
+
     
-    if scalefactor is None:
-        scalefactor = 1.9e-3
-        
-    std = scalefactor*(cs*size_noclip)**(3.-D)
     
     # get frequency components
     pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
@@ -161,16 +158,16 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=None,
     # np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
     # np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
     # define fourier components
-    y1 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    y1 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     
     if matchingmethod == 'Glover':
         gamma[f2>2.*fc] = 0.
         gamma[f2<2.*fc] = beta*(1.-(f2[f2<2.*fc]/(2.*fc)))
-        y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
     else:
         gamma = f2/fc
         gamma[f2 > fc] = 1.
-        y2 = prepare_ifft_inputs((p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
    
     
     # use inverse discrete fast fourier transform to get surface heights
@@ -178,7 +175,8 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=None,
     h2 = np.fft.irfftn(y2,y2.shape)
     
     # scale so that standard deviation is as specified
-    if std is not None:
+    if scalefactor is not None:
+        std = scalefactor*(cs*size_noclip)**(3.-D)
         ic = int(h1.shape[1]/2)
         i0 = int(ic-size_noclip/2)
         i1 = int(ic+size_noclip/2)

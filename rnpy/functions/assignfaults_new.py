@@ -287,6 +287,7 @@ def assign_fault_aperture(fault_uvw,
                           fractal_dimension = 2.5, 
                           mismatch_wavelength_cutoff = None, 
                           elevation_scalefactor = None,
+                          prefactor = 1.,
                           correct_aperture_for_geometry = True,
                           aperture_type = 'random',
                           fill_array = True,
@@ -442,6 +443,7 @@ def assign_fault_aperture(fault_uvw,
                                                     cs)
                 
             faultpair_inputs['random_numbers_dir'] = random_numbers_dir
+            faultpair_inputs['prefactor'] = elevation_prefactor
             
             build = False
             if fault_surfaces is None:
