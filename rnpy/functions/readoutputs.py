@@ -19,49 +19,29 @@ def update_idx_dict(idx_dict):
         
     return idx_dict
     
-
-def interpolate_to_all_fs(outputs,fs_list=None,idx_dict=None):
-    """
-    Interpolate outputs from simulations to all fault separations
-
-    Parameters
-    ----------
-    outputs : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    data_dict1 : TYPE
-        DESCRIPTION.
-
-    """
-    data_dict1 = {}
-    if fs_list is None:
-        data_dict1['fs'] = np.unique(outputs[:,:,0])
+def get_idx_list(outputs,idx_dict,key_param='fs'):
+        
+    if outputs.dtype.names is None:
+        idx_dict = update_idx_dict(idx_dict)
+        idx_list = list(idx_dict.keys())
+        idx_list.remove(key_param)
+        
     else:
-        data_dict1['fs'] = fs_list
-    nrpts = outputs.shape[0]
-    
-    idx_dict = update_idx_dict(idx_dict)
-
-    for pname in idx_dict.keys():
-        if pname != 'fs':
-            i = idx_dict[pname]
-            data_dict1[pname] = np.zeros((nrpts,data_dict1['fs'].shape[0]))
-            for r in range(nrpts):
-                if pname in ['res','k']:
-                    # interpolate in log space
-                    func = interp1d(outputs[r,:,idx_dict['fs']],np.log10(outputs[r,:,i]),bounds_error=False)
-                    data_dict1[pname][r] = 10**func(data_dict1['fs'])
-                else:
-                    # interpolate in linear space
-                    func = interp1d(outputs[r,:,idx_dict['fs']],outputs[r,:,i],bounds_error=False)
-                    data_dict1[pname][r] = func(data_dict1['fs'])   
+        idx_list = ['fault_separation','conductive_fraction']+\
+                   ['resistivity_bulk_'+direction for direction in plane]+\
+                   ['permeability_bulk_'+direction for direction in plane]+\
+                   ['contact_area']
+        perp_direction = 'xyz'
+        for direction in plane:
+            perp_direction.replace(direction,'')
+        idx_list += ['cellsize_'+perp_direction]
+        idx_list.remove(key_param)
             
-    return data_dict1
+        
+    return idx_list, idx_dict
 
 
-def interpolate_to_permeability_values(outputs,permeability_values,idx_dict=None):
+def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz', key_param = 'fs'):
     """
     Interpolate outputs from simulations to all fault separations
 
@@ -77,29 +57,103 @@ def interpolate_to_permeability_values(outputs,permeability_values,idx_dict=None
 
     """
     data_dict1 = {}
-    data_dict1['k'] = permeability_values
+
+    # get number of repeats
     nrpts = outputs.shape[0]
+
+    # get index list to loop through
+    idx_list, idx_dict = get_idx_list(outputs,idx_dict,key_param=key_param)
+
+    # assign fixed values that we are interpolating variables to
+    # get from outputs if not provided
+    if value_list is None:
+        
+        if outputs.dtype.names is None:
+            ifs = idx_dict[key_param]
+            data_dict1[key_param] = np.unique(outputs[:,:,ifs])
+        else:
+            ifs = key_param
+            data_dict1[key_param] = np.unique(outputs[ifs])      
+    else:
+        data_dict1[key_param] = value_list
     
-    idx_dict = update_idx_dict(idx_dict)
-
-
-    for pname in idx_dict.keys():
-        if pname != 'k':
-            i = idx_dict[pname]
-            data_dict1[pname] = np.zeros((nrpts,data_dict1['k'].shape[0]))
-            for r in range(nrpts):
-                if pname in ['res','cf']:
-                    # interpolate in log space
-                    func = interp1d(np.log10(outputs[r,:,idx_dict['k']]),np.log10(outputs[r,:,i]),bounds_error=False)
-                    data_dict1[pname][r] = 10**func(np.log10(data_dict1['k']))
-                else:
-                    # interpolate in linear space (but log permeability)
-                    # func = interp1d(outputs[r,:,idx_dict['k']],outputs[r,:,i],bounds_error=False)
-                    # data_dict1[pname][r] = func(data_dict1['k'])     
-                    func = interp1d(np.log10(outputs[r,:,idx_dict['k']]),outputs[r,:,i],bounds_error=False)
-                    data_dict1[pname][r] = func(np.log10(data_dict1['k']))              
+    
+    for pname in idx_list:
+        if outputs.dtype.names is None:
+            interp_x = outputs[:,:,idx_dict[key_param]]
+            interp_y = outputs[:,:,idx_dict[pname]]
+        else:
+            interp_x = outputs[key_param]
+            interp_y = outputs[pname]
+        data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
+        for r in range(nrpts):
+            if pname.split('_')[0] in ['res','k','permeability','resistivity']:
+                # interpolate resistivity and permeability in log space
+                func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
+                data_dict1[pname][r] = 10**func(data_dict1[key_param])
+                # print(pname,key_param)
+                # print(data_dict1[pname][r])
+                # print(data_dict1[key_param])
+                # print(data_dict1[pname][r])
+            else:
+                # interpolate other parametersin linear space
+                func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
+                data_dict1[pname][r] = func(data_dict1[key_param])   
             
     return data_dict1
+
+def interpolate_to_all_fs(outputs,fs_list=None,idx_dict = None, plane='yz'):
+    """
+    Interpolate outputs from simulations to all fault separations
+
+    Parameters
+    ----------
+    outputs : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    data_dict1 : TYPE
+        DESCRIPTION.
+
+    """    
+    if outputs.dtype.names is None:
+        key_param = 'fs'
+    else:
+        key_param = 'fault_separation'
+        
+    return interpolate_to_all(outputs,
+                              value_list=fs_list,
+                              key_param=key_param,
+                              idx_dict=idx_dict,
+                              plane=plane)    
+
+
+def interpolate_to_permeability_values(outputs,permeability_values,idx_dict=None,direction='z',plane='yz'):
+    """
+    Interpolate outputs from simulations to all fault separations
+
+    Parameters
+    ----------
+    outputs : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    data_dict1 : TYPE
+        DESCRIPTION.
+
+    """              
+    if outputs.dtype.names is None:
+        key_param = 'k'
+    else:
+        key_param = 'permeability_'+direction
+    
+    return interpolate_to_all(outputs,
+                              value_list=permeability_values,
+                              key_param=key_param,
+                              idx_dict=idx_dict,
+                              plane=plane)
 
 
 def bulk_permeability(permeability,x_cellsize,cellsize_max,permeability_matrix=1e-18):
@@ -227,3 +281,43 @@ def get_param(fn,param_name):
                     
                 return paramlist
     
+def _get_ncols(fn,delimiter=' '):
+    with open(fn) as openfile:
+        for line in openfile:
+            if not line.startswith('#'):
+                line = openfile.readline()
+                return len(line.split(delimiter))
+
+def read_header(fn):
+    ncols = _get_ncols(fn)
+    with open(fn) as openfile:
+        for line in openfile:
+            if len(line.split()) == ncols + 1:
+                if 'fault_separation' in line:
+                    header_names = line.strip().split()[1:]
+                    return header_names
+
+
+def load_outputs(fn,clip=0):
+    """
+    
+
+    Parameters
+    ----------
+    fn : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    outputs = np.genfromtxt(fn,names=read_header(fn))
+
+    nr = len(np.unique(outputs['repeat']))
+    nfs = int(len(outputs)/nr)
+    outputs = outputs.reshape(nr,nfs)
+    # clip data
+    return outputs[:,:outputs.shape[1]-clip]
+
