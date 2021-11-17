@@ -192,3 +192,38 @@ def getmean(vals,mtype='meanlog10',stdtype='sem',semm=0):
         mean =  np.nanmedian(vals,axis=0)
                              
     return 10**(mean+semm*std)
+
+
+def get_param(fn,param_name):
+    """
+    
+
+    Parameters
+    ----------
+    fn : str
+        full path to output file.
+    param_name : str
+        name of parameter to get
+
+    Returns
+    -------
+    Parameter value used in simulation file provided
+
+    """
+
+    with open(fn) as openfile:
+        for line in openfile:
+            if param_name in line:
+                paramlist = line.strip().split()[2:]
+                try:
+                    paramlist = [float(val) for val in paramlist]
+                except:
+                    pass
+    
+                if len(paramlist) == 1:
+                    paramlist = paramlist[0]
+                if param_name == 'ncells':
+                    paramlist = [int(val) for val in paramlist]
+                    
+                return paramlist
+    

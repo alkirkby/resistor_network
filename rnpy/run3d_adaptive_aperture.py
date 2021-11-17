@@ -256,7 +256,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 tracemalloc.start()
                 
             solver_type = get_solver_type(input_parameters['solver_type'],fs, RockVolI.ncells)
-                
+            
             RockVolI.solve_resistor_network2(method=solver_type)
             
             if trace_mem:
@@ -294,6 +294,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
+                # only save 1 copy of fault surfaces
+                props_to_save.remove('fault_surfaces')
+                props_to_save.remove('fault_edges')
                 
         # run infilling runs
         count = len(fault_separations)
@@ -308,6 +311,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             kjump = np.amax(kjump,axis=1)
             resjump = np.amax(resjump,axis=1)
+            
             
             # find whether we have a bigger jump (relative to the total range)
             # somewhere in the permeability curve, or in the resistivity curve

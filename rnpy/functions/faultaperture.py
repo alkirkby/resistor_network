@@ -98,7 +98,7 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
 
     ===========================================================================    
     """
-        
+    
     if size % 2 != 0:
         size += 1
     
