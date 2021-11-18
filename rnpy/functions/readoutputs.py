@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import sem
 
 
-def update_idx_dict(idx_dict,plane='yz', direction='z'):
+def update_idx_dict(idx_dict):
     if idx_dict is None:
         idx_dict = {'fs':0,'cf':1,'res':2,'k':3,'xcs':5}
     else:
@@ -19,7 +19,7 @@ def update_idx_dict(idx_dict,plane='yz', direction='z'):
         
     return idx_dict
     
-def get_idx_list(outputs,idx_dict,key_param='fs'):
+def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
         
     if outputs.dtype.names is None:
         idx_dict = update_idx_dict(idx_dict)
