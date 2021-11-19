@@ -99,6 +99,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         if plot_by in ['ncells','cellsize']:
             idx = 'xyz'.index(direction)
             param = param[odi]
+            if plot_by == 'cellsize':
+                param = np.round(param*1e3,2)
         
         data_dict[param] = interpolate_to_all_fs(outputs)
         
@@ -176,7 +178,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         # print(y)
 
         label = label_prefix + '%s = %s'%(plot_by,val)
-        if plot_by == 'offset':
+        if plot_by in ['offset','cellsize']:
             label += 'mm'
 
         plt.plot(plotx, y, color=colors[i], label=label)
