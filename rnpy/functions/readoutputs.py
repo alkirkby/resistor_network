@@ -9,6 +9,9 @@ from scipy.interpolate import interp1d
 from scipy.stats import sem
 
 
+def get_perp(plane):
+    return [val for val in 'xyz' if val not in plane][0]
+
 def update_idx_dict(idx_dict):
     if idx_dict is None:
         idx_dict = {'fs':0,'cf':1,'res':2,'k':3,'xcs':5}
@@ -31,9 +34,7 @@ def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
                    ['resistivity_bulk_'+direction for direction in plane]+\
                    ['permeability_bulk_'+direction for direction in plane]+\
                    ['contact_area']
-        perp_direction = 'xyz'
-        for direction in plane:
-            perp_direction.replace(direction,'')
+        perp_direction = get_perp(plane)
         idx_list += ['cellsize_'+perp_direction]
         idx_list.remove(key_param)
             
@@ -83,22 +84,24 @@ def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz', key_
             interp_x = outputs[:,:,idx_dict[key_param]]
             interp_y = outputs[:,:,idx_dict[pname]]
         else:
-            interp_x = outputs[key_param]
-            interp_y = outputs[pname]
-        data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
-        for r in range(nrpts):
-            if pname.split('_')[0] in ['res','k','permeability','resistivity']:
-                # interpolate resistivity and permeability in log space
-                func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
-                data_dict1[pname][r] = 10**func(data_dict1[key_param])
-                # print(pname,key_param)
-                # print(data_dict1[pname][r])
-                # print(data_dict1[key_param])
-                # print(data_dict1[pname][r])
-            else:
-                # interpolate other parametersin linear space
-                func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
-                data_dict1[pname][r] = func(data_dict1[key_param])   
+            if pname in outputs.dtype.names:
+                interp_x = outputs[key_param]
+                interp_y = outputs[pname]
+        if pname in outputs.dtype.names:
+            data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
+            for r in range(nrpts):
+                if pname.split('_')[0] in ['res','k','permeability','resistivity']:
+                    # interpolate resistivity and permeability in log space
+                    func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
+                    data_dict1[pname][r] = 10**func(data_dict1[key_param])
+                    # print(pname,key_param)
+                    # print(data_dict1[pname][r])
+                    # print(data_dict1[key_param])
+                    # print(data_dict1[pname][r])
+                else:
+                    # interpolate other parametersin linear space
+                    func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
+                    data_dict1[pname][r] = func(data_dict1[key_param])   
             
     return data_dict1
 
@@ -147,7 +150,7 @@ def interpolate_to_permeability_values(outputs,permeability_values,idx_dict=None
     if outputs.dtype.names is None:
         key_param = 'k'
     else:
-        key_param = 'permeability_'+direction
+        key_param = 'permeability_bulk_'+direction
     
     return interpolate_to_all(outputs,
                               value_list=permeability_values,
@@ -177,7 +180,7 @@ def bulk_permeability(permeability,x_cellsize,cellsize_max,permeability_matrix=1
     
     return (permeability*x_cellsize + \
              permeability_matrix*(cellsize_max - x_cellsize))/cellsize_max
-        
+
         
 def bulk_resistivity(resistivity,x_cellsize,cellsize_max,
                      res_matrix=1000):
@@ -204,6 +207,16 @@ def bulk_resistivity(resistivity,x_cellsize,cellsize_max,
 
 def bulk_cfraction(cfraction,x_cellsize,cellsize_max):
     return cfraction*x_cellsize/cellsize_max
+
+
+
+def resistivity_fault(resistivity_bulk, resistivity_matrix, porosity):
+    return porosity/(1./resistivity_bulk - (1.-porosity)/resistivity_matrix)
+
+
+def permeability_fault(permeability_bulk, permeability_matrix, porosity):
+    return (permeability_bulk - (1.-porosity)*permeability_matrix)/porosity
+
 
 def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):
     
