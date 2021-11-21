@@ -413,7 +413,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             ca_master = np.hstack([ca_master,contactarea])
 
         
-        write_outputs(input_parameters,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, ca_master,rank, outfilename)
+        write_outputs(input_parameters_new,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, ca_master,rank, outfilename)
         
     return outfilename
 
