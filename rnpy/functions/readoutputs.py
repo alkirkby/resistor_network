@@ -87,21 +87,21 @@ def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz', key_
             if pname in outputs.dtype.names:
                 interp_x = outputs[key_param]
                 interp_y = outputs[pname]
-        if pname in outputs.dtype.names:
-            data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
-            for r in range(nrpts):
-                if pname.split('_')[0] in ['res','k','permeability','resistivity']:
-                    # interpolate resistivity and permeability in log space
-                    func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
-                    data_dict1[pname][r] = 10**func(data_dict1[key_param])
-                    # print(pname,key_param)
-                    # print(data_dict1[pname][r])
-                    # print(data_dict1[key_param])
-                    # print(data_dict1[pname][r])
-                else:
-                    # interpolate other parametersin linear space
-                    func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
-                    data_dict1[pname][r] = func(data_dict1[key_param])   
+        # if pname in outputs.dtype.names:
+        data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
+        for r in range(nrpts):
+            if pname.split('_')[0] in ['res','k','permeability','resistivity']:
+                # interpolate resistivity and permeability in log space
+                func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
+                data_dict1[pname][r] = 10**func(data_dict1[key_param])
+                # print(pname,key_param)
+                # print(data_dict1[pname][r])
+                # print(data_dict1[key_param])
+                # print(data_dict1[pname][r])
+            else:
+                # interpolate other parametersin linear space
+                func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
+                data_dict1[pname][r] = func(data_dict1[key_param])   
             
     return data_dict1
 

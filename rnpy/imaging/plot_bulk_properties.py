@@ -9,9 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
 
-from rnpy.functions.readoutputs import load_outputs, interpolate_to_all_fs, get_param,\
+from rnpy.functions.readoutputs import get_param,\
     permeability_fault, resistivity_fault, bulk_resistivity, bulk_permeability,\
     bulk_cfraction, getmean, get_perp
+    
+from rnpy.imaging.plotting_tools import prepare_data_dict
 
 
 def _get_colors():
@@ -79,30 +81,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         else:
             range_num = 1
     
-    # direction in plane of fault but perpendicular to flow
-    other_direction= [dd for dd in plane if dd != direction][0]
-    odi = 'xyz'.index(other_direction)
-    
-    # load data and interpolate to all fault separation values
-    for fn in fn_list:
-        outputs = load_outputs(fn,clip=clip)
-        param = get_param(fn, plot_by)
-        
-        if plot_by == 'offset':
-            # convert offset (as a fraction of fault size) to offset in mm
-            # obtain number of cells and cellsize in direction perpendicular to flow
-            cs = get_param(fn,'cellsize')[odi]
-            nc = get_param(fn,'ncells')[odi]
-            # multiply, rounding and converting to mm
-            param = np.around(param*cs*nc*1e3,2)
-        
-        if plot_by in ['ncells','cellsize']:
-            idx = 'xyz'.index(direction)
-            param = param[odi]
-            if plot_by == 'cellsize':
-                param = np.round(param*1e3,2)
-        
-        data_dict[param] = interpolate_to_all_fs(outputs)
+    data_dict, output_dtype_names = prepare_data_dict(fn_list,plot_by,plane,direction,clip=clip)
         
     
     data_keys = np.array(list(data_dict.keys()))
@@ -119,7 +98,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         data = data_dict[val]
         
         # get x and y values to plot
-        if outputs.dtype.names is None:
+        if output_dtype_names is None:
             cf = data['cf']
             xcs = data['xcs']
             if xparam == 'apm':
@@ -142,10 +121,10 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             
             
         # assume all runs used the same matrix permeability/resistivity values
-        km = get_param(fn, 'permeability_matrix')
+        km = get_param(fn_list[0], 'permeability_matrix')
         if km is None:
             km = 1e-18
-        rm = get_param(fn, 'resistivity_matrix')
+        rm = get_param(fn_list[0], 'resistivity_matrix')
             
         # apply any correction required to plot bulk or fault properties
         # print(yvals[0])

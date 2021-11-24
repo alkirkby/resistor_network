@@ -295,8 +295,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
                 # only save 1 copy of fault surfaces
-                props_to_save.remove('fault_surfaces')
-                props_to_save.remove('fault_edges')
+                for propname in ['fault_edges','fault_surfaces']:
+                    if propname in props_to_save:
+                        props_to_save.remove(propname)
                 
         # run infilling runs
         count = len(fault_separations)
@@ -390,6 +391,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             if r == 0:
                 save_arrays(RockVol,props_to_save,'r%1i'%r)
+                # only save 1 copy of fault surfaces
+                for propname in ['fault_edges','fault_surfaces']:
+                    if propname in props_to_save:
+                        props_to_save.remove(propname)
+
             
             count += 1
             
