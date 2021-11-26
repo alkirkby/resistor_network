@@ -9,11 +9,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
 
-from rnpy.functions.readoutputs import get_param,\
-    permeability_fault, resistivity_fault, bulk_resistivity, bulk_permeability,\
-    bulk_cfraction, getmean, get_perp
+from rnpy.functions.readoutputs import get_param, getmean
     
-from rnpy.imaging.plotting_tools import prepare_data_dict
+from rnpy.imaging.plotting_tools import prepare_data_dict, prepare_plotdata
 
 
 def _get_colors():
@@ -71,9 +69,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
 
     """
 
-    data_dict = {}
     colors = _get_colors()
-    perp_direction = get_perp(plane)
+    
     
     if range_num is None:
         if range_type == 'percentile':
@@ -89,61 +86,19 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
     
     # loop through data
     for i, val in enumerate(data_keys):
-        
-        xkey_dict = {'ca':'contact_area','cf':'conductive_fraction',
-                     'fs':'fault_separation','xcs':'cellsize_'+perp_direction,
-                     'apm':'mean_aperture',
-                     'k':'permeability_bulk_'+direction,
-                     'res':'resistivity_bulk_'+direction}
-        data = data_dict[val]
-        
-        # get x and y values to plot
-        if output_dtype_names is None:
-            cf = data['cf']
-            xcs = data['xcs']
-            if xparam == 'apm':
-                plotx = cf*xcs
-            else:
-                plotx = data[xparam]   
-            yvals = data[yparam]
-        else:
-            cf = data['conductive_fraction']
-            xcs = data['cellsize_'+perp_direction]
-            if xparam == 'apm':
-                plotx = cf*xcs
-            else:
-                plotx = data[xkey_dict[xparam]] 
-            yvals = data[xkey_dict[yparam]]
-            
-            
-        if csmax == 'max':
-            csmax = np.amax(xcs)
-            
-            
         # assume all runs used the same matrix permeability/resistivity values
         km = get_param(fn_list[0], 'permeability_matrix')
         if km is None:
             km = 1e-18
         rm = get_param(fn_list[0], 'resistivity_matrix')
+        
+        
+        plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,rm,km,
+                                        plane,direction,output_dtype_names)
             
-        # apply any correction required to plot bulk or fault properties
-        # print(yvals[0])
-        if csmax is None:
-            if yparam.startswith('res'):
-                yvals = resistivity_fault(yvals,rm,cf)
-                xkey_dict['res'] = xkey_dict['res'].replace('bulk_','fault_')
-            else:
-                yvals = permeability_fault(yvals,km,cf)
-                xkey_dict['k'] = xkey_dict['k'].replace('bulk_','fault_')
-        else:
-            if xparam in ['cf','conductive_fraction']:
-                plotx = bulk_cfraction(plotx,xcs,csmax)
-            if yparam.startswith('res'):
-                yvals = bulk_resistivity(yvals,xcs,csmax,resistivity_matrix=rm)
-            else:
-                yvals = bulk_permeability(yvals,xcs,csmax,permeability_matrix=km)       
 
-        plotx = np.mean(plotx,axis=0)
+        
+
             
         # compute min, max and mean/median values to plot
         # print(yvals[:,0],yvals[:,-1])
@@ -174,6 +129,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             
         plt.legend(fontsize=8)
             
-        plt.xlabel(str.capitalize(xkey_dict[xparam]).replace('_',' '))
-        plt.ylabel(str.capitalize(xkey_dict[yparam]).replace('_',' '))
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        
+    return
         

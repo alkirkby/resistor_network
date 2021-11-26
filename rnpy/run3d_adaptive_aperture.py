@@ -96,8 +96,9 @@ def parse_arguments(arguments):
         if type(input_parameters[key]) == 'str':
             input_parameters[key] = input_parameters[key].strip()
 
-    if input_parameters['elevation_scalefactor'] == 0.:
-        input_parameters['elevation_scalefactor'] = None
+    if 'elevation_scalefactor' in input_parameters.keys():
+        if input_parameters['elevation_scalefactor'] == 0.:
+            input_parameters['elevation_scalefactor'] = None
     
     return input_parameters, suite_parameters, repeats
     
