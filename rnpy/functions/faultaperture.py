@@ -364,7 +364,216 @@ def old_correct_aperture_geometry(faultsurface_1,aperture,dl):
     return bf, bc
     
 
+def get_value_edges(arr, hv = 1):
+    """
+    
+    Get an array value on the "edges" between nodes by taking a mean along the
+    x and y axis.
 
+    Parameters
+    ----------
+    arr : numpy array, shape (n, m)
+        Array to calculate edge values for.
+    hv : int, optional
+        Half volume to calculate for. 1 (First half volume) will include the first
+        value across the axis of averaging but not the last.  2 (second half
+        volume) will exclude the first value across the axis of averaging but
+        include the last. The default is 1.
+
+    Returns
+    -------
+    numpy array, shape (2, n-1, m-1)
+        Averaged values on edges defined for the x and y directions
+
+    """
+    if hv == 1:
+        # first half volume
+        return np.array([(arr[1:,:-1] + arr[:-1,:-1])/2., (arr[:-1,1:] + arr[:-1,:-1])/2.])
+    elif hv == 2:
+        # second half volume
+        return np.array([(arr[1:,1:] + arr[:-1,1:])/2., (arr[1:,1:] + arr[1:,:-1])/2.])
+
+
+def get_value_plane_centre(arr):
+    """
+    
+    Get an array value on the centre of the plane between 4 nodes by taking a 
+    mean
+
+    Parameters
+    ----------
+    arr : numpy array, shape (n, m)
+        Array to calculate plane values for.
+
+    Returns
+    -------
+    numpy array, shape (n-1, m-1)
+        Averaged values on planes
+
+    """
+    value_plane_centre = (arr[:-1,1:] + arr[:-1,:-1] + arr[1:,1:] + arr[1:,:-1])/4.
+    return np.array([value_plane_centre, value_plane_centre])
+
+
+
+
+def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
+    """
+
+
+    Parameters
+    ----------
+    bN : TYPE
+        DESCRIPTION.
+    bNsm : TYPE
+        DESCRIPTION.
+    rN : TYPE
+        DESCRIPTION.
+    dl : TYPE
+        DESCRIPTION.
+    prop : TYPE, optional
+        DESCRIPTION. The default is 'hydraulic'.
+    hv : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    b_hv : TYPE
+        DESCRIPTION.
+    beta_hv : TYPE
+        DESCRIPTION.
+
+    """
+    
+    # dl for the half volume
+    dlhv = dl/2.
+    
+    # aperture at edges between node points. Dimensions 2, nx, ny as different for 
+    # flow in x and y directions
+    bf_hv = get_value_edges(bN, hv=hv)
+    bfsm_hv = get_value_edges(bNsm, hv=hv)
+
+    # aperture at centre of plates
+    bP = get_value_plane_centre(bN)
+    bPsm = get_value_plane_centre(bNsm)
+    
+    # z component of position vector at edges (perpendicular to flow) between faces
+    rf_hv = get_value_edges(rN, hv=hv)
+    rP = get_value_plane_centre(rN)
+    
+    # z component of the unit normal vector from the midpoint (by definition, nz = deltal/(|rf - rP|))
+    nz_hv = dlhv/(((rf_hv - rP)**2 + dlhv**2)**0.5)
+    
+
+    if prop == 'hydraulic':
+        # define correction terms kappa and beta
+        kappa_hv = nz_hv**2
+        beta_hv = nz_hv**4
+    
+        # define angle theta (using smoothed plates)
+        theta_hv = np.arctan(kappa_hv*np.abs(bfsm_hv - bPsm)/dlhv)
+        
+        # theta correction factor
+        thetacorr_hv = 3*(np.tan(theta_hv) - theta_hv)/(np.tan(theta_hv))**3.
+        
+        # at very low theta angles the correction becomes unstable
+        thetacorr_hv[np.abs(theta_hv) < 1e-4] = 1.0
+        
+        # corrected aperture for the half volume
+        b_hv = ((2.*(bf_hv**2.)*(bP**2.)/(bf_hv + bP))*thetacorr_hv)**(1./3.)
+        
+        
+    elif prop == 'electric':
+        # beta = nz**2 for current
+        beta_hv = nz_hv**2
+
+        b_hv = (bf_hv - bP)/(np.log(bf_hv) - np.log(bP))
+    
+    
+    return b_hv, beta_hv
+
+
+def smooth_fault_surfaces(h1,h2,fs,dl):
+    ks = int(round(fs/dl/2.))
+    size = max(h1.shape) - 1
+    
+    if ks > size*5:
+        h1sm = np.ones_like(h1)*0.
+        h2sm = h1sm + fs
+    if ks > 1:
+        h1sm = median_filter(h1,size=ks)
+        h2sm = median_filter(h2,size=ks)
+        h2sm[h2sm-h1sm < 1e-10] = h1sm[h2sm-h1sm < 1e-10] + 1e-10
+    else:
+        h1sm = h1.copy()
+        h2sm = h2.copy()
+        
+    return h1sm, h2sm
+    
+
+
+
+def correct_aperture_for_geometry(h1,h2,fs,dl):
+    """
+    
+    Get mean hydraulic and electric aperture along fault surfaces.
+    
+    For hydraulic aperture the Local Cubic Law correction of Brush & Thomson 
+    (2003) equation 33, originally from Nichol et al 1999, is used with
+    modification that the fault surfaces are smoothed for calculation of the
+    theta angle between plates and the midpoint, with smoothing dependent on
+    fault separation.
+    
+    For electric aperture the correction of Kirkby et al. (2016) equation 23 is
+    applied.
+
+    Parameters
+    ----------
+    h1 : TYPE
+        DESCRIPTION.
+    h2 : TYPE
+        DESCRIPTION.
+    fs : TYPE
+        DESCRIPTION.
+    dl : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    bmean_hydraulic : TYPE
+        DESCRIPTION.
+    bmean_electric : TYPE
+        DESCRIPTION.
+
+    """
+
+    zero_ap = np.where(h2-h1 < 1e-10)
+    h2[zero_ap] = h1[zero_ap] + 1e-10
+    
+    h1sm,h2sm = smooth_fault_surfaces(h1, h2, fs, dl)
+
+    # aperture at nodes
+    bN = h2 - h1
+    bNsm = h2sm - h1sm
+    
+    # horizontal length of half volumes
+    dlhv = dl/2.
+    
+    # midpoint between plates, at nodes (smoothed)
+    rN = (h1sm + h2sm)/2.
+    
+    b_hv1, beta_hv1 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=1)
+    b_hv2, beta_hv2 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=2)
+    
+    b3 = dl/(dlhv/(beta_hv1*b_hv1**3.) + dlhv/(beta_hv2*b_hv2**3.))
+    bmean_hydraulic = b3**(1./3.)
+    
+    be_hv1, betae_hv1 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=1)
+    be_hv2, betae_hv2 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=2)
+    
+    bmean_electric = dl/(dlhv/(betae_hv1*be_hv1) + dlhv/(betae_hv2*be_hv2))
+    
+    return bmean_hydraulic, bmean_electric    
     
 
 
