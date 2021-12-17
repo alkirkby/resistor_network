@@ -479,15 +479,19 @@ def assign_fault_aperture(fault_uvw,
             else:
                 # ensure it is an integer
                 offset = int(offset)
+                
             
             if offset > 0:
                 b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
             else:
                 b = h1 - h2 + fault_separation[i]
                 
+            
+                
             # set zero values to really low value to allow averaging
             if not preserve_negative_apertures:
                 b[b <= 1e-50] = 1e-50
+                
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
             
@@ -625,7 +629,7 @@ def assign_fault_aperture(fault_uvw,
             aperture_list_f.append(tmp_aplist[1])
             aperture_list_c.append(tmp_aplist[2])
 
-          
+        
 #        ap_array[i] *= fault_array
 
     if fill_array:

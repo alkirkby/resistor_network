@@ -11,7 +11,7 @@ import numpy as np
 
 from rnpy.functions.readoutputs import get_param, getmean
     
-from rnpy.imaging.plotting_tools import prepare_data_dict, prepare_plotdata
+from rnpy.imaging.plotting_tools import prepare_data_dict, prepare_plotdata, clip_by_ca
 
 
 def _get_colors():
@@ -31,8 +31,8 @@ def hex2rgb(hexstr):
 
 
 def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,
-            direction='z', plane='yz', range_type='percentile',range_num=None,
-            label_prefix = ''):
+            direction='z', plane='yz', mean_type='median',range_type='percentile',range_num=None,
+            label_prefix = '',interpolate_to='fs',ca_threshold=None):
     """
     
 
@@ -78,7 +78,9 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         else:
             range_num = 1
     
-    data_dict, output_dtype_names = prepare_data_dict(fn_list,plot_by,plane,direction,clip=clip)
+    data_dict, output_dtype_names = prepare_data_dict(fn_list,plot_by,plane,
+                                                      direction,clip=clip,
+                                                      interpolate_to=interpolate_to)
         
     
     data_keys = np.array(list(data_dict.keys()))
@@ -94,7 +96,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         
         
         plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,rm,km,
-                                        plane,direction,output_dtype_names)
+                                        plane,direction,output_dtype_names,interpolate_to=interpolate_to)
             
 
         
@@ -102,21 +104,56 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             
         # compute min, max and mean/median values to plot
         # print(yvals[:,0],yvals[:,-1])
-        if range_type == 'percentile':
-            y0,y,y1 = [np.percentile(yvals,perc,axis=0) for perc in \
-                       [50-range_num, 50, 50+range_num]]
-        elif range_type == 'sem':
-            y0,y,y1 = [getmean(yvals,mtype='meanlog10',stdtype='sem',semm=i) \
-                       for i in [-range_num,0,range_num]]
+        # print(yvals.shape,plotx.shape)
+        if len(yvals.shape) == 2:
+
+            y=getmean(yvals,mtype=mean_type)
+            if range_type == 'percentile':
+                y0,y1 = [np.percentile(yvals,perc,axis=0) for perc in \
+                           [50-range_num, 50+range_num]]
+            elif range_type == 'sem':
+                y0,y1 = [getmean(yvals,mtype=mean_type,stdtype='sem',semm=i) \
+                           for i in [-range_num,range_num]]
+                    
+
+            if ca_threshold is not None:
+                # for xx in [y,y0,y1]:
+                y = clip_by_ca(y,
+                           data_dict[val]['contact_area'][list('xyz').index(direction)],
+                           ca_threshold)
+                y0[np.isnan(y)] = np.nan
+                y1[np.isnan(y)] = np.nan
                 
-        # print(y)
+            plt.fill_between(plotx, y0, y1, alpha=0.2, color=colors[i])
+        
+        elif len(plotx.shape) == 2:
+            if range_type == 'percentile':
+                x0,x1 = [np.percentile(plotx,perc,axis=0) for perc in \
+                           [50-range_num, 50+range_num]]
+            elif range_type == 'sem':
+                x0,x1 = [getmean(plotx,mtype=mean_type,stdtype='sem',semm=i) \
+                           for i in [-range_num,range_num]]
+            
+            plotx=getmean(plotx,mtype=mean_type)
+            y = yvals
+            
+            if ca_threshold is not None:
+                
+                y = clip_by_ca(y,
+                           data_dict[val]['contact_area'][list('xyz').index(direction)],
+                           ca_threshold)
+                x0[np.isnan(y)] = np.nan
+                x1[np.isnan(y)] = np.nan
+
+            plt.fill_betweenx(yvals,x0,x1,alpha=0.2)
+        
 
         label = label_prefix + '%s = %s'%(plot_by,val)
         if plot_by in ['offset','cellsize']:
             label += 'mm'
 
         plt.plot(plotx, y, color=colors[i], label=label)
-        plt.fill_between(plotx, y0, y1, alpha=0.5, color=colors[i])
+        
         plt.yscale('log')
         
         if xparam not in ['ca','fs','contact_area','fault_separation']:

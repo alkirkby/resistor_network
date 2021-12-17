@@ -11,6 +11,8 @@ import os
 import numpy as np
 import scipy.stats as stats
 import scipy.optimize as so
+from scipy.ndimage import median_filter
+
 
 def R(freq):
 #    return freq**(-0.5*np.log10(freq))
@@ -188,7 +190,7 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
     return h1, h2
 
 
-def correct_aperture_geometry(faultsurface_1,aperture,dl):
+def old_correct_aperture_geometry(faultsurface_1,aperture,dl):
     """
     correct an aperture array for geometry, e.g. tapered plates or sloping
     plates
@@ -361,6 +363,8 @@ def correct_aperture_geometry(faultsurface_1,aperture,dl):
 
     return bf, bc
     
+
+
     
 
 

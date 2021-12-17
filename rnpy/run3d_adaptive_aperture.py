@@ -179,13 +179,13 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     
     wd = input_parameters['workdir']
     iruntimefn = os.path.join(wd,'iruntime%1i.dat'%rank)
-    logfile = os.path.join(wd,'logfile%i.log'%rank)
+    
     nx,ny,nz = input_parameters['ncells']
     
-    cellsizex_input = input_parameters['cellsize'][0]
     
     
     for r in repeats:
+        
         input_parameters_new = {'fault_assignment':'random'}
         # offset start time so we don't load all the memory
         time.sleep(rank*10)
