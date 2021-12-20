@@ -419,18 +419,32 @@ def get_value_plane_centre(arr):
 
 def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
     """
-
+    
+    Get the mean hydraulic/electric aperture along each successive half-
+    aperture along a fault plane.
+    
+    For hydraulic aperture the Local Cubic Law correction of Brush & Thomson 
+    (2003) equation 33, originally from Nichol et al 1999, is used with
+    modification that the fault surfaces are smoothed for calculation of the
+    theta angle between plates and the midpoint, with smoothing dependent on
+    fault separation, taken as an X-point median around the point where
+    X is 1/2 the number of horizontal cells fault separation. E.g. if cellsize
+    is 0.1mm and fault separation is 1mm then it would be a 5-point median
+    around each point
+    
+    For electric aperture the correction of Kirkby et al. (2016) equation 23 is
+    applied.
 
     Parameters
     ----------
-    bN : TYPE
+    bN : array, shape (m, n)
         DESCRIPTION.
     bNsm : TYPE
         DESCRIPTION.
     rN : TYPE
         DESCRIPTION.
-    dl : TYPE
-        DESCRIPTION.
+    dl : float
+        cell size in metres.
     prop : TYPE, optional
         DESCRIPTION. The default is 'hydraulic'.
     hv : TYPE, optional
@@ -477,7 +491,7 @@ def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
         thetacorr_hv = 3*(np.tan(theta_hv) - theta_hv)/(np.tan(theta_hv))**3.
         
         # at very low theta angles the correction becomes unstable
-        thetacorr_hv[np.abs(theta_hv) < 1e-4] = 1.0
+        thetacorr_hv[np.abs(theta_hv) < 1e-3] = 1.0
         
         # corrected aperture for the half volume
         b_hv = ((2.*(bf_hv**2.)*(bP**2.)/(bf_hv + bP))*thetacorr_hv)**(1./3.)
@@ -488,9 +502,9 @@ def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
         beta_hv = nz_hv**2
 
         b_hv = (bf_hv - bP)/(np.log(bf_hv) - np.log(bP))
+        b_hv[np.abs(bf_hv - bP) < 1e-6] = bf_hv[np.abs(bf_hv - bP) < 1e-6]
     
-    
-    return b_hv, beta_hv
+    return b_hv, beta_hv, bP
 
 
 def smooth_fault_surfaces(h1,h2,fs,dl):
@@ -513,40 +527,48 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
 
 
 
-def correct_aperture_for_geometry(h1,h2,fs,dl):
+def correct_aperture_for_geometry(h1,b,fs,dl,km=1e-18):
     """
     
     Get mean hydraulic and electric aperture along fault surfaces.
     
     For hydraulic aperture the Local Cubic Law correction of Brush & Thomson 
-    (2003) equation 33, originally from Nichol et al 1999, is used with
-    modification that the fault surfaces are smoothed for calculation of the
-    theta angle between plates and the midpoint, with smoothing dependent on
-    fault separation.
+    (2003) equation 33, originally from Nichol et al 1999, is used with the
+    following modifications:
+        - the fault surfaces are smoothed for calculation of the
+          theta angle between plates and the midpoint, with smoothing dependent 
+          on fault separation, taken as an X-point median around the point where
+          X is 1/2 the number of horizontal cells fault separation. E.g. if 
+          cellsize is 0.1mm and fault separation is 1mm then it would be a 
+          5-point median around each point
+        - average values are centred on the planes not on the edges between 
+          planes as in B & T.
     
     For electric aperture the correction of Kirkby et al. (2016) equation 23 is
     applied.
 
     Parameters
     ----------
-    h1 : TYPE
-        DESCRIPTION.
-    h2 : TYPE
-        DESCRIPTION.
-    fs : TYPE
-        DESCRIPTION.
-    dl : TYPE
-        DESCRIPTION.
+    h1 : array, shape (m, n)
+        surface elevations for fault surface 1.
+    h2 : array, shape (m, n)
+        surface elevations for fault surface 2.
+    fs : float
+        separation between the two fault planes.
+    dl : float
+        cell size in metres.
 
     Returns
     -------
-    bmean_hydraulic : TYPE
+    bmean_hydraulic : array, shape (m, n)
         DESCRIPTION.
     bmean_electric : TYPE
         DESCRIPTION.
 
     """
-
+    h2 = h1 + b
+    
+    # higher threshold for zero aperture to ensure calculations are stable
     zero_ap = np.where(h2-h1 < 1e-10)
     h2[zero_ap] = h1[zero_ap] + 1e-10
     
@@ -562,18 +584,26 @@ def correct_aperture_for_geometry(h1,h2,fs,dl):
     # midpoint between plates, at nodes (smoothed)
     rN = (h1sm + h2sm)/2.
     
-    b_hv1, beta_hv1 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=1)
-    b_hv2, beta_hv2 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=2)
+    b_hv1, beta_hv1, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=1)
+    b_hv2, beta_hv2, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=2)
     
     b3 = dl/(dlhv/(beta_hv1*b_hv1**3.) + dlhv/(beta_hv2*b_hv2**3.))
+    
     bmean_hydraulic = b3**(1./3.)
     
-    be_hv1, betae_hv1 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=1)
-    be_hv2, betae_hv2 = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=2)
+    # add apertures for flow in direction perpendicular to fault plane
+    bmean_hydraulic = np.array([bmean_hydraulic[0], bmean_hydraulic[1], bP[0]])
+    
+    be_hv1, betae_hv1, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=1)
+    be_hv2, betae_hv2, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=2)
     
     bmean_electric = dl/(dlhv/(betae_hv1*be_hv1) + dlhv/(betae_hv2*be_hv2))
     
-    return bmean_hydraulic, bmean_electric    
+    # add apertures for flow in direction perpendicular to fault plane
+    bmean_electric = np.array([bmean_electric[0], bmean_electric[1], bP[0]])
+    # print(bmean_electric[1])
+    
+    return bmean_hydraulic, bmean_electric
     
 
 

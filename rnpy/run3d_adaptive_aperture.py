@@ -130,7 +130,7 @@ def initialise_inputs(input_parameters):
         elif att in RockVol.fault_dict.keys():
             inputs[att] = RockVol.fault_dict[att]
         
-    inputs['correct_aperture_for_geometry'] = False
+    inputs['correct_aperture_for_geometry'] = True
             
         
     return inputs

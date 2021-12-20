@@ -502,11 +502,18 @@ def assign_fault_aperture(fault_uvw,
                     bf = aperture_list_hydraulic[i]
                 else:
                     if correct_aperture_for_geometry:
-                        bf, bc = rnfa.correct_aperture_geometry(h1[offset:,offset:],b,cs)
+                        print("correcting for geometry")
+                        bf, bc = rnfa.correct_aperture_for_geometry(h1[offset:,offset:],b,fault_separation[i],cs)
                     else:
-                        bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+                        print("not correcting apertures for geometry")
+                        # bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+                        bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
+                                            b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
             else:
-                bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+                print("not correcting apertures for geometry 2")
+                # bf, bc = [np.array([b[:-1,:-1]]*3)]*2
+                bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
+                                    b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
             tmp_aplist = []
             
             # assign the corrected apertures to aperture array
