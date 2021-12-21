@@ -10,7 +10,6 @@ functions relating to creation of a fractal aperture geometry
 import os
 import numpy as np
 import scipy.stats as stats
-import scipy.optimize as so
 from scipy.ndimage import median_filter
 
 
@@ -511,12 +510,12 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
     ks = int(round(fs/dl/2.))
     size = max(h1.shape) - 1
     
-    if ks > size*5:
+    if ks > size/2:
         h1sm = np.ones_like(h1)*0.
         h2sm = h1sm + fs
-    if ks > 1:
-        h1sm = median_filter(h1,size=ks)
-        h2sm = median_filter(h2,size=ks)
+    elif ks > 1:
+        h1sm = median_filter(h1,size=ks,mode='nearest')
+        h2sm = median_filter(h2,size=ks,mode='nearest')
         h2sm[h2sm-h1sm < 1e-10] = h1sm[h2sm-h1sm < 1e-10] + 1e-10
     else:
         h1sm = h1.copy()
