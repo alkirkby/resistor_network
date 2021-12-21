@@ -432,7 +432,15 @@ def assign_fault_aperture(fault_uvw,
             aperture_type = 'random'
         
         if aperture_type in ['random','constant']:
+
+            # if offset between 0 and 1, assume it is a fraction of fault size
+            if 0 < offset < 1:
+                offset = int(np.round(offset*size_noclip))
+            else:
+                # ensure it is an integer
+                offset = int(offset)
             
+            # get size of fault including padding
             size = get_faultsize(duvw,offset)
             # define direction normal to fault
             direction = list(duvw).index(0)
@@ -473,12 +481,7 @@ def assign_fault_aperture(fault_uvw,
                 else:
                     h1,h2 = [np.zeros((size,size))]*2
 
-            # if offset between 0 and 1, assume it is a fraction of fault size
-            if 0 < offset < 1:
-                offset = int(np.round(offset*size_noclip))
-            else:
-                # ensure it is an integer
-                offset = int(offset)
+
                 
             
             if offset > 0:
@@ -515,7 +518,6 @@ def assign_fault_aperture(fault_uvw,
                 bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
                                     b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
             tmp_aplist = []
-            
             # assign the corrected apertures to aperture array
             for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
                 b0,b1,b2 = bb
