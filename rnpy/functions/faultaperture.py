@@ -527,7 +527,7 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
 
 
 
-def correct_aperture_for_geometry(h1,b,fs,dl,km=1e-18):
+def correct_aperture_for_geometry(h1,b,fs,dl):
     """
     
     Get mean hydraulic and electric aperture along fault surfaces.
