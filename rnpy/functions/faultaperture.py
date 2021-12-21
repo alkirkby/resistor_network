@@ -527,7 +527,7 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
 
 
 
-def correct_aperture_for_geometry(h1,b,fs,dl):
+def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
     """
     
     Get mean hydraulic and electric aperture along fault surfaces.
@@ -572,7 +572,10 @@ def correct_aperture_for_geometry(h1,b,fs,dl):
     zero_ap = np.where(h2-h1 < 1e-10)
     h2[zero_ap] = h1[zero_ap] + 1e-10
     
-    h1sm,h2sm = smooth_fault_surfaces(h1, h2, fs, dl)
+    if smooth_midpoint:
+        h1sm,h2sm = smooth_fault_surfaces(h1, h2, fs, dl)
+    else:
+        h1sm,h2sm = h1.copy(), h2.copy()
 
     # aperture at nodes
     bN = h2 - h1
