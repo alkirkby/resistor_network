@@ -13,7 +13,7 @@ from rnpy.functions.faultaperture import build_fault_pair
 
 class testCorrectForGeometry(TestCase):
     def setUp(self):
-        self.h1, self.h2 = build_fault_pair(70,70,D=2.4,
+        self.h1, self.h2 = build_fault_pair(56,56,D=2.4,
                                             cs=2.5e-4,
                                             scalefactor=0.003,
                                             random_numbers_dir=os.path.join(TEST_DATA_ROOT,'random_seeds'))
