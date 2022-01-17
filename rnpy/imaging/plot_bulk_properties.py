@@ -32,7 +32,8 @@ def hex2rgb(hexstr):
 
 def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,
             direction='z', plane='yz', mean_type='median',range_type='percentile',range_num=None,
-            label_prefix = '',interpolate_to='fs',ca_threshold=None):
+            label_prefix = '',interpolate_to='fs',ca_threshold=None,colors=None,
+            linestyle='-'):
     """
     
 
@@ -68,8 +69,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
     None.
 
     """
-
-    colors = _get_colors()
+    if colors is None:
+        colors = _get_colors()
     
     
     if range_num is None:
@@ -81,8 +82,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
     data_dict, output_dtype_names = prepare_data_dict(fn_list,plot_by,plane,
                                                       direction,clip=clip,
                                                       interpolate_to=interpolate_to)
-        
-    
+   
     data_keys = np.array(list(data_dict.keys()))
     data_keys.sort()
     
@@ -99,14 +99,18 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
                                         plane,direction,output_dtype_names,interpolate_to=interpolate_to)
             
 
-        
 
             
-        # compute min, max and mean/median values to plot
-        # print(yvals[:,0],yvals[:,-1])
-        # print(yvals.shape,plotx.shape)
+        
+        if ca_threshold is not None:
+                ca_threshold = np.array(ca_threshold)
+                if len(ca_threshold.shape) == 2:
+                    
+                    thresh = ca_threshold[i]
+                else:
+                    thresh = ca_threshold
+        
         if len(yvals.shape) == 2:
-
             y=getmean(yvals,mtype=mean_type)
             if range_type == 'percentile':
                 y0,y1 = [np.percentile(yvals,perc,axis=0) for perc in \
@@ -115,12 +119,14 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
                 y0,y1 = [getmean(yvals,mtype=mean_type,stdtype='sem',semm=i) \
                            for i in [-range_num,range_num]]
                     
-
+            
             if ca_threshold is not None:
+                
                 # for xx in [y,y0,y1]:
+
                 y = clip_by_ca(y,
                            data_dict[val]['contact_area'][list('xyz').index(direction)],
-                           ca_threshold)
+                           thresh)
                 y0[np.isnan(y)] = np.nan
                 y1[np.isnan(y)] = np.nan
                 
@@ -141,7 +147,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
                 
                 y = clip_by_ca(y,
                            data_dict[val]['contact_area'][list('xyz').index(direction)],
-                           ca_threshold)
+                           thresh)
                 x0[np.isnan(y)] = np.nan
                 x1[np.isnan(y)] = np.nan
 
@@ -152,7 +158,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         if plot_by in ['offset','cellsize']:
             label += 'mm'
 
-        plt.plot(plotx, y, color=colors[i], label=label)
+        plt.plot(plotx, y, color=colors[i], label=label, linestyle=linestyle)
         
         plt.yscale('log')
         
