@@ -156,8 +156,8 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
     else:
         R1 = np.random.random(size=np.shape(f))
         R2 = np.random.random(size=np.shape(f))
-    np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
-    np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
+    # np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
+    # np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
     # define fourier components
     y1 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     
