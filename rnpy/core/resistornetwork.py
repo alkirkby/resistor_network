@@ -71,6 +71,7 @@ class Rock_volume():
         self.fault_dict = dict(fractal_dimension=2.5,
                                fault_separation = 1e-4,
                                offset = 0,
+                               deform_fault_surface=False,
                                faultlength_max = np.amax(self.cellsize)*np.amax(self.ncells),
                                faultlength_min = np.amax(self.cellsize),
                                alpha = 3.,
@@ -416,7 +417,8 @@ class Rock_volume():
                         'elevation_scalefactor', 'fault_surfaces', 'elevation_prefactor',
                         'mismatch_wavelength_cutoff','aperture_type',
                         'correct_aperture_for_geometry','aperture_list',
-                        'preserve_negative_apertures','random_numbers_dir']:
+                        'preserve_negative_apertures','random_numbers_dir',
+                        'deform_fault_surface']:
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")

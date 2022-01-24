@@ -277,6 +277,26 @@ def get_faultpair_inputs(fractal_dimension,elevation_scalefactor,
     return faultpair_inputs
     
 
+def offset_faults_with_deformation(h1,h2,fs,offset):
+    h1n = h1.copy()
+    h2n = h2.copy()
+    # progressively move along fault plane
+    for oo in range(offset):
+        # offset fault surfaces by one cell
+        h1n = h1n[1:,1:]
+        h2n = h2n[1:,:-1]
+        # compute aperture
+        ap = h1n-h2n+fs
+        # remove negative apertures
+        # first, compute new fault surface height (=average of height 1 and height 
+        # 2, i.e. both fault surfaces have been "eroded" by an equal amount)
+        newheight = np.mean([h1n,h2n],axis=0)
+        h1n[ap<0] = newheight[ap<0]
+        h2n[ap<0] = newheight[ap<0]
+        
+        
+    return ap,h1n,h2n
+
 
 def assign_fault_aperture(fault_uvw,
                           ncells,
@@ -284,6 +304,7 @@ def assign_fault_aperture(fault_uvw,
                           fault_separation=1e-4, 
                           fault_surfaces = None,
                           offset=0, 
+                          deform_fault_surface=False,
                           fractal_dimension = 2.5, 
                           mismatch_wavelength_cutoff = None, 
                           elevation_scalefactor = None,
@@ -483,13 +504,20 @@ def assign_fault_aperture(fault_uvw,
 
 
                 
-            
+            h1d = h1.copy()
+            h2d = h2.copy()
             if offset > 0:
-                b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
+                
+                if deform_fault_surface:
+                    # print("deforming fault surface")
+                    b, h1dd, h2dd = offset_faults_with_deformation(h1, h2, fault_separation[i], offset)
+                    h1d[offset:,offset:] = h1dd
+                    h2d[offset:,:-offset] = h2dd
+                else:
+                    # print("not deforming fault surface")
+                    b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
             else:
                 b = h1 - h2 + fault_separation[i]
-                
-            
                 
             # set zero values to really low value to allow averaging
             if not preserve_negative_apertures:
@@ -506,7 +534,7 @@ def assign_fault_aperture(fault_uvw,
                 else:
                     if correct_aperture_for_geometry:
                         print("correcting for geometry")
-                        bf, bc = rnfa.correct_aperture_for_geometry(h1[offset:,offset:],b,fault_separation[i],cs)
+                        bf, bc = rnfa.correct_aperture_for_geometry(h1d[offset:,offset:],b,fault_separation[i],cs)
                     else:
                         print("not correcting apertures for geometry")
                         # bf, bc = [np.array([b[:-1,:-1]]*3)]*2

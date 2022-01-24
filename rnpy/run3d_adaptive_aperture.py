@@ -35,6 +35,7 @@ def parse_arguments(arguments):
                       ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
                       ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
                       ['offset',None,'offset on fault, (distance in m)',1,float],
+                      ['deform_fault_surface',None,'whether or not to deform fault surfaces when applying offset',1,str],
                       ['alpha',None,'alpha value (scaling constant) for fault network',1,float],
                       ['num_fault_separation','nfs','number of fault separation '+\
                        'values, code will auto choose these values',1,float],
@@ -50,7 +51,8 @@ def parse_arguments(arguments):
                       ['effective_apertures_fn',None,'file containing precalculated effective apertures',1,str],
                       ['solve_properties','sp','which property to solve, current, fluid or currentfluid (default)',1,str],
                       ['solve_direction','sd','which direction to solve, x, y, z or a combination, e.g. xyz (default), xy, xz, y, etc',1,str],
-                      ['repeats','r','how many times to repeat each permutation',1,int]]
+                      ['repeats','r','how many times to repeat each permutation',1,int],
+                      ['random_numbers_dir',None,'option to provide random seeds for creating fault planes as a file',1,str]]
     
     parser = argparse.ArgumentParser()
     
@@ -99,8 +101,15 @@ def parse_arguments(arguments):
     if 'elevation_scalefactor' in input_parameters.keys():
         if input_parameters['elevation_scalefactor'] == 0.:
             input_parameters['elevation_scalefactor'] = None
+            
+    if 'deform_fault_surface' in input_parameters.keys():
+        if str.lower(input_parameters['deform_fault_surface']) == 'true':
+            input_parameters['deform_fault_surface'] = True
+        else:
+            input_parameters['deform_fault_surface'] = False
     
     return input_parameters, suite_parameters, repeats
+
     
 def initialise_inputs(input_parameters):
     """
@@ -118,7 +127,8 @@ def initialise_inputs(input_parameters):
     for att in ['ncells','resistivity_matrix','resistivity_fluid','fault_assignment',
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
                 'a','elevation_scalefactor','aperture_type','fault_edges',
-                'fault_surfaces','cellsize','offset']:
+                'fault_surfaces','cellsize','offset','deform_fault_surface',
+                'random_numbers_dir']:
         # check if it is an attribute in RockVol
         if hasattr(RockVol,att):
             attval = getattr(RockVol,att)
@@ -129,6 +139,8 @@ def initialise_inputs(input_parameters):
         # if not, check fault dictionary
         elif att in RockVol.fault_dict.keys():
             inputs[att] = RockVol.fault_dict[att]
+            
+    print('deform_fault_surface',RockVol.fault_dict['deform_fault_surface'])
         
     inputs['correct_aperture_for_geometry'] = True
             
