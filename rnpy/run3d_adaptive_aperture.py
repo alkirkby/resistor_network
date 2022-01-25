@@ -470,7 +470,8 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
             fixeddict[param] = str(value)
     for param in ['resistivity_matrix','resistivity_fluid','fault_assignment',
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
-                'a','elevation_scalefactor','aperture_type','offset']:
+                'a','elevation_scalefactor','aperture_type','offset',
+                'mismatch_wavelength_cutoff']:
         if param in input_parameters.keys():
             fixeddict[param] = input_parameters[param]
 
