@@ -242,7 +242,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # kbulk = []
         # cellsizes = []
 
-        props_to_save = ['aperture','current','fault_surfaces','fault_edges']
+        props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
         
         # run initial set of runs
         for i in np.arange(len(fault_separations)):
