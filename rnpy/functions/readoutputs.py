@@ -24,6 +24,7 @@ def update_idx_dict(idx_dict):
     
 def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
         
+    
     if outputs.dtype.names is None:
         idx_dict = update_idx_dict(idx_dict)
         idx_list = list(idx_dict.keys())
@@ -33,7 +34,7 @@ def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
         idx_list = ['fault_separation','conductive_fraction']+\
                    ['resistivity_bulk_'+direction for direction in plane]+\
                    ['permeability_bulk_'+direction for direction in plane]+\
-                   ['contact_area']
+                   ['contact_area','aperture_mean_x']
         perp_direction = get_perp(plane)
         idx_list += ['cellsize_'+perp_direction]
         idx_list.remove(key_param)
@@ -42,7 +43,8 @@ def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
     return idx_list, idx_dict
 
 
-def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz', key_param = 'fs'):
+def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz', 
+                       key_param = 'fs'):
     """
     Interpolate outputs from simulations to all fault separations
 
@@ -247,9 +249,9 @@ def getmean(vals,mtype='meanlog10',stdtype='sem',semm=0):
     vals = np.log10(vals)
     
     if stdtype =='sem':
-        std = sem(vals,axis=0)
+        std = sem(vals,axis=0,nan_policy='omit')
     elif stdtype == 'std':
-        std = np.std(vals,axis=0)
+        std = np.nanstd(vals,axis=0)
     
     if mtype=='meanlog10':
         mean = np.nanmean(vals,axis=0)
@@ -330,6 +332,19 @@ def load_outputs(fn,clip=0):
     nr = len(np.unique(outputs['repeat']))
     nfs = int(len(outputs)/nr)
     outputs = outputs.reshape(nr,nfs)
+
+    
     # clip data
     return outputs[:,:outputs.shape[1]-clip]
 
+
+
+def add_aperture_2d(outputs):
+    # add mean aperture
+    new_dtype = outputs.dtype.descr + [('aperture_mean_x','<f8')]
+    outputs_new = np.zeros(outputs.shape,dtype=new_dtype)
+    for ff in outputs.dtype.names:
+        outputs_new[ff] = outputs[ff]
+    outputs_new['aperture_mean_x'] = outputs['cellsize_x']*outputs['conductive_fraction']
+
+    return outputs_new    

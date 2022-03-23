@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#-*- coding: utf-8 -*-
 """
 Created on Wed Mar  6 14:06:10 2019
 
@@ -157,7 +157,7 @@ def save_arrays(RockVol,property_names,suffix):
             data = getattr(RockVol,att)
         else:
             data = RockVol.fault_dict[att]
-        suffix = '_fs%.2e_mm'%(np.mean(RockVol.fault_dict['fault_separation'])*1e3)
+        suffix = '_fs%.6e_mm'%(np.mean(RockVol.fault_dict['fault_separation'])*1e3)
         dirpath = os.path.join(RockVol.workdir,'arrays')
         if not os.path.exists(dirpath):
             os.mkdir(dirpath)
@@ -222,8 +222,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         fsmax = offset_cm*0.00218 + 0.00031
         
         fault_separations = np.array([-0.5*fsmax,
-                                      0.,
+                                      # 0.,
                                       10*fsmax])
+        # fault_separations = np.array([-500*fsmax,-1.66,-1.65,-0.85,-0.845,-0.84,1.95,2.00,3.66,10000*fsmax])*1e-3
         
         # initialise arrays to contain bulk resistivity and conductive fractions
         # cfractions = np.ones_like(fault_separations)*np.nan
@@ -483,7 +484,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
     header += '### variable parameters ###\n'
     header += '# '+' '.join(variablekeys)
     np.savetxt(outfilename,
-               output_lines,fmt='%.3e',header=header,comments='')
+               output_lines,fmt='%.6e',header=header,comments='')
 
     return outfilename
       

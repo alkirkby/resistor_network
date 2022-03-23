@@ -33,7 +33,7 @@ def hex2rgb(hexstr):
 def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,
             direction='z', plane='yz', mean_type='median',range_type='percentile',range_num=None,
             label_prefix = '',interpolate_to='fs',ca_threshold=None,colors=None,
-            linestyle='-'):
+            linestyle='-',first=True):
     """
     
 
@@ -98,9 +98,6 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,rm,km,
                                         plane,direction,output_dtype_names,interpolate_to=interpolate_to)
             
-
-
-            
         
         if ca_threshold is not None:
                 ca_threshold = np.array(ca_threshold)
@@ -113,13 +110,12 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         if len(yvals.shape) == 2:
             y=getmean(yvals,mtype=mean_type)
             if range_type == 'percentile':
-                y0,y1 = [np.percentile(yvals,perc,axis=0) for perc in \
+                y0,y1 = [np.nanpercentile(yvals,perc,axis=0) for perc in \
                            [50-range_num, 50+range_num]]
             elif range_type == 'sem':
                 y0,y1 = [getmean(yvals,mtype=mean_type,stdtype='sem',semm=i) \
                            for i in [-range_num,range_num]]
-                    
-            
+            # print(data_dict[val]['contact_area'][list('xyz').index(direction)])
             if ca_threshold is not None:
                 
                 # for xx in [y,y0,y1]:
@@ -157,18 +153,20 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         label = label_prefix + '%s = %s'%(plot_by,val)
         if plot_by in ['offset','cellsize']:
             label += 'mm'
-
-        plt.plot(plotx, y, color=colors[i], label=label, linestyle=linestyle)
+        if first:
+            plt.plot(plotx, y, color=colors[i], label=label, linestyle=linestyle)
+        else:
+            plt.plot(plotx, y, color=colors[i], linestyle=linestyle)
         
         plt.yscale('log')
         
         if xparam not in ['ca','fs','contact_area','fault_separation']:
             plt.xscale('log')
             
-        if xparam == 'cf':
-            plt.xlim(1e-5,1e0)
-        if xparam == 'apm':
-            plt.xlim(1e-8,1e-2)
+        # if xparam == 'cf':
+        #     plt.xlim(1e-5,1e0)
+        # if xparam == 'apm':
+        #     plt.xlim(1e-8,1e-2)
             
         plt.legend(fontsize=8)
             
