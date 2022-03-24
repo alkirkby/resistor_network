@@ -45,6 +45,7 @@ def parse_arguments(arguments):
                       ['elevation_scalefactor',None,'scaling factor to scale fault elevations by',1,float],
                       ['elevation_prefactor',None,'prefactor to scale elevations by',1,float],
                       ['fractal_dimension',None,'fractal dimension used to calculate surfaces',1,float],
+                      ['fault_surfaces_fn',None,'option to provide filename containing fault surfaces',1,str],
                       ['workdir','wd','working directory',1,str],
                       ['outfile','o','output file name',1,str],
                       ['solver_type','st','type of solver, bicg or direct',1,str],
@@ -140,6 +141,9 @@ def initialise_inputs(input_parameters):
         elif att in RockVol.fault_dict.keys():
             inputs[att] = RockVol.fault_dict[att]
             
+    if 'fault_surfaces_fn' in input_parameters.keys():
+        inputs['fault_surfaces'] = np.load(input_parameters['fault_surfaces_fn'])
+            
     print('deform_fault_surface',RockVol.fault_dict['deform_fault_surface'])
         
     inputs['correct_aperture_for_geometry'] = True
@@ -222,6 +226,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         fsmax = offset_cm*0.00218 + 0.00031
         
         fault_separations = np.array([-0.5*fsmax,
+                                      # 0.,
+                                      10*fsmax])
+        fault_separations = np.array([-10*fsmax,
                                       # 0.,
                                       10*fsmax])
         # fault_separations = np.array([-500*fsmax,-1.66,-1.65,-0.85,-0.845,-0.84,1.95,2.00,3.66,10000*fsmax])*1e-3

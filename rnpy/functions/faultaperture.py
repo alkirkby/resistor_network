@@ -476,7 +476,6 @@ def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
     
     # z component of the unit normal vector from the midpoint (by definition, nz = deltal/(|rf - rP|))
     nz_hv = dlhv/(((rf_hv - rP)**2 + dlhv**2)**0.5)
-    
 
     if prop == 'hydraulic':
         # define correction terms kappa and beta
@@ -527,7 +526,7 @@ def medfilt_subsampled(h1,ks,ssrate):
 
     """
     
-    xi, yi = np.arange(h1.shape[0]),np.arange(h1.shape[1])
+    xi, yi = np.arange(h1.shape[1]),np.arange(h1.shape[0])
     xlr,ylr = xi[::ssrate],yi[::ssrate]
     h1_inp = h1[::ssrate,::ssrate]
     
@@ -538,15 +537,16 @@ def medfilt_subsampled(h1,ks,ssrate):
         ylr = np.append(ylr,yi[-1])
         h1_inp = np.vstack([h1_inp,h1_inp[-2:-1]])
         
+        
     xi,yi = np.meshgrid(xi,yi)
     
     h1sm_lr = median_filter(h1_inp,
                             size=int(ks/ssrate),
                             mode='nearest')
     
-    func = RegularGridInterpolator((xlr, ylr), h1sm_lr)
+    func = RegularGridInterpolator((xlr, ylr), h1sm_lr.T)
     
-    return func((xi,yi)).reshape(h1.shape).T
+    return func((xi,yi))
 
 
 
@@ -652,7 +652,6 @@ def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
     
     # add apertures for flow in direction perpendicular to fault plane
     bmean_electric = np.array([bmean_electric[0], bmean_electric[1], bP[0]])
-    # print(bmean_electric[1])
     
     return bmean_hydraulic, bmean_electric
     
