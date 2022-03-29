@@ -125,7 +125,7 @@ def update_all_apertures(aperture_array,d):
     return aperture_array
 
 
-def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
+def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=False):
     """
     
     returns a numpy array containing resistance values and an array containing 
@@ -160,7 +160,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
     if type(d) in [float,int]:
         d = [float(d)]*3
 
-
+    # initialise resistance
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
         resistance_array[:,:,:,i] = d[i]*r_matrix/np.product(dp)   
@@ -210,11 +210,19 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d):
         area_matrix[area_matrix<0.] = 0.
         
         
+        
         # resistance is the weighted harmonic mean of the fractured bit (in the two
         # directions along flow) and the matrix bit, but only assign if less than existing value
-        resistance_array[:,:,:,i] = np.amin([resistance_array[:,:,:,i],
-                                             d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)],
-                                             axis=0)
+        if matrix_current:
+            resistance_array[:,:,:,i] = np.amin([resistance_array[:,:,:,i],
+                                                 d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)],
+                                                 axis=0)
+        else:
+            # current only through fracture and not the matrix
+            print("no matrix current")
+            resistance_array[:,:,:,i] = d[i]/(area_fracture/r_fluid)
+        
+        
         
     for i in range(3):
         # assign connectors in direction of opening (in the case where faults 
@@ -306,7 +314,7 @@ def get_hydraulic_resistance_old(aperture_array,k_matrix,d,mu=1e-3):
     return hresistance,permeability
 
 
-def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
+def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True):
     """
     new calculation of hydraulic resistance, incorporating apertures that are
     wider than one cell width
@@ -419,7 +427,16 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3):
         # permeability is the weighted mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
         # first calculate the hydraulic resistance, subtracting the overlap bit
-        hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + d1*ap0/hr0 - ap0*ap1/np.amax([hr0,hr1],axis=0))
+        # if including fluid flow in matrix:
+        if matrix_flow:
+            
+            hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + \
+                          d1*ap0/hr0 - ap0*ap1/np.amax([hr0,hr1],axis=0))
+        # if not including fluid flow in matrix
+        else:
+            print("no matrix flow")
+            hrnew = d[i]/(d0*ap1/hr1 + d1*ap0/hr0 - \
+                          ap0*ap1/np.amax([hr0,hr1],axis=0))
         # only assign new values if they are lower than existing values
         hresistance[:,:,:,i] = np.amin([hrnew,hresistance[:,:,:,i]],axis=0)
         # assign connectors in direction of opening (in the case where faults 

@@ -42,6 +42,9 @@ def parse_arguments(arguments):
                       ['aperture_type',None,'type of aperture, random or constant',1,str],
                       ['mismatch_wavelength_cutoff',None,'cutoff wavelength for '+\
                        'mismatching of opposing surfaces in faults',1,float],
+                      ['matrix_flow',None,'whether or not to include fluid flow in matrix surrounding fracture',1,str],
+                      ['matrix_current',None,'whether or not to include current in matrix surrounding fracture',1,str],
+                      ['correct_aperture_for_geometry',None,'whether or not to apply correction of aperture for local slopes in plate walls',1,str],
                       ['elevation_scalefactor',None,'scaling factor to scale fault elevations by',1,float],
                       ['elevation_prefactor',None,'prefactor to scale elevations by',1,float],
                       ['fractal_dimension',None,'fractal dimension used to calculate surfaces',1,float],
@@ -103,12 +106,14 @@ def parse_arguments(arguments):
         if input_parameters['elevation_scalefactor'] == 0.:
             input_parameters['elevation_scalefactor'] = None
             
-    if 'deform_fault_surface' in input_parameters.keys():
-        if str.lower(input_parameters['deform_fault_surface']) == 'true':
-            input_parameters['deform_fault_surface'] = True
-        else:
-            input_parameters['deform_fault_surface'] = False
-    
+    for att in ['deform_fault_surface','correct_aperture_for_geometry',
+                'matrix_flow','matrix_current']:
+        if att in input_parameters.keys():
+            if str.lower(input_parameters[att]) == 'true':
+                input_parameters[att] = True
+            else:
+                input_parameters[att] = False
+ 
     return input_parameters, suite_parameters, repeats
 
     
@@ -143,10 +148,6 @@ def initialise_inputs(input_parameters):
             
     if 'fault_surfaces_fn' in input_parameters.keys():
         inputs['fault_surfaces'] = np.load(input_parameters['fault_surfaces_fn'])
-            
-    print('deform_fault_surface',RockVol.fault_dict['deform_fault_surface'])
-        
-    inputs['correct_aperture_for_geometry'] = True
             
         
     return inputs

@@ -65,6 +65,8 @@ class Rock_volume():
         self.pconnection = [0.5,0.5,0.5]
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
+        self.matrix_current=False
+        self.matrix_flow=False
         self.resistivity = None
         self.permeability_matrix = 1.e-18
         self.fluid_viscosity = 1.e-3 #default is for freshwater at 20 degrees 
@@ -430,8 +432,11 @@ class Rock_volume():
                     rnaf.assign_fault_aperture(self.fault_edges,
                                                np.array(self.ncells)+self.array_buffer*2,
                                                fill_array=True,**aperture_input)
-    
-                    self.fault_dict['aperture_list'] = [ap,aph,apc]  
+                    # minimum aperture
+                    ap_min = (self.permeability_matrix*12)**0.5
+                    self.aperture_hydraulic[self.aperture_hydraulic < ap_min] = ap_min                    
+                    
+                    self.fault_dict['aperture_list'] = [ap,aph,apc]
             else:
                 ap,aph,apc,self.fault_dict['fault_surfaces'] = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,
@@ -581,7 +586,8 @@ class Rock_volume():
         rnap.get_electrical_resistance(self.aperture_electric,
                                       self.resistivity_matrix,
                                       self.resistivity_fluid,
-                                      self.cellsize)
+                                      self.cellsize,
+                                      matrix_current=self.matrix_current)
         rna.add_nulls(self.resistivity)
         rna.add_nulls(self.resistance)
 
@@ -601,7 +607,8 @@ class Rock_volume():
         rnap.get_hydraulic_resistance(self.aperture_hydraulic,
                                      self.permeability_matrix,
                                      self.cellsize,
-                                     mu = self.fluid_viscosity)
+                                     mu = self.fluid_viscosity,
+                                     matrix_flow=self.matrix_flow)
         rna.add_nulls(self.permeability)
         rna.add_nulls(self.hydraulic_resistance)
 
