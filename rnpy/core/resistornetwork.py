@@ -65,8 +65,8 @@ class Rock_volume():
         self.pconnection = [0.5,0.5,0.5]
         self.resistivity_matrix = 1000.
         self.resistivity_fluid = 0.1
-        self.matrix_current=False
-        self.matrix_flow=False
+        self.matrix_current=True
+        self.matrix_flow=True
         self.resistivity = None
         self.permeability_matrix = 1.e-18
         self.fluid_viscosity = 1.e-3 #default is for freshwater at 20 degrees 
