@@ -95,7 +95,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         rm = get_param(fn_list[0], 'resistivity_matrix')
         
         
-        plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,rm,km,
+        plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,
                                         plane,direction,output_dtype_names,interpolate_to=interpolate_to)
             
         

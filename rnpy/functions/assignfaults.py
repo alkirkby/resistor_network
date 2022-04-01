@@ -271,6 +271,7 @@ def assign_fault_aperture(fault_array,fault_uvw,
                mismatch_wavelength_cutoff not provided
     ===========================================================================    
     """
+    print("assigning aperture")
     fault_array = rna.add_nulls(fault_array)
     
     nx,ny,nz = np.array(np.shape(fault_array))[:3][::-1]
@@ -344,6 +345,8 @@ def assign_fault_aperture(fault_array,fault_uvw,
 
         else:
             bf, bc = [b]*2
+            
+        
 #        for i,bb in enumerate([[b[:-1,:-1]]*2,bf,bc]):
         for i,bb in enumerate([[b]*2,bf,bc]):  
             b0,b1 = bb

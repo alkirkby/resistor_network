@@ -149,7 +149,6 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
     
     ===========================================================================
     """
-
     # initialise new arrays to contain resistance and resistivity
     resistance_array = np.zeros(np.shape(aperture_array)[:-1])
     resistivity_array = resistance_array.copy()
@@ -160,7 +159,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
     if type(d) in [float,int]:
         d = [float(d)]*3
 
-    # initialise resistance
+    # initialise resistance to value if matrix occupying cell
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
         resistance_array[:,:,:,i] = d[i]*r_matrix/np.product(dp)   
@@ -197,6 +196,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
     
         # cross sectional area of the cell perpendicular to flow
         area_matrix = np.product(dp)
+        
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
             # define the area taken up by the fracture
@@ -209,8 +209,6 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
         area_matrix -= area_fracture
         area_matrix[area_matrix<0.] = 0.
         
-        
-        
         # resistance is the weighted harmonic mean of the fractured bit (in the two
         # directions along flow) and the matrix bit, but only assign if less than existing value
         if matrix_current:
@@ -219,10 +217,9 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
                                                  axis=0)
         else:
             # current only through fracture and not the matrix
-            print("no matrix current")
-            resistance_array[:,:,:,i] = d[i]/(area_fracture/r_fluid)
-        
-        
+            resistance_array[:,:,:,i] = np.amin([resistance_array[:,:,:,i],
+                                                 d[i]/(area_fracture/r_fluid)],
+                                                 axis=0)
         
     for i in range(3):
         # assign connectors in direction of opening (in the case where faults 

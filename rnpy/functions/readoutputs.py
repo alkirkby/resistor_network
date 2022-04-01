@@ -328,12 +328,11 @@ def load_outputs(fn,clip=0):
     """
     
     outputs = np.genfromtxt(fn,names=read_header(fn))
-
+    
     nr = len(np.unique(outputs['repeat']))
     nfs = int(len(outputs)/nr)
     outputs = outputs.reshape(nr,nfs)
 
-    
     # clip data
     return outputs[:,:outputs.shape[1]-clip]
 

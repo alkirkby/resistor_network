@@ -477,7 +477,7 @@ class Rock_volume():
         for j in [0,1,2]:
             apvals = apvals_list[j]
             fmask = fmask_list[j]
-            ca = int(len(apvals[apvals<1e-49]))/fmask.sum()
+            ca = int(len(apvals[apvals<1e-20]))/fmask.sum()
             if np.isinf(ca):
                 ca = 0.
             self.contact_area = np.append(self.contact_area,ca)
@@ -490,10 +490,9 @@ class Rock_volume():
             fmask = fmask_list[j]
             self.aperture_mean.append(np.mean(apvals*fmask))
         
-    
-    def compute_conductive_fraction(self):
+    def get_xyz_apertures(self):
+        
         nx,ny,nz = self.ncells
-        csx,csy,csz = self.cellsize
         
         aperture = rnap.update_all_apertures(self.aperture,self.cellsize)
         
@@ -542,6 +541,15 @@ class Rock_volume():
                 apz[:,-1,-1] = apz[:,-1,-2]
             elif self.ncells[0] == 0:
                 apz[:,-1,-1] = apz[:,-2,-1]
+                
+        return apx,apy,apz       
+        
+    def compute_conductive_fraction(self):
+        
+        csx,csy,csz = self.cellsize
+        
+        
+        apx, apy, apz = self.get_xyz_apertures()
         
         # conductive volume - add the sum of 3 directions (multiplied by cell area to get volume)
         cv1 = (apx.sum()*csy*csz + apy.sum()*csx*csz + apz.sum()*csx*csy)
@@ -561,19 +569,20 @@ class Rock_volume():
               
   
     def update_cellsize(self):
+        
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
             for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):
-            for i in range(3):
-                apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
-                apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
-    
-                for api in [apih,apie]:
-                    if len(api) > 0:
-                        apmax = np.amax(api)
-                        if self.cellsize[i] < apmax:
-                            rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
-                            # need to use ceil function so it always rounds up
-                            self.cellsize[i] = np.ceil(apmax*10.**rounding)*10.**(-rounding)
+                for i in range(3):
+                    apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
+                    apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
+        
+                    for api in [apih,apie]:
+                        if len(api) > 0:
+                            apmax = np.amax(api)
+                            if self.cellsize[i] < apmax:
+                                rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
+                                # need to use ceil function so it always rounds up
+                                self.cellsize[i] = np.ceil(apmax*10.**rounding)*10.**(-rounding)
             
 
     def initialise_electrical_resistance(self):
@@ -581,7 +590,6 @@ class Rock_volume():
         initialise a resistivity array
 
         """
-        
         self.resistance,self.resistivity,self.aperture_electric = \
         rnap.get_electrical_resistance(self.aperture_electric,
                                       self.resistivity_matrix,
@@ -779,7 +787,6 @@ class Rock_volume():
                         Vstart = Vstart.transpose(1,2,0)
                     elif sd == 'z':
                         Vstart = Vstart.transpose(1,0,2)
-                
                 Vn = rnms.solve_matrix2(Rm,self.cellsize,Vsurf=Vsurf,Vbase=Vbase,Vstart=Vstart,
                                         method=method,tol = tol, itstep=itstep)
                 if sd == 'x':
@@ -803,8 +810,17 @@ class Rock_volume():
             if pname == 'current':
                 self.current = output_array*1.
                 self.voltage[:,:,:,i] = Vn
+                cs = np.copy(self.cellsize)
+                # if not self.matrix_current:
+                #     idx = np.where(np.array(self.ncells)==0)[0][0]
+                #     ilst = [0,1,2]
+                #     ilst.remove(idx)
+                #     aplist = [self.get_xyz_apertures()[idxp] for idxp in ilst]
+                #     cs[idx] = np.mean([np.nanmean(aplist[0]),np.nanmean(aplist[1])])
+                    
+                    
                 self.resistivity_bulk, self.resistance_bulk = \
-                rnap.get_bulk_resistivity(self.current,self.cellsize,Vbase-Vsurf)
+                rnap.get_bulk_resistivity(self.current,cs,Vbase-Vsurf)
                 # limit maximum values to resistivity of matrix
                 self.resistivity_bulk[self.resistivity_bulk > self.resistivity_matrix] =\
                     self.resistivity_matrix

@@ -376,7 +376,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             solver_type = get_solver_type(input_parameters['solver_type'],newfs, RockVol.ncells)
 
             RockVol.solve_resistor_network2(method=solver_type)
-
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
                 tracemalloc.stop()            
@@ -395,6 +394,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
  
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,RockVol.resistivity_bulk,axis=0)
+            
             kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk,axis=0)
             cellsizes = np.insert(cellsizes, i+1, RockVol.cellsize,axis=0)
             
@@ -477,11 +477,12 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
             fixeddict[param] = ' '.join([str(val) for val in input_parameters[param]])
         else:
             fixeddict[param] = str(value)
-    for param in ['resistivity_matrix','resistivity_fluid','fault_assignment',
-                'fractal_dimension','faultlength_max','faultlength_min','alpha',
-                'a','elevation_scalefactor','aperture_type','offset',
-                'mismatch_wavelength_cutoff','matrix_flow','matrix_current',
-                'correct_aperture_for_geometry','deform_fault_surface']:
+    for param in ['resistivity_matrix','resistivity_fluid','permeability_matrix',
+                  'fault_assignment','fractal_dimension','faultlength_max',
+                  'faultlength_min','alpha','a','elevation_scalefactor',
+                  'aperture_type','offset','mismatch_wavelength_cutoff',
+                  'matrix_flow','matrix_current','correct_aperture_for_geometry',
+                  'deform_fault_surface']:
         if param in input_parameters.keys():
             fixeddict[param] = input_parameters[param]
 

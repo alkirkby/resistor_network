@@ -478,6 +478,7 @@ def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
     nz_hv = dlhv/(((rf_hv - rP)**2 + dlhv**2)**0.5)
 
     if prop == 'hydraulic':
+        
         # define correction terms kappa and beta
         kappa_hv = nz_hv**2
         beta_hv = nz_hv**4
@@ -485,15 +486,16 @@ def get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic', hv=1):
         # define angle theta (using smoothed plates)
         theta_hv = np.arctan(kappa_hv*np.abs(bfsm_hv - bPsm)/dlhv)
         
+        
         # theta correction factor
         thetacorr_hv = 3*(np.tan(theta_hv) - theta_hv)/(np.tan(theta_hv))**3.
+        
         
         # at very low theta angles the correction becomes unstable
         thetacorr_hv[np.abs(theta_hv) < 1e-3] = 1.0
         
         # corrected aperture for the half volume
         b_hv = ((2.*(bf_hv**2.)*(bP**2.)/(bf_hv + bP))*thetacorr_hv)**(1./3.)
-        
         
     elif prop == 'electric':
         # beta = nz**2 for current
@@ -575,7 +577,8 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
 
 
 
-def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
+def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True,
+                                  min_ap=1e-20):
     """
     
     Get mean hydraulic and electric aperture along fault surfaces.
@@ -617,8 +620,8 @@ def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
     h2 = h1 + b
     
     # higher threshold for zero aperture to ensure calculations are stable
-    zero_ap = np.where(h2-h1 < 1e-10)
-    h2[zero_ap] = h1[zero_ap] + 1e-10
+    zero_ap = np.where(h2-h1 < min_ap)
+    h2[zero_ap] = h1[zero_ap] + min_ap
     
     if smooth_midpoint:
         h1sm,h2sm = smooth_fault_surfaces(h1, h2, fs, dl)
@@ -638,12 +641,17 @@ def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
     b_hv1, beta_hv1, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=1)
     b_hv2, beta_hv2, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='hydraulic',hv=2)
     
+    for arr in [b_hv1,beta_hv1,b_hv2,beta_hv2]:
+        arr[np.isnan(arr)] = min_ap
+    
     b3 = dl/(dlhv/(beta_hv1*b_hv1**3.) + dlhv/(beta_hv2*b_hv2**3.))
+    
     
     bmean_hydraulic = b3**(1./3.)
     
     # add apertures for flow in direction perpendicular to fault plane
     bmean_hydraulic = np.array([bmean_hydraulic[0], bmean_hydraulic[1], bP[0]])
+    bmean_hydraulic[bmean_hydraulic < min_ap] = min_ap
     
     be_hv1, betae_hv1, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=1)
     be_hv2, betae_hv2, bP = get_half_volume_aperture(bN, bNsm, rN, dl, prop='electric',hv=2)
@@ -652,6 +660,7 @@ def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True):
     
     # add apertures for flow in direction perpendicular to fault plane
     bmean_electric = np.array([bmean_electric[0], bmean_electric[1], bP[0]])
+    bmean_electric[bmean_electric < min_ap] = min_ap
     
     return bmean_hydraulic, bmean_electric
     
