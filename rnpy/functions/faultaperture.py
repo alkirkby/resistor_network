@@ -577,7 +577,7 @@ def smooth_fault_surfaces(h1,h2,fs,dl):
 
 
 
-def correct_aperture_for_geometry(h2,b,fs,dl,smooth_midpoint=True,
+def correct_aperture_for_geometry(h1,b,fs,dl,smooth_midpoint=True,
                                   min_ap=1e-20):
     """
     
@@ -617,7 +617,7 @@ def correct_aperture_for_geometry(h2,b,fs,dl,smooth_midpoint=True,
         DESCRIPTION.
 
     """
-    h1 = h2 + b
+    h2 = h1 + b
     
     # higher threshold for zero aperture to ensure calculations are stable
     zero_ap = np.where(h2-h1 < min_ap)
