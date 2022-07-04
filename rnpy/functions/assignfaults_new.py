@@ -283,14 +283,19 @@ def offset_faults_with_deformation(h1,h2,fs,offset):
     # progressively move along fault plane
     for oo in range(offset):
         # offset fault surfaces by one cell
-        h1n = h1n[1:,1:]
-        h2n = h2n[1:,:-1]
+        if oo == 0:
+            # apply fault separation on first step
+            h1n = h1n[:-1,1:] + fs
+        else:
+            h1n = h1n[:-1,1:]
+        h2n = h2n[:-1,:-1]
         # compute aperture
-        ap = h1n-h2n+fs
+        ap = h1n-h2n
         # remove negative apertures
         # first, compute new fault surface height (=average of height 1 and height 
         # 2, i.e. both fault surfaces have been "eroded" by an equal amount)
         newheight = np.mean([h1n,h2n],axis=0)
+        # newheight = h2n[:]
         h1n[ap<0] = newheight[ap<0]
         h2n[ap<0] = newheight[ap<0]
         

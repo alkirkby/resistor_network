@@ -92,8 +92,6 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         km = get_param(fn_list[0], 'permeability_matrix')
         if km is None:
             km = 1e-18
-        rm = get_param(fn_list[0], 'resistivity_matrix')
-        
         
         plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,
                                         plane,direction,output_dtype_names,interpolate_to=interpolate_to)

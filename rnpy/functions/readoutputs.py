@@ -184,7 +184,7 @@ def bulk_permeability(permeability,x_cellsize,cellsize_max,permeability_matrix=1
 
         
 def bulk_resistivity(resistivity,x_cellsize,cellsize_max,
-                     res_matrix=1000):
+                     resistivity_matrix=1000):
     """
     Correct resistivity results to a constant fault size
 
@@ -203,7 +203,7 @@ def bulk_resistivity(resistivity,x_cellsize,cellsize_max,
 
     """
     
-    return cellsize_max/((cellsize_max - x_cellsize)/res_matrix +\
+    return cellsize_max/((cellsize_max - x_cellsize)/resistivity_matrix +\
                                      x_cellsize/resistivity)
 
 def bulk_cfraction(cfraction,x_cellsize,cellsize_max):
