@@ -280,6 +280,10 @@ def get_faultpair_inputs(fractal_dimension,elevation_scalefactor,
 def offset_faults_with_deformation(h1,h2,fs,offset):
     h1n = h1.copy()
     h2n = h2.copy()
+    
+    overlap_avg = 0
+
+    
     # progressively move along fault plane
     for oo in range(offset):
         # offset fault surfaces by one cell
@@ -291,6 +295,15 @@ def offset_faults_with_deformation(h1,h2,fs,offset):
         h2n = h2n[:-1,:-1]
         # compute aperture
         ap = h1n-h2n
+        
+        # sum overlapping heights (i.e. height of gouge created)
+        # don't include edges which will eventually be gone
+        apcalc = ap[:ap.shape[0]-(offset-oo-1),:ap.shape[1]-(offset-oo-1)]
+        
+        # apcalc = ap
+        # print(np.sum(apcalc[apcalc < 0]))
+        overlap_avg -= np.sum(apcalc[apcalc < 0])/apcalc.size
+        
         # remove negative apertures
         # first, compute new fault surface height (=average of height 1 and height 
         # 2, i.e. both fault surfaces have been "eroded" by an equal amount)
@@ -300,7 +313,7 @@ def offset_faults_with_deformation(h1,h2,fs,offset):
         h2n[ap<0] = newheight[ap<0]
         
         
-    return ap,h1n,h2n
+    return ap,h1n,h2n,overlap_avg
 
 
 def assign_fault_aperture(fault_uvw,
@@ -366,7 +379,7 @@ def assign_fault_aperture(fault_uvw,
                  indices for the aperture array
     ===========================================================================    
     """
-
+    
     nx,ny,nz = ncells
     
     if aperture_type == 'list':
@@ -393,6 +406,9 @@ def assign_fault_aperture(fault_uvw,
 #    ap_array[0] *= 1e-50
     bvals = []
     faultheights = []
+    overlap_vol = []
+    # default value for overlap, unless it is updated by deforming fault surfaces
+    overlap_avg = 0
 
     for i, nn in enumerate(fault_uvw):
 #        print nn
@@ -468,6 +484,7 @@ def assign_fault_aperture(fault_uvw,
             
             # get size of fault including padding
             size = get_faultsize(duvw,offset)
+            
             # define direction normal to fault
             direction = list(duvw).index(0)
             # get fault pair inputs as a dictionary
@@ -515,7 +532,9 @@ def assign_fault_aperture(fault_uvw,
                 
                 if deform_fault_surface:
                     # print("deforming fault surface")
-                    b, h1dd, h2dd = offset_faults_with_deformation(h1, h2, fault_separation[i], offset)
+                    b, h1dd, h2dd, overlap_avg = offset_faults_with_deformation(h1, h2, 
+                                                                   fault_separation[i], 
+                                                                   offset)
                     h1d[offset:,offset:] = h1dd
                     h2d[offset:,:-offset] = h2dd
                 else:
@@ -551,8 +570,11 @@ def assign_fault_aperture(fault_uvw,
                 bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
                                     b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
             tmp_aplist = []
+            # physical aperture
+            bphy = [np.mean([b[1:,1:],b[1:,:-1],
+                                b[:-1,1:],b[:-1,:-1]],axis=0)]*3
             # assign the corrected apertures to aperture array
-            for ii,bb in enumerate([[b[:-1,:-1]]*3,bf,bc]):
+            for ii,bb in enumerate([bphy,bf,bc]):
                 b0,b1,b2 = bb
                 if direction == 0:
                     b0vals,b1vals,b2vals = b0[cb[0]-dw:cb[0]+dw+duvw[2]%2+1,cb[1]-dv:cb[1]+dv+duvw[1]%2],\
@@ -624,6 +646,7 @@ def assign_fault_aperture(fault_uvw,
                     aperture[:,1,:,1,1] = b2vals
                     aperture[:,1,:-1,0,1] = b0vals
                     aperture[:-1,1,:,2,1] = b1vals
+                    
                         
                 elif direction == 2:
                     b0vals,b1vals,b2vals = b0[cb[0]-dv:cb[0]+dv+duvw[1]%2+1,cb[1]-du:cb[1]+du+duvw[0]%2],\
@@ -661,12 +684,15 @@ def assign_fault_aperture(fault_uvw,
                     aperture[1,:,:-1,0,2] = b0vals
                     aperture[1,:-1,:,1,2] = b1vals
                 
-    
                 tmp_aplist.append(aperture)
     
                 bvals[-1].append([bb,b0,b1])
                 
             faultheights.append([h1,h2])
+            # average overlap height per cell * cellsize ** 2 * number of cells
+            overlap_vol.append(overlap_avg * \
+                               cs**2 * \
+                               np.product(np.array(duvw)[np.array(duvw) > 0])) 
             aperture_list.append(tmp_aplist[0])
             aperture_list_f.append(tmp_aplist[1])
             aperture_list_c.append(tmp_aplist[2])
@@ -688,9 +714,10 @@ def assign_fault_aperture(fault_uvw,
         aperture_f = ap_array[1]
         aperture_array = ap_array[0]
         return aperture_list,aperture_list_f,aperture_list_c,\
-               aperture_array,aperture_f,aperture_c,faultheights
+               aperture_array,aperture_f,aperture_c,faultheights,overlap_vol
     else:
-        return aperture_list,aperture_list_f,aperture_list_c,faultheights
+        return aperture_list,aperture_list_f,aperture_list_c,faultheights,\
+            overlap_vol
 
 
 

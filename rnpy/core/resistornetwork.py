@@ -428,7 +428,8 @@ class Rock_volume():
     
             if self.build_arrays:
                     ap,aph,apc,self.aperture,self.aperture_hydraulic, \
-                    self.aperture_electric,self.fault_dict['fault_surfaces'] = \
+                    self.aperture_electric,self.fault_dict['fault_surfaces'],\
+                    self.overlap_volume = \
                     rnaf.assign_fault_aperture(self.fault_edges,
                                                np.array(self.ncells)+self.array_buffer*2,
                                                fill_array=True,**aperture_input)
@@ -438,7 +439,7 @@ class Rock_volume():
                     
                     self.fault_dict['aperture_list'] = [ap,aph,apc]
             else:
-                ap,aph,apc,self.fault_dict['fault_surfaces'] = \
+                ap,aph,apc,self.fault_dict['fault_surfaces'],self.overlap_volume = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,
                                            fill_array=False,**aperture_input)
                 self.fault_dict['aperture_list'] = [ap,aph,apc] 
@@ -619,6 +620,7 @@ class Rock_volume():
                                      matrix_flow=self.matrix_flow)
         rna.add_nulls(self.permeability)
         rna.add_nulls(self.hydraulic_resistance)
+        self.hydraulic_resistivity = rnap.get_hydraulic_resistivity(self.hydraulic_resistance,self.cellsize)
 
 
 
@@ -749,12 +751,11 @@ class Rock_volume():
             self.solve_direction = solve_direction
             
         
-
         property_arrays = {}
         if 'current' in self.solve_properties:
             property_arrays['current'] = self.resistivity
         if 'fluid' in self.solve_properties:
-            property_arrays['fluid'] = rnap.get_hydraulic_resistivity(self.hydraulic_resistance,self.cellsize)
+            property_arrays['fluid'] = self.hydraulic_resistivity
    
         dx,dy,dz = self.cellsize
         nx,ny,nz = self.ncells
