@@ -69,6 +69,8 @@ class Rock_volume():
         self.matrix_flow=True
         self.resistivity = None
         self.permeability_matrix = 1.e-18
+        self.permeability_gouge = 1.e-14
+        self.porosity_gouge = 0.3
         self.fluid_viscosity = 1.e-3 #default is for freshwater at 20 degrees 
         self.fault_dict = dict(fractal_dimension=2.5,
                                fault_separation = 1e-4,
@@ -98,6 +100,9 @@ class Rock_volume():
         self.solve_direction = 'xyz'
         self.build_arrays = True
         self.array_buffer = 0
+        
+        self.gouge_fraction = 0. # fraction of the void space that is filled with gouge
+        self.gouge_area_fraction = 0. # fraction of the total area of the fault that has gouge
         
         self.resistivity_bulk = [np.nan]*3
         self.permeability_bulk = [np.nan]*3
@@ -622,7 +627,70 @@ class Rock_volume():
         rna.add_nulls(self.hydraulic_resistance)
         self.hydraulic_resistivity = rnap.get_hydraulic_resistivity(self.hydraulic_resistance,self.cellsize)
 
+    def add_fault_gouge(self):
+        
+        if not self.fault_assignment == 'single_yz':
+            print("only implemented for fault type single_yz")
+            return
+        
+        cs = self.cellsize[1]
+        fs = self.fault_dict['fault_separation']
+        gouge_vol = self.overlap_volume[0]/(1-self.porosity_gouge)
+        ape = self.aperture_electric[:,:,:,:,0]
+        vol = np.nansum(ape)*cs**2/2
+        # open_vol = np.nansum(rv.aperture[:,:,1,1,0])*np.product(rv.cellsize[1:])
 
+
+        # work out where to distribute the gouge based on an aperture threshold
+        # (preferentially to areas with low aperture)
+        count = 0
+        if gouge_vol >= vol:
+            # gouge everywhere
+            self.gouge_fraction = 1.
+            self.gouge_area_fraction = self.contact_area[0]
+            filt = np.ones_like(ape,dtype=bool)
+        else:
+            # less than 1% gouge area, set to no gouge
+            if gouge_vol/vol < 0.01:
+                self.gouge_fraction = 0.
+                self.gouge_area_fraction = 0.
+                filt = np.zeros_like(ape,dtype=bool)
+            else:
+                self.gouge_fraction = gouge_vol/vol
+                thresh = np.nanmax(ape)
+                inc = fs
+                # maximum 100 iterations
+                while count < 100:
+                    filt = ape <= thresh
+                    vol = np.nansum(ape[filt])*cs**2/2
+                    if vol > gouge_vol:
+                        thresh -= inc
+                    else:
+                        if np.abs((vol-gouge_vol)/gouge_vol) < 0.01:
+                            break
+                        else:
+                            inc /= 2
+                            thresh += inc
+                    
+                    count += 1
+                self.gouge_area_fraction = (1. - self.contact_area[0])*\
+                                           (np.sum(filt[1:-1,1:,1,2]) +\
+                                            np.sum(filt[1:,1:-1,1,1]))/ +\
+                                            (filt[1:-1,1:,1,2].size +\
+                                             filt[1:,1:-1,1,1].size)
+
+            
+        # compute the hydraulic resistivity of gouge based on electric aperture
+        # since this accounts for variation in cell size along a cell
+        hydres_gouge = self.fluid_viscosity*self.cellsize[0]/\
+            (self.aperture_electric[:,:,:,:,0]*self.permeability_gouge + \
+            (self.cellsize[0] - self.aperture_electric[:,:,:,:,0])*\
+                                    self.permeability_matrix)
+
+        # apply the new hydraulic resistivity in regions where we have gouge
+        self.hydraulic_resistivity[filt] = hydres_gouge[filt]
+        
+        
 
     def solve_resistor_network(self):
         """
