@@ -136,7 +136,7 @@ def initialise_inputs(input_parameters):
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
                 'a','elevation_scalefactor','aperture_type','fault_edges',
                 'fault_surfaces','cellsize','offset','deform_fault_surface',
-                'random_numbers_dir']:
+                'random_numbers_dir','permeability_gouge']:
         # check if it is an attribute in RockVol
         if hasattr(RockVol,att):
             attval = getattr(RockVol,att)
