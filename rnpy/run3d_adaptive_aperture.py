@@ -36,6 +36,7 @@ def parse_arguments(arguments):
                       ['faultlength_min',None,'minimum fault length, if specifying random faults',1,float],
                       ['offset',None,'offset on fault, (distance in m)',1,float],
                       ['deform_fault_surface',None,'whether or not to deform fault surfaces when applying offset',1,str],
+                      ['fault_gouge',None,'whether or not to add fault gouge to the fault cavity',1,str],
                       ['alpha',None,'alpha value (scaling constant) for fault network',1,float],
                       ['num_fault_separation','nfs','number of fault separation '+\
                        'values, code will auto choose these values',1,float],
@@ -107,7 +108,7 @@ def parse_arguments(arguments):
             input_parameters['elevation_scalefactor'] = None
             
     for att in ['deform_fault_surface','correct_aperture_for_geometry',
-                'matrix_flow','matrix_current']:
+                'matrix_flow','matrix_current','fault_gouge']:
         if att in input_parameters.keys():
             if str.lower(input_parameters[att]) == 'true':
                 input_parameters[att] = True
@@ -226,30 +227,18 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # fsmax = offset_cm*0.0017 +0.0005
         fsmax = offset_cm*0.00218 + 0.00031
         
-        fault_separations = np.array([-0.5*fsmax,
-                                      # 0.,
-                                      10*fsmax])
         fault_separations = np.array([-10*fsmax,
-                                      # 0.,
+                                       0.,
                                       10*fsmax])
-        # fault_separations = np.array([-500*fsmax,-1.66,-1.65,-0.85,-0.845,-0.84,1.95,2.00,3.66,10000*fsmax])*1e-3
-        
-        # initialise arrays to contain bulk resistivity and conductive fractions
-        # cfractions = np.ones_like(fault_separations)*np.nan
-        # resbulk = np.ones_like(fault_separations)*np.nan
-        # kbulk = np.ones_like(fault_separations)*np.nan
-        # cellsizes = np.ones_like(fault_separations)*np.nan
+
 
         cfractions = np.ones_like(fault_separations)*np.nan
         contactarea = np.ones_like(fault_separations)*np.nan
         resbulk = np.ones((fault_separations.shape[0],3))*np.nan
         kbulk = np.ones((fault_separations.shape[0],3))*np.nan
         cellsizes = np.ones((fault_separations.shape[0],3))*np.nan
-
-        # cfractions = []
-        # resbulk = []
-        # kbulk = []
-        # cellsizes = []
+        gouge_areas = np.zeros_like(fault_separations)*np.nan
+        gouge_fractions = np.zeros_like(fault_separations)*np.nan
 
         props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
         
@@ -279,6 +268,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 
             solver_type = get_solver_type(input_parameters['solver_type'],fs, RockVolI.ncells)
             
+            
+            if 'fault_gouge' in input_parameters.keys():
+                if input_parameters['fault_gouge']:
+                    
+                    RockVolI.add_fault_gouge()
             RockVolI.solve_resistor_network2(method=solver_type)
             
             if trace_mem:
@@ -309,11 +303,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             resbulk[i] = RockVolI.resistivity_bulk
             kbulk[i] = RockVolI.permeability_bulk
             cellsizes[i] = RockVolI.cellsize
-            # cfractions.append(RockVolI.conductive_fraction)
-            # resbulk.append(RockVolI.resistivity_bulk)
-            # kbulk.append(RockVolI.permeability_bulk)
-            # cellsizes.append(RockVolI.cellsize)
-
+            gouge_areas[i] = RockVolI.gouge_area_fraction
+            gouge_fractions[i] = RockVolI.gouge_fraction
+            
             if r == 0:
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
                 # only save 1 copy of fault surfaces
@@ -331,8 +323,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # compute differences between adjacent resistivity points on curve
             resjump = np.log10(resbulk[:-1])-np.log10(resbulk[1:])
             kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
+            # print(kbulk)
+            # print("kjump",kjump)
             
             kjump = np.amax(kjump,axis=1)
+            # print(kjump)
             resjump = np.amax(resjump,axis=1)
             
             
@@ -340,14 +335,15 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # somewhere in the permeability curve, or in the resistivity curve
             maxkjump = np.amax(kjump)/(np.log10(kbulk[-1][2]) - np.log10(kbulk[0][2]))
             maxrjump = np.amax(resjump)/(np.log10(resbulk[0][2]) - np.log10(resbulk[-1][2]))
-            if maxkjump > maxrjump:
-                    print("using jump in permeability curve")
-                    # if in permeability curve, find where kjump is maximised
-                    i = int(np.where(kjump == max(kjump))[0])
-            else:
-                # else use resistivity curve
-                print("using jump in resistivity curve")
-                i = int(np.where(resjump == max(resjump))[0])
+            # if maxkjump > maxrjump:
+            print("using jump in permeability curve")
+            # if in permeability curve, find where kjump is maximised
+            i = int(np.where(kjump == max(kjump))[0])
+            # print(i)
+            # else:
+            #     # else use resistivity curve
+            #     print("using jump in resistivity curve")
+            #     i = int(np.where(resjump == max(resjump))[0])
             
             
             # new fault separation to insert (halfway across max jump)
@@ -375,6 +371,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
             solver_type = get_solver_type(input_parameters['solver_type'],newfs, RockVol.ncells)
 
+            if 'fault_gouge' in input_parameters.keys():
+                if input_parameters['fault_gouge']:
+                    print("adding fault gouge")
+                    RockVol.add_fault_gouge()
+
             RockVol.solve_resistor_network2(method=solver_type)
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
@@ -401,6 +402,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
             contactarea = np.insert(contactarea,i+1,RockVol.contact_area[0])
+            gouge_areas = np.insert(gouge_areas,i+1,RockVol.gouge_area_fraction)
+            gouge_fractions = np.insert(gouge_fractions,i+1,RockVol.gouge_fraction)
 
             # resbulk.insert(i+1,RockVol.resistivity_bulk[2])
             # kbulk.insert(i+1, RockVol.permeability_bulk[2])
@@ -430,6 +433,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             rp_master = np.ones(len(fs_master))*r
             cs_master = cellsizes.copy()
             ca_master = contactarea.copy()
+            ga_master = gouge_areas.copy()
+            gf_master = gouge_fractions.copy()
             first = False
         else:
             fs_master = np.hstack([fs_master,fault_separations])
@@ -439,14 +444,22 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             rp_master = np.hstack([rp_master,np.ones(len(fault_separations))*r])
             cs_master = np.concatenate([cs_master,cellsizes])
             ca_master = np.hstack([ca_master,contactarea])
+            ga_master = np.hstack([ga_master,gouge_areas])
+            gf_master = np.hstack([gf_master,gouge_fractions])
 
         
-        write_outputs(input_parameters_new,fs_master,cf_master,rb_master,kb_master,rp_master,cs_master, ca_master,rank, outfilename)
+        write_outputs(input_parameters_new,fs_master,cf_master,rb_master,
+                      kb_master,rp_master,cs_master, ca_master, ga_master,
+                      gf_master,
+                      rank, outfilename)
         
     return outfilename
 
 
-def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,repeatno,cellsizex,contactarea, rank, outfilename):
+def write_outputs(input_parameters,fault_separations,cfractions,resbulk,
+                  kbulk,repeatno,cellsizex,contactarea, gouge_areas,
+                  gouge_fractions,
+                  rank, outfilename):
     """
     write outputs to a file
     
@@ -458,6 +471,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
     variablekeys += ['cellsize_%s'%val for val in 'xyz']
     variablekeys += ['contact_area']
     variablekeys += ['repeat']
+    variablekeys += ['gouge_fraction','gouge_area_fraction']
     
 
     # values for above headings
@@ -467,7 +481,9 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
                               kbulk.T,
                               cellsizex.T,
                               contactarea,
-                              repeatno]).T
+                              repeatno,
+                              gouge_areas,
+                              gouge_fractions]).T
 
     # create a dictionary containing fixed variables
     fixeddict = {}
@@ -482,7 +498,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,kbulk,re
                   'faultlength_min','alpha','a','elevation_scalefactor',
                   'aperture_type','offset','mismatch_wavelength_cutoff',
                   'matrix_flow','matrix_current','correct_aperture_for_geometry',
-                  'deform_fault_surface']:
+                  'deform_fault_surface','permeability_gouge','porosity_gouge']:
         if param in input_parameters.keys():
             fixeddict[param] = input_parameters[param]
 
@@ -520,7 +536,7 @@ def combine_outputs(outputs_gathered):
             
     bn = os.path.basename(outputs_gathered[0])
     newbn = bn[:-6]+bn[-4:]
-    np.savetxt(os.path.join(os.path.dirname(op),newbn),data,fmt='%.3e',
+    np.savetxt(os.path.join(os.path.dirname(op),newbn),data,fmt='%.6e',
                header=header,comments='')
 
 

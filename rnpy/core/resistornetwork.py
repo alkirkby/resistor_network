@@ -629,7 +629,7 @@ class Rock_volume():
 
     def add_fault_gouge(self):
         
-        if not self.fault_assignment == 'single_yz':
+        if not self.fault_assignment in ['single_yz','list']:
             print("only implemented for fault type single_yz")
             return
         
@@ -639,7 +639,7 @@ class Rock_volume():
         ape = self.aperture_electric[:,:,:,:,0]
         vol = np.nansum(ape)*cs**2/2
         # open_vol = np.nansum(rv.aperture[:,:,1,1,0])*np.product(rv.cellsize[1:])
-
+        # print("vol,gouge_vol",vol,gouge_vol)
 
         # work out where to distribute the gouge based on an aperture threshold
         # (preferentially to areas with low aperture)
