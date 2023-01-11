@@ -650,8 +650,8 @@ class Rock_volume():
             self.gouge_area_fraction = self.contact_area[0]
             filt = np.ones_like(ape,dtype=bool)
         else:
-            # less than 1% gouge area, set to no gouge
-            if gouge_vol/vol < 0.01:
+            # less than 0.5% gouge area, set to no gouge
+            if gouge_vol/vol < 0.005:
                 self.gouge_fraction = 0.
                 self.gouge_area_fraction = 0.
                 filt = np.zeros_like(ape,dtype=bool)
