@@ -30,6 +30,7 @@ def parse_arguments(arguments):
                       ['cellsize','c','cellsize in x,y and z direction',3,float],
                       ['resistivity_matrix','rm','resistivity of matrix rock','*',float],
                       ['resistivity_fluid','rf','resistivity of fluid filling fractures','*',float],
+                      ['permeability_gouge',None,'permeability of gouge material','*',float],
                       ['fault_assignment',None,'how to assign faults, random or list, '\
                                                'if list need to provide fault edges',1,str],
                       ['faultlength_max',None,'maximum fault length, if specifying random faults',1,float],
