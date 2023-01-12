@@ -439,11 +439,14 @@ def assign_fault_aperture(fault_uvw,
         # if list of apertures provided, assign these to the array. Because these
         # apertures have been pre-trimmed to fit the array, we assign them 
         # differently to if they were calculated from scratch.
+        print("aperture type",aperture_type)
         if ((aperture_type == 'list') and (aperture_list is not None)):
+            
             du1,dv1,dw1 = u1-u0,v1-v0,w1-w0
             
             # loop through true aperture, hydraulic aperture, electric aperture
             for iii,ap in enumerate(aperture_list):
+                print("ap.shape",ap.shape)
                 dperp=list(duvw).index(0)
 
                 if dperp == 0:
@@ -518,7 +521,7 @@ def assign_fault_aperture(fault_uvw,
                     print("fault surfaces wrong type")
                 
             if build:
-#                print "building new faults",
+                print("building new faults"),
                 if aperture_type == 'random':
                     h1,h2 = rnfa.build_fault_pair(size, size_noclip, **faultpair_inputs)
                 else:
@@ -531,14 +534,14 @@ def assign_fault_aperture(fault_uvw,
             if offset > 0:
                 
                 if deform_fault_surface:
-                    # print("deforming fault surface")
+                    print("deforming fault surface")
                     b, h1dd, h2dd, overlap_avg = offset_faults_with_deformation(h1, h2, 
                                                                    fault_separation[i], 
                                                                    offset)
                     h1d[offset:,offset:] = h1dd
                     h2d[offset:,:-offset] = h2dd
                 else:
-                    # print("not deforming fault surface")
+                    print("not deforming fault surface")
                     b = h1[offset:,offset:] - h2[offset:,:-offset] + fault_separation[i]
             else:
                 b = h1 - h2 + fault_separation[i]
@@ -574,6 +577,7 @@ def assign_fault_aperture(fault_uvw,
             bphy = [np.mean([b[1:,1:],b[1:,:-1],
                                 b[:-1,1:],b[:-1,:-1]],axis=0)]*3
             # assign the corrected apertures to aperture array
+
             for ii,bb in enumerate([bphy,bf,bc]):
                 b0,b1,b2 = bb
                 if direction == 0:
