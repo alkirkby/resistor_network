@@ -119,7 +119,10 @@ def prepare_plotdata(data,xparam,yparam,csmax,plane,direction,output_dtype_names
     return plotx, yvals, xlabel, ylabel
 
 
-def clip_by_ca(plotz,ca,ca_threshold):
+def clip_by_ca(plotz,ca,ca_threshold,gouge_contact_area = 0):
+    
+    if gouge_contact_area:
+        ca += (1. - ca)*gouge_contact_area
 
     ca1 = None
     if np.iterable(ca_threshold):

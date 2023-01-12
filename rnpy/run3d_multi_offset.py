@@ -209,7 +209,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new = {'fault_assignment':'random'}
         # offset start time so we don't load all the memory
         time.sleep(rank*10)
-        offsets = np.arange(0,0.42,0.01)[::-1]
+        # offsets = np.arange(0,0.12,0.0025)[::-1]
+        offsets = np.hstack([np.arange(0,0.02,0.0025),
+                             np.arange(0.02,0.05,0.005),
+                             np.arange(0.05,0.41,0.01)])[::-1]
         input_parameters['offset'] = offsets[0]
         input_parameters_new.update(initialise_inputs(input_parameters))
         input_parameters_new['fault_assignment'] = 'list'
@@ -304,12 +307,12 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             gouge_areas[i] = RockVolI.gouge_area_fraction
             gouge_fractions[i] = RockVolI.gouge_fraction
             
-            # if r == 0:
-            save_arrays(RockVolI,props_to_save,'r%1i'%r)
-            # only save 1 copy of fault surfaces
-            for propname in ['fault_edges','fault_surfaces']:
-                if propname in props_to_save:
-                    props_to_save.remove(propname)
+            if r == 0:
+                save_arrays(RockVolI,props_to_save,'r%1i'%r)
+                # only save 1 copy of fault surfaces
+                for propname in ['fault_edges','fault_surfaces']:
+                    if propname in props_to_save:
+                        props_to_save.remove(propname)
                 
 
             

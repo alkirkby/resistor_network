@@ -138,10 +138,14 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             y = yvals
             
             if ca_threshold is not None:
-                
+                if 'gouge_area_fraction' in data_dict[val].keys():
+                    gouge_contact_area = data_dict[val]['gouge_area_fraction']
+                else:
+                    gouge_contact_area = 0
                 y = clip_by_ca(y,
                            data_dict[val]['contact_area'][list('xyz').index(direction)],
-                           thresh)
+                           thresh,
+                           gouge_contact_area=gouge_contact_area)
                 x0[np.isnan(y)] = np.nan
                 x1[np.isnan(y)] = np.nan
 
