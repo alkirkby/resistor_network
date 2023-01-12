@@ -165,7 +165,7 @@ def save_arrays(RockVol,property_names,suffix):
             data = getattr(RockVol,att)
         else:
             data = RockVol.fault_dict[att]
-        suffix = '_oo%.6e_mm'%(RockVol.fault_dict['offset'])
+        suffix = '_oo%.6e'%(RockVol.fault_dict['offset'])
         dirpath = os.path.join(RockVol.workdir,'arrays')
         if not os.path.exists(dirpath):
             os.mkdir(dirpath)
@@ -210,8 +210,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # offset start time so we don't load all the memory
         time.sleep(rank*10)
         # offsets = np.arange(0,0.12,0.0025)[::-1]
-        offsets = np.hstack([np.arange(0,0.02,0.0025),
-                             np.arange(0.02,0.05,0.005),
+        offsets = np.hstack([np.arange(0,0.02,0.002),
+                             np.arange(0.02,0.05,0.004),
                              np.arange(0.05,0.41,0.01)])[::-1]
         input_parameters['offset'] = offsets[0]
         input_parameters_new.update(initialise_inputs(input_parameters))
