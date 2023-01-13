@@ -307,7 +307,7 @@ def read_header(fn):
     with open(fn) as openfile:
         for line in openfile:
             if len(line.split()) == ncols + 1:
-                if 'fault_separation' in line:
+                if len(line) > 100:
                     header_names = line.strip().split()[1:]
                     return header_names
 

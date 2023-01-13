@@ -226,7 +226,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
 
             
-        fs = 1e-4
+        # fs = 2e-4
 
 
         cfractions = np.ones_like(offsets)*np.nan
@@ -250,7 +250,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             if trace_mem:
                 tracemalloc.start()
             input_parameters_new['offset'] = oo
-            input_parameters_new['fault_separation'] = fs
+            # input_parameters_new['fault_separation'] = fs
             t0a = time.time()
             
             
@@ -275,6 +275,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                     
                     RockVolI.add_fault_gouge()
             RockVolI.solve_resistor_network2(method=solver_type)
+            print(RockVolI.permeability_bulk)
             
             if trace_mem:
                 current, peaksolve = tracemalloc.get_traced_memory()
