@@ -253,7 +253,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # input_parameters_new['fault_separation'] = fs
             t0a = time.time()
             
-            
+            fs = input_parameters_new['fault_separation']
             
             RockVolI = Rock_volume(**input_parameters_new)
             
