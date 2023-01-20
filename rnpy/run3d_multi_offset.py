@@ -375,8 +375,8 @@ def write_outputs(input_parameters,offsets,cfractions,resbulk,
                               cellsizex.T,
                               contactarea,
                               repeatno,
-                              gouge_areas,
-                              gouge_fractions]).T
+                              gouge_fractions,
+                              gouge_areas]).T
 
     # create a dictionary containing fixed variables
     fixeddict = {}
