@@ -635,6 +635,7 @@ class Rock_volume():
         
         cs = self.cellsize[1]
         fs = self.fault_dict['fault_separation']
+
         gouge_vol = self.overlap_volume[0]/(1-self.porosity_gouge)
         ape = self.aperture_electric[:,:,:,:,0]
         vol = np.nansum(ape)*cs**2/2
@@ -658,7 +659,7 @@ class Rock_volume():
             else:
                 self.gouge_fraction = gouge_vol/vol
                 thresh = np.nanmax(ape)
-                inc = fs
+                inc = fs*1.
                 # maximum 100 iterations
                 while count < 100:
                     filt = ape <= thresh
@@ -679,7 +680,6 @@ class Rock_volume():
                                             (filt[1:-1,1:,1,2].size +\
                                              filt[1:,1:-1,1,1].size)
 
-            
         # compute the hydraulic resistivity of gouge based on electric aperture
         # since this accounts for variation in cell size along a cell
         hydres_gouge = self.fluid_viscosity*self.cellsize[0]/\

@@ -229,9 +229,12 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         fsmax = offset_cm*0.00218 + 0.00031
         
         fault_separations = np.array([-10*fsmax,
-                                       0.,
+                                        0.,
                                       10*fsmax])
-
+        # fault_separations = np.array([-200,-0.03096191, -0.02914063, -0.02549805, -0.02185547, -0.01457031,
+        #        -0.00728516, -0.00546387, -0.00364258,  0.        ,  0.01457031,
+        #         0.02914063,  0.05828125,  0.1165625 ,  0.233125  ,  0.46625   ,
+        #         0.9325    ])*1e-3
 
         cfractions = np.ones_like(fault_separations)*np.nan
         contactarea = np.ones_like(fault_separations)*np.nan
@@ -249,6 +252,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
                 input_parameters['cellsize'][idx] = 1e-8
             fs = fault_separations[i]
+
             if trace_mem:
                 tracemalloc.start()
             input_parameters_new['fault_separation'] = fs
@@ -260,7 +264,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             if 'effective_apertures_fn' in input_parameters.keys():
             # if input_parameters['effective_apertures_fn'] in :
                 RockVolI = update_from_precalculated(RockVolI,input_parameters['effective_apertures_fn'])
-    
+
             t0 = time.time()
             if trace_mem:
                 current, peaksetup = tracemalloc.get_traced_memory()
@@ -274,6 +278,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 if input_parameters['fault_gouge']:
                     
                     RockVolI.add_fault_gouge()
+
             RockVolI.solve_resistor_network2(method=solver_type)
             
             if trace_mem:
@@ -306,8 +311,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cellsizes[i] = RockVolI.cellsize
             gouge_areas[i] = RockVolI.gouge_area_fraction
             gouge_fractions[i] = RockVolI.gouge_fraction
+
             
             if r == 0:
+                
                 save_arrays(RockVolI,props_to_save,'r%1i'%r)
                 # only save 1 copy of fault surfaces
                 for propname in ['fault_edges','fault_surfaces']:
