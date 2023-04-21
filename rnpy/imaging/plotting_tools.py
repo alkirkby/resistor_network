@@ -22,6 +22,7 @@ def prepare_data_dict(fn_list,plot_by,plane,direction,fs_list=None,clip=0,interp
     # load data and interpolate to all fault separation values
     for fn in fn_list:
         outputs = load_outputs(fn,clip=clip)
+        # get value of parameter to divide up data by e.g. offset
         param = get_param(fn, plot_by)
         
         if plot_by == 'offset':
@@ -87,17 +88,25 @@ def prepare_plotdata(data,xparam,yparam,csmax,plane,direction,output_dtype_names
         csmax = np.nanmax(xcs)
                 
     # apply any correction required to plot bulk or fault properties
-    # print(yvals[0])
     if csmax is None:
         if interpolate_to == 'k':
             cf = np.mean(cf,axis=0)
         if yparam.startswith('res'):
+            # check if simulations included current in the matrix
             if data['matrix_current'] != 'False': 
                 yvals = resistivity_fault(yvals,data['resistivity_matrix'],cf)
             xkey_dict['res'] = xkey_dict['res'].replace('bulk_','fault_')
         else:
-            if data['matrix_flow'] != 'False':         
+            # check if simulations included flow in the matrix
+            if data['matrix_flow'] != 'False':
                 yvals = permeability_fault(yvals,data['permeability_matrix'],cf)
+            # else:
+            #     print(cf)
+            #     yvals[yvals > data['permeability_matrix']] = \
+            #         permeability_fault(yvals[yvals > data['permeability_matrix']],
+            #                            data['permeability_matrix'],
+            #                            cf[yvals > data['permeability_matrix']])
+            #     yvals = permeability_fault(yvals,data['permeability_matrix'],cf)
             xkey_dict['k'] = xkey_dict['k'].replace('bulk_','fault_')
     else:
         if interpolate_to == 'k':
@@ -119,11 +128,9 @@ def prepare_plotdata(data,xparam,yparam,csmax,plane,direction,output_dtype_names
     return plotx, yvals, xlabel, ylabel
 
 
-def clip_by_ca(plotz,ca,ca_threshold,gouge_contact_area = 0):
+def clip_by_ca(plotz,ca,ca_threshold):
     
-    if gouge_contact_area:
-        ca += (1. - ca)*gouge_contact_area
-
+    
     ca1 = None
     if np.iterable(ca_threshold):
         if len(ca_threshold) == 2:
@@ -134,7 +141,6 @@ def clip_by_ca(plotz,ca,ca_threshold,gouge_contact_area = 0):
     else:
         ca0 = ca_threshold
         
-    print(ca0)
         
     plotz[ca <= ca0] = np.nan
     if ca1 is not None:

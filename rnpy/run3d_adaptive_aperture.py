@@ -228,9 +228,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # fsmax = offset_cm*0.0017 +0.0005
         fsmax = offset_cm*0.00218 + 0.00031
         
-        fault_separations = np.array([-10*fsmax,
+        fault_separations = np.array([10*fsmax,
                                         0.,
                                       10*fsmax])
+        # fault_separations = np.array([-0.46625   , -0.233125  , -0.1274902 , -0.08742187,  0.        ,
+        #         0.1165625 ,  0.46625   ])*1e-3
         # fault_separations = np.array([-200,-0.03096191, -0.02914063, -0.02549805, -0.02185547, -0.01457031,
         #        -0.00728516, -0.00546387, -0.00364258,  0.        ,  0.01457031,
         #         0.02914063,  0.05828125,  0.1165625 ,  0.233125  ,  0.46625   ,

@@ -34,7 +34,8 @@ def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
         idx_list = ['fault_separation','conductive_fraction']+\
                    ['resistivity_bulk_'+direction for direction in plane]+\
                    ['permeability_bulk_'+direction for direction in plane]+\
-                   ['contact_area','aperture_mean_x']
+                   ['contact_area','aperture_mean_x','repeat gouge_fraction',
+                    'gouge_area_fraction']
         perp_direction = get_perp(plane)
         idx_list += ['cellsize_'+perp_direction]
         idx_list.remove(key_param)
@@ -89,20 +90,23 @@ def interpolate_to_all(outputs,value_list=None,idx_dict=None, plane = 'yz',
             if pname in outputs.dtype.names:
                 interp_x = outputs[key_param]
                 interp_y = outputs[pname]
+            else:
+                interp_x,interp_y = None,None
                 
                 
         # if pname in outputs.dtype.names:
-        data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
-        for r in range(nrpts):
-            if pname.split('_')[0] in ['res','k','permeability','resistivity']:
-                # interpolate resistivity and permeability in log space
-                func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
-                data_dict1[pname][r] = 10**func(data_dict1[key_param])
-
-            else:
-                # interpolate other parametersin linear space
-                func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
-                data_dict1[pname][r] = func(data_dict1[key_param])   
+        if interp_x is not None:
+            data_dict1[pname] = np.zeros((nrpts,data_dict1[key_param].shape[0]))
+            for r in range(nrpts):
+                if pname.split('_')[0] in ['res','k','permeability','resistivity']:
+                    # interpolate resistivity and permeability in log space
+                    func = interp1d(interp_x[r],np.log10(interp_y[r]),bounds_error=False)
+                    data_dict1[pname][r] = 10**func(data_dict1[key_param])
+    
+                else:
+                    # interpolate other parameters in linear space
+                    func = interp1d(interp_x[r],interp_y[r],bounds_error=False)
+                    data_dict1[pname][r] = func(data_dict1[key_param])   
             
     return data_dict1
 

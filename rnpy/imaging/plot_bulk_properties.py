@@ -33,7 +33,7 @@ def hex2rgb(hexstr):
 def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,
             direction='z', plane='yz', mean_type='median',range_type='percentile',range_num=None,
             label_prefix = '',interpolate_to='fs',ca_threshold=None,colors=None,
-            linestyle='-',first=True):
+            linestyle='-',first=True,include_gouge_area=False):
     """
     
 
@@ -82,12 +82,22 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
     data_dict, output_dtype_names = prepare_data_dict(fn_list,plot_by,plane,
                                                       direction,clip=clip,
                                                       interpolate_to=interpolate_to)
-   
+    
     data_keys = np.array(list(data_dict.keys()))
     data_keys.sort()
     
     # loop through data
     for i, val in enumerate(data_keys):
+
+        if 'gouge_area_fraction' in data_dict[val].keys():
+            gouge_contact_area = data_dict[val]['gouge_area_fraction']
+        else:
+            gouge_contact_area = 0
+
+        if include_gouge_area:
+            data_dict[val]['contact_area'] += \
+                (1-data_dict[val]['contact_area'])*gouge_contact_area
+        
         # assume all runs used the same matrix permeability/resistivity values
         km = get_param(fn_list[0], 'permeability_matrix')
         if km is None:
@@ -95,15 +105,20 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         
         plotx, yvals, xlabel, ylabel = prepare_plotdata(data_dict[val],xparam,yparam,csmax,
                                         plane,direction,output_dtype_names,interpolate_to=interpolate_to)
-            
-        
+
         if ca_threshold is not None:
-                ca_threshold = np.array(ca_threshold)
-                if len(ca_threshold.shape) == 2:
-                    
-                    thresh = ca_threshold[i]
-                else:
-                    thresh = ca_threshold
+            ca_threshold = np.array(ca_threshold)
+            if len(ca_threshold.shape) == 2:
+                
+                thresh = ca_threshold[i]
+            else:
+                thresh = ca_threshold
+
+            yvals = clip_by_ca(yvals,
+                       data_dict[val]['contact_area'],#[list('xyz').index(direction)],
+                       thresh)
+
+        
         
         if len(yvals.shape) == 2:
             y=getmean(yvals,mtype=mean_type)
@@ -113,16 +128,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             elif range_type == 'sem':
                 y0,y1 = [getmean(yvals,mtype=mean_type,stdtype='sem',semm=i) \
                            for i in [-range_num,range_num]]
-            # print(data_dict[val]['contact_area'][list('xyz').index(direction)])
-            if ca_threshold is not None:
-                
-                # for xx in [y,y0,y1]:
-
-                y = clip_by_ca(y,
-                           data_dict[val]['contact_area'][list('xyz').index(direction)],
-                           thresh)
-                y0[np.isnan(y)] = np.nan
-                y1[np.isnan(y)] = np.nan
+            y0[np.isnan(y)] = np.nan
+            y1[np.isnan(y)] = np.nan
                 
             plt.fill_between(plotx, y0, y1, alpha=0.2, color=colors[i])
         
@@ -137,17 +144,17 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             plotx=getmean(plotx,mtype=mean_type)
             y = yvals
             
-            if ca_threshold is not None:
-                if 'gouge_area_fraction' in data_dict[val].keys():
-                    gouge_contact_area = data_dict[val]['gouge_area_fraction']
-                else:
-                    gouge_contact_area = 0
-                y = clip_by_ca(y,
-                           data_dict[val]['contact_area'][list('xyz').index(direction)],
-                           thresh,
-                           gouge_contact_area=gouge_contact_area)
-                x0[np.isnan(y)] = np.nan
-                x1[np.isnan(y)] = np.nan
+            # if ca_threshold is not None:
+            #     if 'gouge_area_fraction' in data_dict[val].keys():
+            #         gouge_contact_area = data_dict[val]['gouge_area_fraction']
+            #     else:
+            #         gouge_contact_area = 0
+            #     y = clip_by_ca(y,
+            #                data_dict[val]['contact_area'][list('xyz').index(direction)],
+            #                thresh,
+            #                gouge_contact_area=gouge_contact_area)
+            #     x0[np.isnan(y)] = np.nan
+            #     x1[np.isnan(y)] = np.nan
 
             plt.fill_betweenx(yvals,x0,x1,alpha=0.2)
         
@@ -170,7 +177,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
         # if xparam == 'apm':
         #     plt.xlim(1e-8,1e-2)
             
-        plt.legend(fontsize=8)
+        # plt.legend(fontsize=8)
             
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)

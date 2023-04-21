@@ -6,9 +6,7 @@ Created on Thu Apr 30 10:35:11 2015
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-import os
+
 import rnpy.functions.assignfaults_new as rnaf
 import rnpy.functions.assignproperties as rnap
 import rnpy.functions.matrixbuild as rnmb
@@ -16,8 +14,6 @@ import rnpy.functions.matrixbuild as rnmb
 import rnpy.functions.matrixsolve as rnms
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
-import sys
-import time
 
 class Rock_volume():
     """
