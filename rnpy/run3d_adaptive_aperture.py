@@ -245,7 +245,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         cellsizes = np.ones((fault_separations.shape[0],3))*np.nan
         gouge_areas = np.zeros_like(fault_separations)*np.nan
         gouge_fractions = np.zeros_like(fault_separations)*np.nan
-        aperture_percentiles = np.zeros((fault_separations.shape[0],4))
+        aperture_percentiles = np.zeros((fault_separations.shape[0],4))*np.nan
 
         props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
         
@@ -463,7 +463,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             ca_master = np.hstack([ca_master,contactarea])
             ga_master = np.hstack([ga_master,gouge_areas])
             gf_master = np.hstack([gf_master,gouge_fractions])
-            apc_master = np.hstack([apc_master,aperture_percentiles])
+            apc_master = np.concatenate([apc_master,aperture_percentiles])
 
         
         write_outputs(input_parameters_new,fs_master,cf_master,rb_master,
