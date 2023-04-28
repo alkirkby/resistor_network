@@ -571,7 +571,6 @@ class Rock_volume():
               
   
     def update_cellsize(self):
-        
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
             for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):
                 for i in range(3):

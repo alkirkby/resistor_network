@@ -228,7 +228,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         # fsmax = offset_cm*0.0017 +0.0005
         fsmax = offset_cm*0.00218 + 0.00031
         
-        fault_separations = np.array([10*fsmax,
+        fault_separations = np.array([-10*fsmax,
                                         0.,
                                       10*fsmax])
         # fault_separations = np.array([-0.46625   , -0.233125  , -0.1274902 , -0.08742187,  0.        ,
@@ -245,6 +245,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         cellsizes = np.ones((fault_separations.shape[0],3))*np.nan
         gouge_areas = np.zeros_like(fault_separations)*np.nan
         gouge_fractions = np.zeros_like(fault_separations)*np.nan
+        aperture_percentiles = np.zeros((fault_separations.shape[0],4))
 
         props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
         
@@ -313,6 +314,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             cellsizes[i] = RockVolI.cellsize
             gouge_areas[i] = RockVolI.gouge_area_fraction
             gouge_fractions[i] = RockVolI.gouge_fraction
+            for pci,pc in enumerate([50,65,75,90]):
+                aperture_percentiles[i,pci] = np.nanpercentile(RockVolI.aperture[:,:,1,2,0],pc)
 
             
             if r == 0:
@@ -408,6 +411,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk,axis=0)
             cellsizes = np.insert(cellsizes, i+1, RockVol.cellsize,axis=0)
+            aperture_percentiles = np.insert(aperture_percentiles, 
+                                             i+1, [np.nanpercentile(RockVol.aperture[:,:,1,2,0],pc) \
+                                                   for pc in [50,65,75,90]],axis=0)
             
             RockVol.compute_conductive_fraction()
             cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
@@ -445,6 +451,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             ca_master = contactarea.copy()
             ga_master = gouge_areas.copy()
             gf_master = gouge_fractions.copy()
+            apc_master = aperture_percentiles.copy()
             first = False
         else:
             fs_master = np.hstack([fs_master,fault_separations])
@@ -456,11 +463,12 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             ca_master = np.hstack([ca_master,contactarea])
             ga_master = np.hstack([ga_master,gouge_areas])
             gf_master = np.hstack([gf_master,gouge_fractions])
+            apc_master = np.hstack([apc_master,aperture_percentiles])
 
         
         write_outputs(input_parameters_new,fs_master,cf_master,rb_master,
                       kb_master,rp_master,cs_master, ca_master, ga_master,
-                      gf_master,
+                      gf_master,apc_master,
                       rank, outfilename)
         
     return outfilename
@@ -468,7 +476,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
 def write_outputs(input_parameters,fault_separations,cfractions,resbulk,
                   kbulk,repeatno,cellsizex,contactarea, gouge_areas,
-                  gouge_fractions,
+                  gouge_fractions,aperture_percentiles,
                   rank, outfilename):
     """
     write outputs to a file
@@ -482,6 +490,7 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,
     variablekeys += ['contact_area']
     variablekeys += ['repeat']
     variablekeys += ['gouge_fraction','gouge_area_fraction']
+    variablekeys += ['aperture_%1ipc'%pc for pc in [50,65,75,90]]
     
 
     # values for above headings
@@ -493,7 +502,8 @@ def write_outputs(input_parameters,fault_separations,cfractions,resbulk,
                               contactarea,
                               repeatno,
                               gouge_areas,
-                              gouge_fractions]).T
+                              gouge_fractions,
+                              aperture_percentiles.T]).T
 
     # create a dictionary containing fixed variables
     fixeddict = {}
