@@ -176,23 +176,8 @@ class Rock_volume():
 
             # remove array buffer
             if self.array_buffer > 0:
-                
-                if np.all(self.fault_array.shape[:3] > np.array(self.ncells) + 2):
-#                    print "removing buffer"
-                    buf = self.array_buffer
-                    self.fault_array = rna.add_nulls(self.fault_array[buf:-buf,buf:-buf,buf:-buf])
-                    self.fault_edges -= self.array_buffer
-                if np.all(self.aperture.shape[:3] > np.array(self.ncells) + 2):
-                    buf = self.array_buffer
-                    self.aperture = rna.add_nulls(self.aperture[buf:-buf,buf:-buf,buf:-buf])
-                    
-                self.resistance = rna.add_nulls(self.resistance[buf:-buf,buf:-buf,buf:-buf])
-                self.resistivity = rna.add_nulls(self.resistivity[buf:-buf,buf:-buf,buf:-buf])
-                self.aperture_electric = rna.add_nulls(self.aperture_electric[buf:-buf,buf:-buf,buf:-buf])
-                
-                self.hydraulic_resistance = rna.add_nulls(self.hydraulic_resistance[buf:-buf,buf:-buf,buf:-buf])
-                self.permeability = rna.add_nulls(self.permeability[buf:-buf,buf:-buf,buf:-buf])
-                self.aperture_hydraulic = rna.add_nulls(self.aperture_hydraulic[buf:-buf,buf:-buf,buf:-buf])            
+                self._trim_arrays()
+            
 
             self.voltage = np.zeros((nz+1,ny+1,nx+1,3))
             self.pressure = np.zeros((nz+1,ny+1,nx+1,3))
@@ -206,6 +191,23 @@ class Rock_volume():
             if self.ncells[i] <=2:
                 self.solve_direction = self.solve_direction.replace(sd,'')
         
+    def _trim_arrays(self):
+        if np.all(self.fault_array.shape[:3] > np.array(self.ncells) + 2):
+#                    print "removing buffer"
+            buf = self.array_buffer
+            self.fault_array = rna.add_nulls(self.fault_array[buf:-buf,buf:-buf,buf:-buf])
+            self.fault_edges -= self.array_buffer
+        if np.all(self.aperture.shape[:3] > np.array(self.ncells) + 2):
+            buf = self.array_buffer
+            self.aperture = rna.add_nulls(self.aperture[buf:-buf,buf:-buf,buf:-buf])
+            
+        self.resistance = rna.add_nulls(self.resistance[buf:-buf,buf:-buf,buf:-buf])
+        self.resistivity = rna.add_nulls(self.resistivity[buf:-buf,buf:-buf,buf:-buf])
+        self.aperture_electric = rna.add_nulls(self.aperture_electric[buf:-buf,buf:-buf,buf:-buf])
+        
+        self.hydraulic_resistance = rna.add_nulls(self.hydraulic_resistance[buf:-buf,buf:-buf,buf:-buf])
+        self.permeability = rna.add_nulls(self.permeability[buf:-buf,buf:-buf,buf:-buf])
+        self.aperture_hydraulic = rna.add_nulls(self.aperture_hydraulic[buf:-buf,buf:-buf,buf:-buf])        
 
     def build_faults(self,create_array=True):
         """

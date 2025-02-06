@@ -155,7 +155,7 @@ def get_fracture_coords(lvals,networksize,pxyz,return_Nf = False,a=3.5,alpha=10.
     
     """
     # get the total volume in metres**3
-    volume = np.product(networksize)
+    volume = np.prod(networksize)
     
     # get number of faults for each bin given by lvals
     Nf = get_faultlength_distribution(lvals,volume,alpha=alpha,a=a)
@@ -696,7 +696,7 @@ def assign_fault_aperture(fault_uvw,
             # average overlap height per cell * cellsize ** 2 * number of cells
             overlap_vol.append(overlap_avg * \
                                cs**2 * \
-                               np.product(np.array(duvw)[np.array(duvw) > 0])) 
+                               np.prod(np.array(duvw)[np.array(duvw) > 0])) 
             aperture_list.append(tmp_aplist[0])
             aperture_list_f.append(tmp_aplist[1])
             aperture_list_c.append(tmp_aplist[2])
