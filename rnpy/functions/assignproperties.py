@@ -162,7 +162,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
     # initialise resistance to value if matrix occupying cell
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
-        resistance_array[:,:,:,i] = d[i]*r_matrix/np.product(dp)   
+        resistance_array[:,:,:,i] = d[i]*r_matrix/np.prod(dp)   
 
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and cell sizes
@@ -195,7 +195,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
             aperture_array[:,:,:,i,od][aperture_array[:,:,:,i,od] > d[od]] = d[od]
     
         # cross sectional area of the cell perpendicular to flow
-        area_matrix = np.product(dp)
+        area_matrix = np.prod(dp)
         
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
@@ -226,11 +226,11 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
         resistance_array[:,:,:,i][cond] = \
-        np.amin([r_fluid*aperture_array[:,:,:,i,i][cond]/np.product(dp) +\
-                 r_matrix*(d[i] - aperture_array[:,:,:,i,i][cond])/np.product(dp),
+        np.amin([r_fluid*aperture_array[:,:,:,i,i][cond]/np.prod(dp) +\
+                 r_matrix*(d[i] - aperture_array[:,:,:,i,i][cond])/np.prod(dp),
                  resistance_array[:,:,:,i][cond]],axis=0)
 
-        resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.product(dp)/d[i]
+        resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.prod(dp)/d[i]
         
     return resistance_array,resistivity_array,aperture_array
 
@@ -288,7 +288,7 @@ def get_hydraulic_resistance_old(aperture_array,k_matrix,d,mu=1e-3):
 
         
         # cross sectional area of the cell perpendicular to flow
-        area_matrix = np.product(dp)
+        area_matrix = np.prod(dp)
         area_fracture = np.zeros_like(aperture_array[:,:,:,0,0])
         for ii in range(2):
             # subtract the area taken up by the fracture
@@ -339,7 +339,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
     
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
-        hresistance[:,:,:,i] = d[i]*mu/(np.product(dp)*k_matrix)
+        hresistance[:,:,:,i] = d[i]*mu/(np.prod(dp)*k_matrix)
     
     permeability = hresistance.copy()
     ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]    
@@ -419,7 +419,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
         d0,d1 = dp[0],dp[1]
 
         # subtract fracture area from matrix area and remove any negative matrix area
-        area_matrix = np.product(dp) - (ap0*d1 + ap1*d0 - ap0*ap1)
+        area_matrix = np.prod(dp) - (ap0*d1 + ap1*d0 - ap0*ap1)
         
         # permeability is the weighted mean of the fractured bit (in the two
         # directions along flow) and the matrix bit
@@ -440,11 +440,11 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
         # are more than one cell width)
         cond = aperture_array[:,:,:,i,i] > 0
         hresistance[:,:,:,i][cond] = \
-        np.amin([hydres[:,:,:,i,i][cond]*aperture_array[:,:,:,i,i][cond]/np.product(dp)+\
-                 mu*(d[i] - aperture_array[:,:,:,i,i][cond])/(np.product(dp)*k_matrix),
+        np.amin([hydres[:,:,:,i,i][cond]*aperture_array[:,:,:,i,i][cond]/np.prod(dp)+\
+                 mu*(d[i] - aperture_array[:,:,:,i,i][cond])/(np.prod(dp)*k_matrix),
                  hresistance[:,:,:,i][cond]],axis=0)
         # calculate permeability
-        permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*np.product(dp))
+        permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*np.prod(dp))
         
     return hresistance, permeability
 
@@ -463,7 +463,7 @@ def get_hydraulic_resistivity(hresistance,cellsize):
     
     for i in range(3):
         dpi = [cellsize[dd] for dd in range(3) if dd != i]
-        hresistivity[:,:,:,i] = hresistance[:,:,:,i]*np.product(dpi)/cellsize[i]
+        hresistivity[:,:,:,i] = hresistance[:,:,:,i]*np.prod(dpi)/cellsize[i]
 
         
     return hresistivity
