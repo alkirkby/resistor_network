@@ -550,6 +550,7 @@ class Rock_volume():
         
     def compute_conductive_fraction(self):
         
+        # cellsize in x, y and z direction
         csx,csy,csz = self.cellsize
         
         
@@ -563,7 +564,7 @@ class Rock_volume():
         oyz = (apy * apz).sum()*csx
         oxyz = (apx * apy * apz).sum()
         
-        total_volume = (np.product(apx.shape))*csx*csy*csz
+        total_volume = (np.prod(apx.shape))*csx*csy*csz
         
         cv = cv1 - oxy - oxz - oyz + oxyz
         

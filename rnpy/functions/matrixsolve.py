@@ -44,12 +44,14 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
 #        print("solved matrix using direct method")
     
     elif method == 'pardiso':
+        print("using pypardiso solver")
         from pypardiso import spsolve as parspsolve
         Vn = Vo.copy()
         Vn[:,1:-1] = parspsolve(A,b).reshape(ny+1,nz-1,nx+1)
         r = 0
         
     elif method == 'bicg':
+        print('using direct solver')
         Vn = Vo.copy()
         if Vstart is not None:
             x0 = Vstart[:,1:-1].flatten()

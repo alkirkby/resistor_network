@@ -30,7 +30,7 @@ def hex2rgb(hexstr):
     return tuple(int(hexstr.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
 
 
-def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,
+def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None,ax=None,
             direction='z', plane='yz', mean_type='median',range_type='percentile',range_num=None,
             label_prefix = '',interpolate_to='fs',ca_threshold=None,colors=None,
             linestyle='-',first=True,include_gouge_area=False):
@@ -72,6 +72,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
     if colors is None:
         colors = _get_colors()
     
+    if ax is None:
+        ax = plt.subplot(111)
     
     if range_num is None:
         if range_type == 'percentile':
@@ -117,8 +119,12 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             yvals = clip_by_ca(yvals,
                        data_dict[val]['contact_area'],#[list('xyz').index(direction)],
                        thresh)
-
-        
+            
+            # filter by number of values
+            threshold = yvals.shape[0]/10
+            yvals[:,np.sum(np.isfinite(yvals),axis=0) < threshold] = np.nan
+            
+            # print('yvals.shape',yvals.shape)
         
         if len(yvals.shape) == 2:
             y=getmean(yvals,mtype=mean_type)
@@ -131,7 +137,7 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             y0[np.isnan(y)] = np.nan
             y1[np.isnan(y)] = np.nan
                 
-            plt.fill_between(plotx, y0, y1, alpha=0.2, color=colors[i])
+            ax.fill_between(plotx, y0, y1, alpha=0.2, color=colors[i])
         
         elif len(plotx.shape) == 2:
             if range_type == 'percentile':
@@ -156,21 +162,21 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             #     x0[np.isnan(y)] = np.nan
             #     x1[np.isnan(y)] = np.nan
 
-            plt.fill_betweenx(yvals,x0,x1,alpha=0.2)
+            ax.fill_betweenx(yvals,x0,x1,alpha=0.2)
         
 
         label = label_prefix + '%s = %s'%(plot_by,val)
         if plot_by in ['offset','cellsize']:
             label += 'mm'
         if first:
-            plt.plot(plotx, y, color=colors[i], label=label, linestyle=linestyle)
+            ax.plot(plotx, y, color=colors[i], label=label, linestyle=linestyle)
         else:
-            plt.plot(plotx, y, color=colors[i], linestyle=linestyle)
+            ax.plot(plotx, y, color=colors[i], linestyle=linestyle)
         
-        plt.yscale('log')
+        ax.set_yscale('log')
         
         if xparam not in ['ca','fs','contact_area','fault_separation']:
-            plt.xscale('log')
+            ax.set_xscale('log')
             
         # if xparam == 'cf':
         #     plt.xlim(1e-5,1e0)
@@ -179,8 +185,8 @@ def plot_xy(fn_list,xparam = 'apm',yparam='k',clip=0,plot_by='offset',csmax=None
             
         # plt.legend(fontsize=8)
             
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
         
-    return
+    return ax
         
