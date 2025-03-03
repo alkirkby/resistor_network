@@ -69,6 +69,102 @@ def get_faultpair_defaults(cs, lc):
 
     return lc, fc
 
+def build_anisotropic_fault_pair(size,size_noclip,D=[2.2,2.4],cs=2.5e-4,scalefactor=1e-3,
+                     lc=None,fcw=None,matchingmethod='me',beta=0.6,
+                     random_numbers_dir=None,prefactor=1.):
+    """
+    Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
+    authors). Uses numpy n dimensional inverse fourier transform. Returns two
+    fault surfaces
+    =================================inputs====================================
+    size, integer = dimensions (number of cells across) for fault (fault will be square)
+    size_noclip = size of fault prior to clipping to size of volume (used
+                  to calculate scaling of elevation)
+    D, float = fractal dimension of returned fault, recommended values in range 
+               [2.,2.5]
+    std, float = scaling factor for heights, heights are adjusted so their 
+                 standard deviation equals scalefactor * (size * cs)**0.5
+                 multiplied by size (=ncells in one direction, the surface is
+                 square). Surface 2 will be scaled by the same factor as surface
+                 1 
+    cs, float = cellsize, used to calculate defaults for lc,lcw and std
+    lc, float = cutoff wavelength in metres for matching of faults, the two 
+                fault surfaces will match at wavelengths greater than the 
+                cutoff frequency, default is 1mm (1e-3)
+    fcw, float = window to include for tapering of wavelengths above cutoff.
+    random_numbers_dir = directory containing random numbers to use to generate
+                fault surfaces to use for testing purposes
+
+    ===========================================================================    
+    """
+    
+    if size % 2 != 0:
+        size += 1
+    
+    lc, fc = get_faultpair_defaults(cs, lc)
+
+    
+    
+    # get frequency components
+    pl = np.fft.fftfreq(size+1,d=cs)#*1e-3/cs
+    pl[0] = 1.
+    # define frequencies in 2d
+    p,q = np.meshgrid(pl[:int(size/2)+1],pl)
+    # define f
+    
+    f = 1./(1./p**2+1./q**2)**0.5#*(2**.5)
+
+
+    f2 = f.copy()
+    # take an average of the x and y frequency magnitudes, as matching parameters measured on profiles
+    f2 = 2./(1./np.abs(p)+1./np.abs(q))
+#    k = 1./f
+#    kc = 1./fc
+    fc = fc#*1e-3/cs
+    gamma = f2/fc
+    gamma[f2 > fc] = 1.
+
+    if random_numbers_dir:
+        R1 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
+        R2 = np.loadtxt(os.path.join(random_numbers_dir,'R2.dat'))
+    # define 2 sets of uniform random numbers
+    else:
+        R1 = np.random.random(size=np.shape(f))
+        R2 = np.random.random(size=np.shape(f))
+        
+        
+    np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
+    np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
+    # define fourier components
+    y1 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    
+    if matchingmethod == 'Glover':
+        gamma[f2>2.*fc] = 0.
+        gamma[f2<2.*fc] = beta*(1.-(f2[f2<2.*fc]/(2.*fc)))
+        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+    else:
+        gamma = f2/fc
+        gamma[f2 > fc] = 1.
+        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+   
+    
+    # use inverse discrete fast fourier transform to get surface heights
+    h1 = np.fft.irfftn(y1,y1.shape)
+    h2 = np.fft.irfftn(y2,y2.shape)
+    
+    # scale so that standard deviation is as specified
+    if scalefactor is not None:
+        std = scalefactor*(cs*size_noclip)**(3.-D)
+        ic = int(h1.shape[1]/2)
+        i0 = int(ic-size_noclip/2)
+        i1 = int(ic+size_noclip/2)
+        meanstd = np.average([np.std(line[i0:i1]) for line in h1])
+        scaling_factor = std/meanstd
+        h1 = h1*scaling_factor
+        h2 = h2*scaling_factor
+        
+    return h1, h2
+
 
 
 def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
