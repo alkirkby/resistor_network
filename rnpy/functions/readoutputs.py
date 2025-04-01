@@ -350,4 +350,21 @@ def add_aperture_2d(outputs):
         outputs_new[ff] = outputs[ff]
     outputs_new['aperture_mean_x'] = outputs['cellsize_x']*outputs['conductive_fraction']
 
-    return outputs_new    
+    return outputs_new
+
+
+
+def read_fault_params(jsonfn):
+    import json
+    with open(jsonfn) as infile: 
+        fault_k_ap = json.load(infile)
+
+    lvals_center = np.array(list(fault_k_ap.keys())).astype(float)
+    
+    fw = np.array([fault_k_ap[key]['mean_aperture'] for key in fault_k_ap.keys()])
+    
+    resistivity = np.array([fault_k_ap[key]['mean_resistivity_bulk_1cm'] for key in fault_k_ap.keys()])
+    fault_k = np.array([fault_k_ap[key]['mean_fault_k'] for key in fault_k_ap.keys()])
+    aph = (12*fault_k)**0.5
+    
+    return lvals_center, fw, aph, resistivity

@@ -80,3 +80,21 @@ def get_logspace_array(val_min,val_max,vals_per_decade,include_outside_range=Tru
         stop_val = log_val_max        
         
     return np.logspace(start_val,stop_val,int(round((stop_val-start_val)*vals_per_decade + 1)))
+
+
+
+def get_bin_ranges_from_centers(centers):
+    '''
+    get bin ranges from centers, assuming logarithmic variation
+
+    '''
+    # get evenly spaced bins in log space
+    internal_edges = 10**np.mean([np.log10(centers[1:]),np.log10(centers[:-1])],axis=0)
+    # round to appropriate number of decimal places
+    internal_edges = roundsf(internal_edges,1)
+    # add outer edges
+    bins = np.insert(internal_edges,0,roundsf(2*centers[0] - internal_edges[0],1))
+    bins = np.append(bins,2*centers[-1] - internal_edges[-1])
+    
+    return bins
+

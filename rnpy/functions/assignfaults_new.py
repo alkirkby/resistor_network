@@ -9,7 +9,7 @@ import numpy as np
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
 from scipy.interpolate import interp1d
-
+from rnpy.functions.utils import get_bin_ranges_from_centers
 
 
 def get_faultlength_distribution(lvals,volume,alpha=10,a=3.5):
@@ -34,6 +34,53 @@ def get_faultlength_distribution(lvals,volume,alpha=10,a=3.5):
     
     return Nf
     
+
+def get_Nf2D(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
+    '''
+    
+
+    Parameters
+    ----------
+    a : TYPE
+        DESCRIPTION.
+    R : TYPE
+        DESCRIPTION.
+    lvals_center : TYPE
+        DESCRIPTION.
+    fw : TYPE
+        DESCRIPTION.
+    porosity_target : TYPE
+        DESCRIPTION.
+    alpha_start : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+
+    Returns
+    -------
+    Nf : TYPE
+        DESCRIPTION.
+    alpha : TYPE
+        DESCRIPTION.
+    lvals_range : TYPE
+        DESCRIPTION.
+
+    '''
+    lvals_range = get_bin_ranges_from_centers(lvals_center)
+    R2 = R**2
+    Nf = []
+    alpha = alpha_start * 1.0
+    for i in range(len(lvals_range)-1):
+        lmin,lmax = lvals_range[i:i+2]
+        Nf.append(int(round(alpha/(a-1)*lmin**(1-a)*R2 - alpha/(a-1)*lmax**(1-a)*R2)))
+        
+    while np.sum(fw * np.array(Nf) * lvals_center)/R2 < porosity_target:
+        Nf = []
+        for i in range(len(lvals_range)-1):
+            lmin,lmax = lvals_range[i:i+2]
+            Nf.append(int(round(alpha/(a-1)*lmin**(1-a)*R2 - alpha/(a-1)*lmax**(1-a)*R2)))
+        alpha += 0.01
+        
+        
+    return Nf, alpha, lvals_range
 
 def create_random_fault(network_size,faultsizerange,plane):
     """
@@ -756,3 +803,85 @@ def update_from_precalculated(rv,effective_apertures_fn,permeability_matrix=1e-1
     rv.initialise_permeability()
     
     return rv
+
+
+def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, hydraulic_aperture, resistivity,pz):
+
+
+    ncells = Rv.ncells[1]
+    cellsize = Rv.cellsize[1]
+    Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize    
+
+
+    if Nfval > 0:
+        orientationj = np.random.choice([0,1],p=[1.0 - pz, pz],size=Nfval)
+        faultsj = orientationj * int(fault_length_m/cellsize)
+        orientationi = (1-orientationj).astype(int)
+        faultsi = orientationi * int(fault_length_m/cellsize)
+        
+        j = np.random.randint(1,ncells+2,size=Nfval)
+        j0 = (j - faultsj/2).astype(int)
+        j1 = (j + faultsj/2).astype(int)
+        
+        # add extra length if we have an odd-cellsize length fault as cutting 
+        # in half truncates the fault
+        if int(fault_length_m/cellsize)%2 == 1:
+            extra_bit = np.random.choice([0,1],size=Nfval)
+            j0 -= (extra_bit * orientationj).astype(int)
+            j1 += ((1-extra_bit) * orientationj).astype(int)
+        
+        # truncate so we don't go out of bounds
+        j0[j0 < 1] = 1
+        j1[j1 > ncells + 1] = ncells + 1
+        
+        i = np.random.randint(1,ncells+2,size=Nfval)
+        i0 = (i - faultsi/2).astype(int)
+        i1 = (i + faultsi/2).astype(int)
+
+        # add extra length if we have an odd-cellsize length fault as cutting 
+        # in half truncates the fault
+        if int(fault_length_m/cellsize)%2 == 1:
+            i0 -= (extra_bit * orientationi).astype(int)
+            i1 += ((1-extra_bit) * orientationi).astype(int)
+        
+        # truncate so we don't go out of bounds
+        i0[i0 < 1] = 1
+        i1[i1 > ncells + 1] = ncells + 1
+
+        # j axis (vertical faults) open in the y direction
+        idxo = np.ones_like(faultsj,dtype=int)
+        # i axis (horizontal faults) open in the z direction
+        idxo[faultsi>0] = 2
+        
+        # i axis (horizontal faults) are associated with y connectors
+        idxc = np.ones_like(faultsj,dtype=int)
+        # j axis (vertical faults) are associated with z connectors
+        idxc[faultsj>0] = 2
+        
+        # initialise indices to update
+        idx_i = i0*1
+        idx_j = j0*1
+        
+        for add_idx in range(int(fault_length_m/cellsize)):
+            # filter to take out indices where aperture is already larger than proposed update
+            # or null in the resistivity array
+            filt = np.array([k for k in range(len(idx_j)) if (Rv.aperture[idx_j[k],idx_i[k],1,idxc[k],idxo[k]] < fault_width\
+                                                              and not np.isnan(Rv.resistivity[idx_j[k],idx_i[k],1,idxc[k]]))])
+            if len(filt) > 0:
+                idx_jj = idx_j[filt]
+                idx_ii = idx_i[filt]
+                idxo_i = idxo[filt]
+                idxc_i = idxc[filt]
+                Rv.aperture[idx_jj, idx_ii,1,idxc_i,idxo_i] = fault_width #
+                # print(Rv.aperture[idx_j, idx_i,1,1,idxo])
+                Rv.aperture_electric[idx_jj, idx_ii,1,idxc_i,idxo_i] = fault_width
+                Rv.aperture_hydraulic[idx_jj, idx_ii,1,idxc_i,idxo_i] = hydraulic_aperture
+                Rv.resistance[idx_jj, idx_ii,1,idxc_i] = resistivity/cellsize
+                Rv.resistivity[idx_jj, idx_ii,1,idxc_i] = resistivity
+                idx_i[np.all([faultsi>0],axis=0)] += 1
+                idx_j[np.all([faultsj>0],axis=0)] += 1
+                
+                idx_i[idx_i > ncells + 1] = ncells + 1
+                idx_j[idx_j > ncells + 1] = ncells + 1
+
+    return Rv
