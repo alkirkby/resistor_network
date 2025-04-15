@@ -70,7 +70,7 @@ def get_Nf2D(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
     alpha = alpha_start * 1.0
     for i in range(len(lvals_range)-1):
         lmin,lmax = lvals_range[i:i+2]
-        Nf.append(int(round(alpha/(a-1)*lmin**(1-a)*R2 - alpha/(a-1)*lmax**(1-a)*R2)))
+        Nf.append(int(round(alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)))
         
     while np.sum(fw * np.array(Nf) * lvals_center)/R2 < porosity_target:
         Nf = []

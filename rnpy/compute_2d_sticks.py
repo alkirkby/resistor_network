@@ -73,7 +73,7 @@ if __name__ == '__main__':
     else:
         savepath = '/share/scratch/alisonk/Rock_property_modelling/Fault_stick_models'
     a = 3.0
-    R = 8
+    R = 14
     
     matrix_k, matrix_res = 1e-18,1000
     rfluid = 0.5
@@ -126,7 +126,7 @@ if __name__ == '__main__':
         kbulk.append([])
         rbulk.append([])
         cf.append([])
-        for rpt in range(1):
+        for rpt in range(10):
             t3 = time.time()
             
             Rv = setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity,

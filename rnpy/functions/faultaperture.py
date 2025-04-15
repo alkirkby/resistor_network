@@ -169,7 +169,7 @@ def build_anisotropic_fault_pair(size,size_noclip,D=[2.2,2.4],cs=2.5e-4,scalefac
 
 def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
                      lc=None,fcw=None,matchingmethod='me',beta=0.6,
-                     random_numbers_dir=None,prefactor=1.):
+                     random_numbers_dir=None,prefactor=1., anisotropy_factor = 1.0):
     """
     Build a fault pair by the method of Ishibashi et al 2015 JGR (and previous
     authors). Uses numpy n dimensional inverse fourier transform. Returns two
@@ -210,61 +210,45 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
     p,q = np.meshgrid(pl[:int(size/2)+1],pl)
     # define f
     
-    f = 1./(1./p**2+1./q**2)**0.5#*(2**.5)
+    f = 1./(1./(p*anisotropy_factor)**2+1./q**2)**0.5#*(2**.5)
 
     # define gamma for correlation between surfaces
-#    gamma = np.ones_like(f)
-#    for fi in range(len(f)):
-#        for fj in range(len(f[fi])):
-#            # get spatial frequency in millimetres
-#            freq = np.abs(f[fi,fj])*1e-3/cs
-##            print freq
-#            if freq < fc:
-#                gamma[fi,fj] = so.newton(func,0.5,args=(freq,1.))
-##    if np.amax(gamma) == 1.:
-##        gamma /= np.amax(gamma[gamma<1.])
-#    gamma[gamma<0] = 0.
-#    gamma[gamma>1] = 1.
-#    print gamma
     f2 = f.copy()
     # take an average of the x and y frequency magnitudes, as matching parameters measured on profiles
     f2 = 2./(1./np.abs(p)+1./np.abs(q))
-#    k = 1./f
-#    kc = 1./fc
-    fc = fc#*1e-3/cs
+
     gamma = f2/fc
     gamma[f2 > fc] = 1.
-#    gamma[gamma>1] = 1.
-#    gamma[gamma<0] = 0.
-#    gamma *= 3
-#    gamma = 1.-10**(-f/fc)
-#
-#    gamma[gamma >= fc] = 1.
-#    gamma[gamma < (fc-fcw)] = 0.
-#    gamma[(gamma < 1)&(gamma > 0)] -= (fc-fcw)
-#    gamma[(gamma < 1)&(gamma > 0)] /= fcw
     
-#    gamma[f < 0.1] /= 2.
+    
+
     if random_numbers_dir:
         R1 = np.loadtxt(os.path.join(random_numbers_dir,'R1.dat'))
         R2 = np.loadtxt(os.path.join(random_numbers_dir,'R2.dat'))
+        
     # define 2 sets of uniform random numbers
     else:
         R1 = np.random.random(size=np.shape(f))
         R2 = np.random.random(size=np.shape(f))
     np.savetxt(os.path.join(r'C:\tmp\R1.dat'),R1,fmt='%.4f')
     np.savetxt(os.path.join(r'C:\tmp\R2.dat'),R2,fmt='%.4f')
+    
+    
     # define fourier components
-    y1 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    y1 = prepare_ifft_inputs(prefactor*((p*anisotropy_factor)**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
+    # y1 = prepare_ifft_inputs(spectral_amp**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*R1))
     
     if matchingmethod == 'Glover':
         gamma[f2>2.*fc] = 0.
         gamma[f2<2.*fc] = beta*(1.-(f2[f2<2.*fc]/(2.*fc)))
-        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+        y2 = prepare_ifft_inputs(prefactor*((p*anisotropy_factor)**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+        # y2 = prepare_ifft_inputs(spectral_amp**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1*gamma+R2*(1.-gamma))))
+
     else:
         gamma = f2/fc
         gamma[f2 > fc] = 1.
-        y2 = prepare_ifft_inputs(prefactor*(p**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+        y2 = prepare_ifft_inputs(prefactor*((p*anisotropy_factor)**2+q**2)**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
+        # y2 = prepare_ifft_inputs(spectral_amp**(-(4.-D)/2.)*np.exp(1j*2.*np.pi*(R1+gamma*R2)))
    
     
     # use inverse discrete fast fourier transform to get surface heights
