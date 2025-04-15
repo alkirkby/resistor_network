@@ -385,6 +385,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
 
         # repeat the modelling at different fluid resistivities
+        print("resistivity_values", input_parameters['resistivity_fluid'])
         for j in range(1, len(input_parameters['resistivity_fluid'])):
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,j,np.zeros(3),axis=1)
@@ -433,11 +434,16 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                             dtypes.append((name, float))
                             array_dict[name] = value[:,j,i]
                             # print('appended array, shape',name,array_dict[name].shape)
-            output_array = np.zeros(len(value),
+            output_array_r = np.zeros(len(value),
                                     dtype=dtypes)
             for name in array_dict.keys():
-                output_array[name] = array_dict[name]
-
+                output_array_r[name] = array_dict[name]
+                
+        if first:
+            output_array = output_array_r
+            first = False
+        else:
+            output_array = np.vstack([output_array,output_array_r])
                 
         np.save(r'C:\tmp\output_array',output_array)
         
