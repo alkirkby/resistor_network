@@ -321,6 +321,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         resbulk = np.ones((3,1,3))*np.nan
         kbulk = np.ones((3,3))*np.nan
         cellsizes = np.ones((3,3))*np.nan
+        
 
         props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
         
@@ -407,7 +408,8 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                         'contact_area':contactarea,
                         'cellsize':cellsizes,
                         'permeability_bulk':kbulk,
-                        'resistivity_bulk':resbulk
+                        'resistivity_bulk':resbulk,
+                        'repeats':np.ones(len(fault_separations))*r
                         }
         
         dtypes = []
