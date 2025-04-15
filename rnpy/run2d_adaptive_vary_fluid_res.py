@@ -180,7 +180,11 @@ def validate_offset(offset, ncells):
         return(int(offset))
 
 def ap(h1,h2,offset,fs, remove_negative=False):
-    aperture = h1[offset:,offset:] - h2[offset:,:-offset] + fs
+    if offset > 0:
+        aperture = h1[offset:,offset:] - h2[offset:,:-offset] + fs
+    else:
+        aperture = h1 - h2 + fs
+        
     if remove_negative:
         aperture[aperture < 0] = 0
     return aperture
