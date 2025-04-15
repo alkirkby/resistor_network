@@ -398,7 +398,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 
                 print(resbulk.shape)
 
-        print(resbulk)
+        # print(resbulk)
 
                 
         print(input_parameters['resistivity_fluid'])
@@ -443,9 +443,11 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             output_array = output_array_r
             first = False
         else:
-            output_array = np.vstack([output_array,output_array_r])
+            output_array = np.append(output_array, output_array_r)
+        
+        print("repeat number ", r, output_array.shape)
                 
-        np.save(r'C:\tmp\output_array',output_array)
+        # np.save(r'C:\tmp\output_array',output_array)
         
         # update input_parameters_new
         input_parameters_new.update(input_parameters)
