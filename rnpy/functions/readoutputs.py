@@ -32,10 +32,10 @@ def get_idx_list(outputs,idx_dict,key_param='fs',plane='yz', direction='z'):
         
     else:
         idx_list = ['fault_separation','conductive_fraction']+\
-                   ['resistivity_bulk_'+direction for direction in plane]+\
                    ['permeability_bulk_'+direction for direction in plane]+\
                    ['contact_area','aperture_mean_x','repeat gouge_fraction',
                     'gouge_area_fraction']
+        idx_list += [val for val in outputs.dtype.names if val.startswith('resistivity_bulk_')]
         perp_direction = get_perp(plane)
         idx_list += ['cellsize_'+perp_direction]
         idx_list.remove(key_param)

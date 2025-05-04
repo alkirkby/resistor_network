@@ -4,20 +4,28 @@ Created on Wed Mar  6 14:06:10 2019
 
 @author: alktrt
 """
+import os
+import sys
+
+if os.name == 'nt':
+    sys.path.append(r'C:\git\resistor_network')
+    print("appended to path")
 
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignproperties import update_all_apertures
 from rnpy.functions.assignfaults_new import update_from_precalculated
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import sys
+
+
 import argparse
 import time
 
 trace_mem = True
 if trace_mem:
     import tracemalloc
+
+
 
 
 def parse_arguments(arguments):
