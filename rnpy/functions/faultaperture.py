@@ -128,7 +128,7 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
     # dealing with random number generation
     # initialise some parameters to determine whether to make new arrays/save them
     save_files = False
-    make_new_arrays = False
+    make_new_arrays = True
     if random_numbers_dir:
         fn1, fn2 = [os.path.join(random_numbers_dir,'R%1i.dat'%i) for i in [1,2]]
         
@@ -137,13 +137,13 @@ def build_fault_pair(size,size_noclip,D=2.4,cs=2.5e-4,scalefactor=1e-3,
             R1 = np.loadtxt(fn1)
             R2 = np.loadtxt(fn2)
             
-            # if they are incorrect shape, then make new ones and overwrite old ones
-            if R1.shape != f.shape:
-                make_new_arrays = True
+            # if they are correct shape, then don't make new ones
+            if R1.shape == f.shape:
+                make_new_arrays = False
         else:
             # if files do not exist then make new arrays and save them
             save_files = True
-            make_new_arrays = True
+
             
     # define 2 sets of uniform random numbers
     if make_new_arrays:
