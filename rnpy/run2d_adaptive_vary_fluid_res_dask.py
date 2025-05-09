@@ -420,99 +420,99 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     # compute conductive fractions
     [RockVol.compute_conductive_fraction() for RockVol in results_initial_res]
     
-    props_to_save = save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
-    for fs in results_initial_res[0].keys():
-        save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
+    # props_to_save = save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
+    # for fs in results_initial_res[0].keys():
+    #     save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
     
 
-    simulations_other_res = [setup_run_extra_fluid_resistivities(input_parameters, 
-                                                                 input_parameters_new, 
-                                                                 fault_separations, 
-                                                                 iruntimefn)\
-                             for _ in range(repeats)]
+    # simulations_other_res = [setup_run_extra_fluid_resistivities(input_parameters, 
+    #                                                              input_parameters_new, 
+    #                                                              fault_separations, 
+    #                                                              iruntimefn)\
+    #                          for _ in range(repeats)]
         
-    results_other_res = compute(*simulations_other_res)
+    # results_other_res = compute(*simulations_other_res)
 
                 
-                # print(resbulk.shape)
+    #             # print(resbulk.shape)
 
-        # print(resbulk)
+    #     # print(resbulk)
 
-    # construct output dict
-    outputs_dict = {}
-    outputs_dict['fault_separations'] = np.array([RockVol.fault_dict['fault_separations']\
-                                  for RockVol in results_initial_res])
+    # # construct output dict
+    # outputs_dict = {}
+    # outputs_dict['fault_separations'] = np.array([RockVol.fault_dict['fault_separations']\
+    #                               for RockVol in results_initial_res])
 
 
     
-    for param in ['conductive_fraction', 'contact_area', 
-                  'cellsize','permeability_bulk']:
-        outputs_dict[param] = np.array([getattr(RockVol[fs],param)\
-                                      for RockVol in results_initial_res])
+    # for param in ['conductive_fraction', 'contact_area', 
+    #               'cellsize','permeability_bulk']:
+    #     outputs_dict[param] = np.array([getattr(RockVol[fs],param)\
+    #                                   for RockVol in results_initial_res])
 
-    output_dict['resistivity_bulk'] = np.array([[RockVol.resistivity_bulk])
+    # output_dict['resistivity_bulk'] = np.array([RockVol.resistivity_bulk])
     
     
     
     
-    fault_separations = fault_separations[idxs]
+    # fault_separations = fault_separations[idxs]
                 
-        print(input_parameters['resistivity_fluid'])
-        outputs_dict = {'fault_separation':fault_separations,
-                        'porosity':cfractions,
-                        'contact_area':contactarea,
-                        'cellsize':cellsizes,
-                        'permeability_bulk':kbulk,
-                        'resistivity_bulk':resbulk,
-                        'repeats':np.ones(len(fault_separations))*r
-                        }
-        
-        dtypes = []
-        array_dict = {}        
-        for key in outputs_dict.keys():
-            value = outputs_dict[key]
-            # 1d array, just make a column
-            if len(value.shape) == 1:
-                dtypes.append((key,float))
-                array_dict[key] = value
-                # print('appended array, shape',key, array_dict[key].shape)
-            elif len(value.shape) == 2:
-                for i, val in enumerate('xyz'):
-                    name = key+'_'+val
-                    # print(key,val)
-                    dtypes.append((name, float))
-                    array_dict[name] = value[:,i]
-                    # print('appended array, shape',name, array_dict[name].shape)
-            elif len(value.shape) == 3:
-                if key == 'resistivity_bulk':
-                    for j, resval in enumerate(input_parameters['resistivity_fluid']):
-                        for i, val in enumerate('xyz'):
-                            name = key+'_%s_rf%s'%(val,resval)
-                            dtypes.append((name, float))
-                            array_dict[name] = value[:,j,i]
-                            # print('appended array, shape',name,array_dict[name].shape)
-            output_array_r = np.zeros(len(value),
-                                    dtype=dtypes)
-            for name in array_dict.keys():
-                output_array_r[name] = array_dict[name]
-                
-        if first:
-            output_array = output_array_r
-            first = False
-        else:
-            output_array = np.append(output_array, output_array_r)
-        
-        print("repeat number ", r, output_array.shape)
-                
-        # np.save(r'C:\tmp\output_array',output_array)
-        
-        # update input_parameters_new
-        input_parameters_new.update(input_parameters)
-        
-        write_outputs(input_parameters_new, output_array, outfilename)
+    # print(input_parameters['resistivity_fluid'])
+    # outputs_dict = {'fault_separation':fault_separations,
+    #                 'porosity':cfractions,
+    #                 'contact_area':contactarea,
+    #                 'cellsize':cellsizes,
+    #                 'permeability_bulk':kbulk,
+    #                 'resistivity_bulk':resbulk,
+    #                 'repeats':np.ones(len(fault_separations))*r
+    #                 }
+    
+    # dtypes = []
+    # array_dict = {}        
+    # for key in outputs_dict.keys():
+    #     value = outputs_dict[key]
+    #     # 1d array, just make a column
+    #     if len(value.shape) == 1:
+    #         dtypes.append((key,float))
+    #         array_dict[key] = value
+    #         # print('appended array, shape',key, array_dict[key].shape)
+    #     elif len(value.shape) == 2:
+    #         for i, val in enumerate('xyz'):
+    #             name = key+'_'+val
+    #             # print(key,val)
+    #             dtypes.append((name, float))
+    #             array_dict[name] = value[:,i]
+    #             # print('appended array, shape',name, array_dict[name].shape)
+    #     elif len(value.shape) == 3:
+    #         if key == 'resistivity_bulk':
+    #             for j, resval in enumerate(input_parameters['resistivity_fluid']):
+    #                 for i, val in enumerate('xyz'):
+    #                     name = key+'_%s_rf%s'%(val,resval)
+    #                     dtypes.append((name, float))
+    #                     array_dict[name] = value[:,j,i]
+    #                     # print('appended array, shape',name,array_dict[name].shape)
+    #     output_array_r = np.zeros(len(value),
+    #                             dtype=dtypes)
+    #     for name in array_dict.keys():
+    #         output_array_r[name] = array_dict[name]
+            
+    # if first:
+    #     output_array = output_array_r
+    #     first = False
+    # else:
+    #     output_array = np.append(output_array, output_array_r)
+    
+    # print("repeat number ", r, output_array.shape)
+            
+    # # np.save(r'C:\tmp\output_array',output_array)
+    
+    # # update input_parameters_new
+    # input_parameters_new.update(input_parameters)
+    
+    # write_outputs(input_parameters_new, output_array, outfilename)
         
 
-    return outfilename
+    # return outfilename
 
 
 def write_outputs(input_parameters, output_array, outfilename):
