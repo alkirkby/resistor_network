@@ -11,6 +11,9 @@ if os.name == 'nt':
     sys.path.append(r'C:\git\resistor_network')
     print("appended to path")
 
+from dask import delayed, compute
+from dask.distributed import Client
+
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignproperties import update_all_apertures
 from rnpy.functions.assignfaults_new import update_from_precalculated
@@ -24,6 +27,7 @@ trace_mem = True
 if trace_mem:
     import tracemalloc
 
+n_workers = 10
 
 def parse_arguments(arguments):
     """
@@ -291,6 +295,104 @@ def setup_run_single_model(input_parameters_new, iruntimefn):
     return RockVolI
 
 
+@delayed
+def setup_run_fault_separation_array(input_parameters, numfs, iruntimefn):
+    
+    input_parameters_new = {'fault_assignment':'random'}
+
+    # update the parameters, copy so it doesn't copy a reference to the values
+    input_parameters_new.update(copy.deepcopy(initialise_inputs(input_parameters)))
+    input_parameters_new['fault_assignment'] = 'list'
+    
+    RockVolI = Rock_volume(**input_parameters_new)
+    fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-3)
+    
+    kbulk = np.ones((3,3))*np.nan
+    RockVol_dict = {}
+
+    # run initial set of runs
+    for i in range(3):
+        # set x cell size to a small number if it's a 2d array
+        for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
+            input_parameters['cellsize'][idx] = 1e-8
+
+        
+        input_parameters_new['fault_separation'] = fault_separations[i]
+
+        RockVolI = setup_run_single_model(input_parameters_new, iruntimefn)
+        
+        kbulk[i] = RockVolI.permeability_bulk
+        RockVol_dict[fault_separations[i]] = RockVolI
+        
+            
+    # run infilling runs
+    count = len(fault_separations)
+    
+    while count < numfs:
+        # set x cell size to a small number if it's a 2d array
+        for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
+            input_parameters['cellsize'][idx] = 1e-8
+            
+        # compute differences between adjacent permeability points on curve
+        kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
+        kjump = np.amax(kjump,axis=1)
+        i = int(np.where(kjump == max(kjump))[0])
+        
+        # new fault separation to insert (halfway across max jump)
+        newfs = np.mean(fault_separations[i:i+2])
+        input_parameters_new['fault_separation'] = newfs
+            
+        RockVol = setup_run_single_model(input_parameters_new, iruntimefn)
+
+        # insert resistivity bulk, conductive fraction & new fault separation to arrays
+        kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk,axis=0)
+
+        fault_separations = np.insert(fault_separations,i+1,newfs)
+
+        RockVol_dict[newfs] = RockVol
+
+        print("fs number %1i"%count)
+        count += 1
+    
+    return RockVol_dict
+            
+
+@delayed
+def setup_run_extra_fluid_resistivities(input_parameters, input_parameters_new, fault_separations, iruntimefn):
+    
+    RockVol_dict = {}
+    
+    # repeat the modelling at different fluid resistivities
+    print("resistivity_values", input_parameters['resistivity_fluid'])
+    for j in range(1, len(input_parameters['resistivity_fluid'])):
+        
+        # insert resistivity bulk, conductive fraction & new fault separation to arrays
+        resfluid = input_parameters['resistivity_fluid'][j]*1.0
+        RockVol_dict[resfluid] = {}
+        
+        # update fluid resistivity, solve only for current
+        input_parameters_new['resistivity_fluid'] = resfluid
+        input_parameters_new['solve_properties'] = 'current'
+        
+        
+        for i in range(len(fault_separations)):
+            # reset cellsize
+            input_parameters_new['cellsize'][0] = input_parameters['cellsize'][0]*1.0
+
+            # update fault separation
+            input_parameters_new['fault_separation'] = fault_separations[i]
+
+
+            # run models
+            RockVol = setup_run_single_model(input_parameters_new,iruntimefn)
+            RockVol_dict[resfluid][fault_separations[i]] = RockVol.resistivity_bulk
+            print('res fluid,', RockVol.resistivity_fluid, input_parameters_new['resistivity_fluid'])
+            print('res bulk', RockVol.resistivity_bulk)
+            print('cellsize', RockVol.cellsize)
+            
+    return RockVol_dict
+
+
 def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     """
     run a set of rock volumes with adaptive fault separation (auto calculated
@@ -308,117 +410,52 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     nx,ny,nz = input_parameters['ncells']
     
     
+    props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
+    simulations_initial_res = [setup_run_fault_separation_array(input_parameters, 
+                                                                numfs, 
+                                                                iruntimefn) \
+                               for _ in range(repeats)]
+
+    results_initial_res = compute(*simulations_initial_res)
+    # compute conductive fractions
+    [RockVol.compute_conductive_fraction() for RockVol in results_initial_res]
     
-    for r in repeats:
+    props_to_save = save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
+    for fs in results_initial_res[0].keys():
+        save_arrays(results_initial_res[0][0.0],props_to_save,'r%1i'%r)
+    
+
+    simulations_other_res = [setup_run_extra_fluid_resistivities(input_parameters, 
+                                                                 input_parameters_new, 
+                                                                 fault_separations, 
+                                                                 iruntimefn)\
+                             for _ in range(repeats)]
         
-        input_parameters_new = {'fault_assignment':'random'}
-        # offset start time so we don't load all the memory
-        time.sleep(rank*10)
-        # update the parameters, copy so it doesn't copy a reference to the values
-        input_parameters_new.update(copy.deepcopy(initialise_inputs(input_parameters)))
-        input_parameters_new['fault_assignment'] = 'list'
-        
-        RockVolI = Rock_volume(**input_parameters_new)
-        fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-3)
-        
-        
-        cfractions = np.ones(3)*np.nan
-        contactarea = np.ones(3)*np.nan
-        resbulk = np.ones((3,1,3))*np.nan
-        kbulk = np.ones((3,3))*np.nan
-        cellsizes = np.ones((3,3))*np.nan
-        
+    results_other_res = compute(*simulations_other_res)
 
-        props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
-        
-        # run initial set of runs
-        # 
-        for i in range(3):
-            # set x cell size to a small number if it's a 2d array
-            for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
-                input_parameters_new['cellsize'][idx] = 1e-8
-
-            
-            input_parameters_new['fault_separation'] = fault_separations[i]
-
-            RockVolI = setup_run_single_model(input_parameters_new, iruntimefn)
-            
-            
-            cfractions[i] = RockVolI.conductive_fraction
-            contactarea[i] = RockVolI.contact_area[0]
-            resbulk[i,0] = RockVolI.resistivity_bulk
-            kbulk[i] = RockVolI.permeability_bulk
-            cellsizes[i] = RockVolI.cellsize
-            
-            if r == 0:
-                props_to_save = save_arrays(RockVolI,props_to_save,'r%1i'%r)
-
-                
-        # run infilling runs
-        count = len(fault_separations)
-        
-        while count < numfs:
-            # set x cell size to a small number if it's a 2d array
-            for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
-                input_parameters_new['cellsize'][idx] = 1e-8
-                
-            # compute differences between adjacent permeability points on curve
-            kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
-            kjump = np.amax(kjump,axis=1)
-            i = int(np.where(kjump == max(kjump))[0])
-            
-            # new fault separation to insert (halfway across max jump)
-            newfs = np.mean(fault_separations[i:i+2])
-            input_parameters_new['fault_separation'] = newfs
-                
-            RockVol = setup_run_single_model(input_parameters_new, iruntimefn)
-
-            # insert resistivity bulk, conductive fraction & new fault separation to arrays
-            resbulk = np.insert(resbulk,i+1,np.zeros_like(resbulk[0]),axis=0)
-            resbulk[i+1, 0] = RockVol.resistivity_bulk
-            kbulk = np.insert(kbulk, i+1, RockVol.permeability_bulk,axis=0)
-            cellsizes = np.insert(cellsizes, i+1, RockVol.cellsize,axis=0)
-            cfractions = np.insert(cfractions,i+1,RockVol.conductive_fraction)
-            contactarea = np.insert(contactarea,i+1,RockVol.contact_area[0])
-
-            fault_separations = np.insert(fault_separations,i+1,newfs)
-            
-            if r == 0:
-                props_to_save = save_arrays(RockVol,props_to_save,'r%1i'%r)
-
-            print("fs number %1i"%count)
-            count += 1
-            
-
-        # repeat the modelling at different fluid resistivities
-        print("resistivity_values", input_parameters['resistivity_fluid'])
-        for j in range(1, len(input_parameters['resistivity_fluid'])):
-            
-            # insert resistivity bulk, conductive fraction & new fault separation to arrays
-            resbulk = np.insert(resbulk,j,np.zeros(3),axis=1)
-            
-            for i in range(len(fault_separations)):
-                # reset cellsize
-                input_parameters_new['cellsize'][0] = input_parameters['cellsize'][0]*1.0
-                # print("input_parameters_new['cellsize']",input_parameters_new['cellsize'])
-                # print("input_parameters['cellsize']",input_parameters['cellsize'])
-                # update fault separation
-                input_parameters_new['fault_separation'] = fault_separations[i]
-                # update fluid resistivity, solve only for current
-                input_parameters_new['resistivity_fluid'] = input_parameters['resistivity_fluid'][j]
-                input_parameters_new['solve_properties'] = 'current'
-
-                # run models
-                RockVol = setup_run_single_model(input_parameters_new,iruntimefn)
-                resbulk[i,j] = RockVol.resistivity_bulk
-                print('res fluid,', RockVol.resistivity_fluid, input_parameters_new['resistivity_fluid'])
-                print('res bulk', RockVol.resistivity_bulk)
-                print('cellsize', RockVol.cellsize)
                 
                 # print(resbulk.shape)
 
         # print(resbulk)
 
+    # construct output dict
+    outputs_dict = {}
+    outputs_dict['fault_separations'] = np.array([RockVol.fault_dict['fault_separations']\
+                                  for RockVol in results_initial_res])
+
+
+    
+    for param in ['conductive_fraction', 'contact_area', 
+                  'cellsize','permeability_bulk']:
+        outputs_dict[param] = np.array([getattr(RockVol[fs],param)\
+                                      for RockVol in results_initial_res])
+
+    output_dict['resistivity_bulk'] = np.array([[RockVol.resistivity_bulk])
+    
+    
+    
+    
+    fault_separations = fault_separations[idxs]
                 
         print(input_parameters['resistivity_fluid'])
         outputs_dict = {'fault_separation':fault_separations,
@@ -643,5 +680,6 @@ def setup_and_run_suite(arguments):
 
 if __name__ == "__main__":
 
+    client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker)
     setup_and_run_suite(sys.argv)
     
