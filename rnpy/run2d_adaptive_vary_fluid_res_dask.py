@@ -28,6 +28,7 @@ if trace_mem:
     import tracemalloc
 
 n_workers = 10
+threads_per_worker =1
 
 def parse_arguments(arguments):
     """
