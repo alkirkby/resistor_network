@@ -427,7 +427,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                         'cellsize':cellsizes,
                         'permeability_bulk':kbulk,
                         'resistivity_bulk':resbulk,
-                        'repeats':np.ones(len(fault_separations))*r
+                        'repeat':np.ones(len(fault_separations))*r
                         }
         
         dtypes = []
