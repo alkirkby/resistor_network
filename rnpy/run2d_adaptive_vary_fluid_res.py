@@ -422,7 +422,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 
         print(input_parameters['resistivity_fluid'])
         outputs_dict = {'fault_separation':fault_separations,
-                        'porosity':cfractions,
+                        'conductive_fraction':cfractions,
                         'contact_area':contactarea,
                         'cellsize':cellsizes,
                         'permeability_bulk':kbulk,
