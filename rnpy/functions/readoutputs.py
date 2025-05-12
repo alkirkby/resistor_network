@@ -7,6 +7,8 @@ Created on Mon Nov  1 16:12:34 2021
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.stats import sem
+import time
+from rnpy.functions.utils import roundsf
 
 
 def get_perp(plane):
@@ -162,6 +164,63 @@ def interpolate_to_permeability_values(outputs,permeability_values,idx_dict=None
                               key_param=key_param,
                               idx_dict=idx_dict,
                               plane=plane)
+
+
+
+def interpolate_to_all_apertures(outputs, rounding=9, rounding_sf=2):
+    '''
+    
+
+    Parameters
+    ----------
+    outputs : structured numpy array, outputs from a resistor network simulation, 
+                produced by using load_outputs function.
+                must have columns named 'cellsize_x' and 'conductive_fraction'.
+            Apertures are calculated from cellsize_x and conductive_fraction
+            then rounded to a specified number of both significant figures
+            and decimal places.
+    rounding : integer, optional
+        number of decimal places to round to. The default is 9.
+    rounding_sf : integer, optional
+        number of significant figures to round to. The default is 2.
+
+    Returns
+    -------
+    new_outputs : structured numpy array
+        Array containing the outputs in input array, interpolated to a common
+        set of apertures.
+
+    '''
+
+    repeats = outputs.shape[0]
+    aperture = outputs['cellsize_x']*outputs['conductive_fraction']
+    aperture_i = np.unique([roundsf(val,3) for val in np.unique(np.around(aperture,9))])
+    
+    new_outputs = np.zeros((repeats, len(aperture_i)),
+                           dtype=outputs.dtype.descr + [('aperture','<f8')])
+    t0 = time.time()
+    for i in range(repeats):
+        
+        new_outputs['aperture'] = aperture_i
+        for name in new_outputs.dtype.names:
+            if name != 'aperture':
+                func = interp1d(aperture[i],outputs[name][i],bounds_error=False)
+                new_outputs[name][i] = func(aperture_i)
+    t1 = time.time()
+    print('interpolation took %.1f s'%(t1-t0))
+    return new_outputs
+
+def compute_average_parameters(outputs, average_type='mean', percentile=16):
+    new_outputs = np.zeros(outputs.shape[1],
+                           dtype = outputs.dtype)
+    for name in outputs.dtype.names:
+        args = dict(axis=0)
+        function = getattr(np, 'nan' + average_type)
+        
+        if average_type == 'percentile':
+            args['q'] = percentile
+        new_outputs[name] = function(outputs[name], **args)
+    return new_outputs
 
 
 def bulk_permeability(permeability,x_cellsize,cellsize_max,permeability_matrix=1e-18):
@@ -368,3 +427,27 @@ def read_fault_params(jsonfn):
     aph = (12*fault_k)**0.5
     
     return lvals_center, fw, aph, resistivity
+
+def get_equivalent_rho(rho,width,equivalent_width, rho_matrix=1000):
+    '''
+    Get equivalent resistivity over a defined width
+
+    Parameters
+    ----------
+    rho : TYPE
+        DESCRIPTION.
+    width : TYPE
+        DESCRIPTION.
+    equivalent_width : TYPE
+        DESCRIPTION.
+    rho_matrix : TYPE, optional
+        DESCRIPTION. The default is 1000.
+
+    Returns
+    -------
+    None.
+
+    '''
+    pad = np.maximum(equivalent_width - width, 0.)
+    
+    return equivalent_width/(pad/rho_matrix + width/rho)

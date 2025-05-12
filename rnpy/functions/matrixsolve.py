@@ -112,7 +112,6 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
 #                if ((np.nanmean(r) < tol) or (rchange < tol)):
                 if np.mean(rnew) < tol:# or (dvchange < tol)):
                     print((' Completed in %i iterations,'%c,'mean residual %1e'%np.mean(rnew),'median residual %1e'%np.median(rnew)), end=' ')
-
                     if np.mean(rnew) < tol:
                         print("reached tol")
                     else:
