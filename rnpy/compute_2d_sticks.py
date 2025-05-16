@@ -147,7 +147,7 @@ if __name__ == '__main__':
     print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
-    output_fn = 'FaultSticks_a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc.dat'%(a,R,matrix_res,rfluid,porosity_target*100)
+    output_fn = 'FaultSticks_a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f.dat'%(a,R,matrix_res,rfluid,porosity_target*100,pz)
     
     # read fault lengths (center of bin) + pre-computed properties from json file
     lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
