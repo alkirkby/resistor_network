@@ -219,10 +219,18 @@ if __name__ == '__main__':
         cf.append(Rv.conductive_fraction)
         t5 = time.time()
         print('write to file, %.2fs'%(t5-t4))
-    np.save(r'C:\tmp\resistivity',Rv.resistivity)
-    np.save(r'C:\tmp\aperture',Rv.aperture)
-    np.save(r'C:\tmp\hydraulic_aperture',Rv.aperture_hydraulic)
-    np.save(r'C:\tmp\permeability',Rv.permeability)
+    array_savedir = os.path.join(wd,'arrays_por%.3f_a%.1f_pz%.2f_cs%1imm'%(porosity_target,a,pz,cellsize))
+    if not os.path.exists(array_savedir):
+        os.mkdir(array_savedir)
+    np.save(os.path.join(array_savedir, 'resistivity'), Rv.resistivity)
+    np.save(os.path.join(array_savedir, 'aperture'),Rv.aperture)
+    np.save(os.path.join(array_savedir, 'hydraulic_aperture'),Rv.aperture_hydraulic)
+    np.save(os.path.join(array_savedir, 'permeability'),Rv.permeability)
+    np.savez_compressed(os.path.join(os.path.join(array_savedir,'arrays')),
+                        resistivity=Rv.resistivity,
+                        aperture=Rv.aperture,
+                        hydraulic_aperture=Rv.aperture_hydraulic,
+                        permeability=Rv.permeability)
     t6 = time.time()
     print('total time, %.1fs'%(t6-t0))
     
