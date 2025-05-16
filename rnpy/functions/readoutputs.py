@@ -411,9 +411,16 @@ def add_aperture_2d(outputs):
 
     return outputs_new
 
+def get_cellsize_suffix(cellsize):
+    if cellsize >= 0.01:
+        cs_suffix = '%1icm'%(cellsize * 100)
+    else:
+        cs_suffix = '%1imm'%(cellsize * 1000)
+        
+    return cs_suffix
 
-
-def read_fault_params(jsonfn):
+def read_fault_params_json(jsonfn, cellsize):
+ 
     import json
     with open(jsonfn) as infile: 
         fault_k_ap = json.load(infile)
@@ -422,12 +429,29 @@ def read_fault_params(jsonfn):
     
     fw = np.array([fault_k_ap[key]['mean_aperture'] for key in fault_k_ap.keys()])
     
-    resistivity = np.array([fault_k_ap[key]['mean_resistivity_bulk_1cm'] for key in fault_k_ap.keys()])
+    resistivity = np.array([fault_k_ap[key]['mean_resistivity_bulk_%s'%get_cellsize_suffix(cellsize)]\
+                            for key in fault_k_ap.keys()])
     fault_k = np.array([fault_k_ap[key]['mean_fault_k'] for key in fault_k_ap.keys()])
     aph = (12*fault_k)**0.5
     
     return lvals_center, fw, aph, resistivity
 
+def read_fault_params_npy(npyfile, cellsize):
+    fault_k_ap = np.load(npyfile)
+    
+    return fault_k_ap['length_m'],  fault_k_ap['mean_aperture'],\
+        (12*fault_k_ap['permeability_fault'])**0.5, \
+        fault_k_ap['resistivity_bulk_%s'%get_cellsize_suffix(cellsize)]
+    
+    
+
+def read_fault_params(fn, cellsize):
+    if fn.endswith('.npy'):
+        return read_fault_params_npy(fn,cellsize)
+    else:
+        return read_fault_params_json(fn,cellsize)
+    
+    
 def get_equivalent_rho(rho,width,equivalent_width, rho_matrix=1000):
     '''
     Get equivalent resistivity over a defined width

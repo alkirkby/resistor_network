@@ -25,7 +25,8 @@ def parse_arguments(arguments):
     """
     
     argument_names = [['target_porosity','p','target porosity',1,float],
-                      ['area','R','model area',1,float],
+                      ['width','R','model width',1,float],
+                      ['cellsize','c','cellsize for fault stick model',1,float],
                       ['a',None,'density exponent a',1,float],
                       ['probability_z','pz','probability of a fault in z direction',1,float],
                       ['repeats','r','number of repeats to run',1,int],
@@ -63,7 +64,6 @@ def parse_arguments(arguments):
     return input_parameters
 
 
-
 def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_apertures, pz, resistivity,
                                  **kwargs):
     
@@ -80,15 +80,22 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
     Nf_update = np.copy(Nf)
     count = 0
     
+    # split up hydraulic_apertures, fault lengths, widths, resistivity by fault length
+    if np.iterable(fault_lengths_m):
+        fault_widths, hydraulic_apertures, resistivity = \
+            [[arr[fault_lengths_m==length] for length in np.unique(fault_lengths_m)]\
+             for arr in [fault_widths, hydraulic_apertures, resistivity]]
+        fault_lengths_m = np.unique(fault_lengths_m)
+        fault_widths = [np.mean(ww) for ww in fault_widths]
+    
     t0 = time.time()
     # assign faults to array:
+    count1 = 0
     while np.any(Nf_update) > 0:
         for ii,Nfval in enumerate(Nf_update):
             Rv = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
                                            resistivity[ii],pz)
-            
         Nf_update_new = ((np.array(Nf) - np.array([np.sum(Rv.aperture[:,:,1,1:,1:]==fault_widths[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
-
         if np.all(np.array(Nf_update_new) == np.array(Nf_update)):
             count += 1
         else:
@@ -97,8 +104,10 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
         # if we have had 10 rounds with no change, break out of array.
         if count == 10:
             break
+        count1 += 1
     t1 = time.time()
     print('Nf_update, took %.3f s'%(t1-t0))
+    print('Number of updates, ',count1)
     
     Rv.initialise_permeability()
     
@@ -116,37 +125,47 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
 
 
 
+
 if __name__ == '__main__':
+    t0 = time.time()
     inputs = parse_arguments(sys.argv)
     wd = inputs['working_directory']
     a = float(inputs['a'])
     porosity_target = inputs['target_porosity']
     rfluid = inputs['resistivity_fluid']
-    R = inputs['area']
+    R = inputs['width']
     pz = inputs['probability_z']
     repeats = inputs['repeats']
-    print(inputs)
+    cellsize = inputs['cellsize']
     
     # some values not available from commandline
     matrix_res = 1000
     matrix_k = 1e-18
-    cellsize = 0.01
     
     # load fault widths from modelling
-    t0 = time.time()
+    t0a = time.time()
+    print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
     output_fn = 'FaultSticks_a%.1f_R%1im_rm%1i_rf%0.1f_por%1ipc.dat'%(a,R,matrix_res,rfluid,porosity_target*100)
     
     # read fault lengths (center of bin) + pre-computed properties from json file
     lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
-                                                                        'fault_k_aperture_rfluid%s.json'%(rfluid)))
-    
+                                                  'fault_k_aperture_rf%s.npy'%(rfluid)),
+                                                           cellsize)
+    if len(np.unique(lvals_center)) < len(lvals_center):
+            
+        lvals_center_unique = np.unique(lvals_center)
+        # get mean fault width by 
+        fw_mean = np.array([np.mean(fw[lvals_center==ll]) for ll in lvals_center_unique])
+    else:
+        lvals_center_unique, fw_mean = lvals_center, fw
+
     t1a = time.time()
     print('get lvals, %.2fs'%(t1a-t0))
     
     # determine numbers of faults in each length bin using alpha and target porosity
-    Nf, alpha, lvals_range = get_Nf2D(a,R,lvals_center,fw,porosity_target,alpha_start = 1.0)
+    Nf, alpha, lvals_range = get_Nf2D(a,R,lvals_center_unique,fw_mean,porosity_target,alpha_start = 1.0)
     
     t1 = time.time()
     print('get Nf, %.2fs'%(t1-t1a))
@@ -167,7 +186,7 @@ if __name__ == '__main__':
         openfile.write('# matrix_resistivity %.1e\n'%matrix_res)
         openfile.write('# porosity_target %.3f\n'%porosity_target)
         openfile.write('# alpha %.2f\n'%alpha)
-        openfile.write('# fault_lengths_center '+' '.join([str(val) for val in lvals_center])+'\n')
+        openfile.write('# fault_lengths_center '+' '.join([str(val) for val in lvals_center_unique])+'\n')
         openfile.write('# fault_lengths_bin_ranges '+' '.join([str(val) for val in lvals_range])+'\n')
         openfile.write('# Num_fractures_per_bin '+' '.join(['%.1i'%val for val in Nf])+'\n')
     
@@ -200,3 +219,10 @@ if __name__ == '__main__':
         cf.append(Rv.conductive_fraction)
         t5 = time.time()
         print('write to file, %.2fs'%(t5-t4))
+    np.save(r'C:\tmp\resistivity',Rv.resistivity)
+    np.save(r'C:\tmp\aperture',Rv.aperture)
+    np.save(r'C:\tmp\hydraulic_aperture',Rv.aperture_hydraulic)
+    np.save(r'C:\tmp\permeability',Rv.permeability)
+    t6 = time.time()
+    print('total time, %.1fs'%(t6-t0))
+    

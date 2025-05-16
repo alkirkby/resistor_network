@@ -805,21 +805,51 @@ def update_from_precalculated(rv,effective_apertures_fn,permeability_matrix=1e-1
     return rv
 
 
-def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, hydraulic_aperture, resistivity,pz):
 
+def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, 
+                                      hydraulic_aperture, resistivity,pz):
 
     ncells = Rv.ncells[1]
     cellsize = Rv.cellsize[1]
     Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize    
-
 
     if Nfval > 0:
         orientationj = np.random.choice([0,1],p=[1.0 - pz, pz],size=Nfval)
         faultsj = orientationj * int(fault_length_m/cellsize)
         orientationi = (1-orientationj).astype(int)
         faultsi = orientationi * int(fault_length_m/cellsize)
+
+        # j axis (vertical faults) open in the y direction
+        idxo = np.ones_like(faultsj,dtype=int)
+        # i axis (horizontal faults) open in the z direction
+        idxo[faultsi>0] = 2
         
+        # i axis (horizontal faults) are associated with y connectors
+        idxc = np.ones_like(faultsj,dtype=int)
+        # j axis (vertical faults) are associated with z connectors
+        idxc[faultsj>0] = 2
+        
+        # # can only initialise a fault where there isn't one already of that size or bigger
+        # i = np.zeros(Nfval,dtype=int)
+        # j = np.zeros(Nfval,dtype=int)
+        # # faults in i direction (horizontal) are y connectors opening in z direction
+        # available_ij_i = np.column_stack(np.where(Rv.aperture[:, :,1,1,2] < fault_width))
+        # # make a list of random indices to pull from available_ij_i
+        # random_indices_i = np.random.choice(np.arange(len(available_ij_i)),replace=False,size=sum(orientationi))
+        # i[orientationi==1] = available_ij_i[random_indices_i][:,0]
+        # j[orientationi==1] = available_ij_i[random_indices_i][:,1]
+
+        # # faults in j direction (horizontal) are y connectors opening in z direction
+        # available_ij_j = np.column_stack(np.where(Rv.aperture[:, :,1,2,1] < fault_width))
+        # # make a list of random indices to pull from available_ij_i
+        # random_indices_j = np.random.choice(np.arange(len(available_ij_j)),replace=False,size=sum(orientationj))
+        # j[orientationj==1] = available_ij_j[random_indices_j][:,1]
+        # i[orientationj==1] = available_ij_j[random_indices_j][:,0]
+        
+        # pick a random location for the fault centre
+        i = np.random.randint(1,ncells+2,size=Nfval)
         j = np.random.randint(1,ncells+2,size=Nfval)
+
         j0 = (j - faultsj/2).astype(int)
         j1 = (j + faultsj/2).astype(int)
         
@@ -834,7 +864,7 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, hy
         j0[j0 < 1] = 1
         j1[j1 > ncells + 1] = ncells + 1
         
-        i = np.random.randint(1,ncells+2,size=Nfval)
+        
         i0 = (i - faultsi/2).astype(int)
         i1 = (i + faultsi/2).astype(int)
 
@@ -848,19 +878,27 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, hy
         i0[i0 < 1] = 1
         i1[i1 > ncells + 1] = ncells + 1
 
-        # j axis (vertical faults) open in the y direction
-        idxo = np.ones_like(faultsj,dtype=int)
-        # i axis (horizontal faults) open in the z direction
-        idxo[faultsi>0] = 2
-        
-        # i axis (horizontal faults) are associated with y connectors
-        idxc = np.ones_like(faultsj,dtype=int)
-        # j axis (vertical faults) are associated with z connectors
-        idxc[faultsj>0] = 2
         
         # initialise indices to update
         idx_i = i0*1
         idx_j = j0*1
+
+        # randomly pull list of resistivity and hydraulic aperture values from 
+        # the array, if they are arrays.
+        assign_dict = {}
+        idxs = None
+        for val, name in [[hydraulic_aperture, 'aph'],
+                          [resistivity, 'resf']]:
+
+            if np.iterable(val):
+                # only define idxs once (use same indices for all properties)
+                if idxs is None:
+                    idxs = np.random.choice(np.arange(len(val)), size=idx_j.shape)
+                    
+                assign_dict[name] = val[idxs]
+            else:
+                assign_dict[name] = val
+
         
         for add_idx in range(int(fault_length_m/cellsize)):
             # filter to take out indices where aperture is already larger than proposed update
@@ -872,12 +910,19 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, hy
                 idx_ii = idx_i[filt]
                 idxo_i = idxo[filt]
                 idxc_i = idxc[filt]
+                
+                # apply filter to the values to assign
+                values_to_assign = {}
+                for key in assign_dict.keys():
+                    if np.iterable(assign_dict[key]):
+                        values_to_assign[key] = assign_dict[key][filt]
+
                 Rv.aperture[idx_jj, idx_ii,1,idxc_i,idxo_i] = fault_width #
                 # print(Rv.aperture[idx_j, idx_i,1,1,idxo])
                 Rv.aperture_electric[idx_jj, idx_ii,1,idxc_i,idxo_i] = fault_width
-                Rv.aperture_hydraulic[idx_jj, idx_ii,1,idxc_i,idxo_i] = hydraulic_aperture
-                Rv.resistance[idx_jj, idx_ii,1,idxc_i] = resistivity/cellsize
-                Rv.resistivity[idx_jj, idx_ii,1,idxc_i] = resistivity
+                Rv.aperture_hydraulic[idx_jj, idx_ii,1,idxc_i,idxo_i] = values_to_assign['aph']
+                Rv.resistance[idx_jj, idx_ii,1,idxc_i] = values_to_assign['resf']/cellsize
+                Rv.resistivity[idx_jj, idx_ii,1,idxc_i] = values_to_assign['resf']
                 idx_i[np.all([faultsi>0],axis=0)] += 1
                 idx_j[np.all([faultsj>0],axis=0)] += 1
                 
