@@ -174,7 +174,7 @@ if __name__ == '__main__':
     print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
-    prop_suffix = 'a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000)
+    prop_suffix = 'a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000,direction)
     output_fn = 'FaultSticks_%s.dat'%prop_suffix
     
     # read fault lengths (center of bin) + pre-computed properties from json file
