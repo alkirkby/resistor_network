@@ -18,6 +18,10 @@ from rnpy.functions.readoutputs import read_fault_params
 import time
 import argparse
 
+from dask.distributed import Client
+from dask import delayed, compute
+
+
 
 def parse_arguments(arguments):
     """
@@ -32,7 +36,9 @@ def parse_arguments(arguments):
                       ['direction','d','direction of flow through fractures, y (parallel to offset) or z (perpendicular)',1,str],
                       ['repeats','r','number of repeats to run',1,int],
                       ['resistivity_fluid','rf','resistivity of fluid',1,float],
-                      ['working_directory','wd','working directory for inputs and outputs',1,str]
+                      ['working_directory','wd','working directory for inputs and outputs',1,str],
+                      ['n_workers','nw','number of workers to parallelise by',1,int],
+                      ['threads_per_worker',None,'number of threads per worker',1,int],
                       ]
     
     parser = argparse.ArgumentParser()
@@ -64,7 +70,7 @@ def parse_arguments(arguments):
     
     return input_parameters
 
-
+@delayed
 def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_apertures, pz, resistivity,
                                  **kwargs):
     
@@ -128,8 +134,27 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
 
 
 if __name__ == '__main__':
+
+
+    
+    # %%
     t0 = time.time()
     inputs = parse_arguments(sys.argv)
+    
+    n_workers = inputs['n_workers']
+    threads_per_worker = inputs['threads_per_worker']
+    # %%
+    client = Client(
+        n_workers=n_workers,
+        threads_per_worker=threads_per_worker,
+        # local_directory=local_dir,
+        processes=True,
+        memory_limit="auto",
+    )
+    # goto http://localhost:8787 for progress
+    # %%    
+
+
     wd = inputs['working_directory']
     a = float(inputs['a'])
     porosity_target = inputs['target_porosity']
@@ -149,7 +174,7 @@ if __name__ == '__main__':
     print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
-    prop_suffix = 'a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize)
+    prop_suffix = 'a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000)
     output_fn = 'FaultSticks_%s.dat'%prop_suffix
     
     # read fault lengths (center of bin) + pre-computed properties from json file
@@ -199,29 +224,29 @@ if __name__ == '__main__':
     cf = []
     t2 = time.time()
     print('initialise inputs, %.2fs'%(t2-t1))
-    for rpt in range(repeats):
-        t3 = time.time()
-        
-        Rv = setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity,
-                                          # log_fn = os.path.join(savepath,output_fn[:-4]+'.log'),
-                                          **Rv_inputs)
-        t4 = time.time()
-        print('setup and solve, %.2fs'%(t4-t3))
+    
+    
+    simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity,
+                                      **Rv_inputs) for _ in range(repeats)]
+    t3 = time.time()
+    Rv_list = compute(*simulations)
+    t4 = time.time()
+    print('setup and solve, %.2fs'%(t4-t3))
+    kbulk = np.stack([Rv.permeability_bulk for Rv in Rv_list])
+    rbulk = np.stack([Rv.resistivity_bulk for Rv in Rv_list])
+    cf = np.stack([Rv.conductive_fraction for Rv in Rv_list])
+    
+    for Rv in Rv_list:
         line = '%.2f %.4f' + ' %.3e'*4 +'\n'
-        line = line%(pz,Rv.conductive_fraction,
-                     Rv.permeability_bulk[1],Rv.permeability_bulk[2],
-                     Rv.resistivity_bulk[1],Rv.resistivity_bulk[2])
+        line = line%(pz,
+                     Rv.conductive_fraction,
+                     Rv.permeability_bulk[1],
+                     Rv.permeability_bulk[2],
+                     Rv.resistivity_bulk[1],
+                     Rv.resistivity_bulk[2])       
         with open(os.path.join(wd,output_fn),'a') as openfile:
             openfile.write(line)
-        print(pz)
-        print(Rv.conductive_fraction)
-        print(Rv.permeability_bulk)
-        print(Rv.resistivity_bulk)
-        kbulk.append(Rv.permeability_bulk)
-        rbulk.append(Rv.resistivity_bulk)
-        cf.append(Rv.conductive_fraction)
-        t5 = time.time()
-        print('write to file, %.2fs'%(t5-t4))
+            
     array_savedir = os.path.join(wd,'arrays_%s'%prop_suffix)
     if not os.path.exists(array_savedir):
         os.mkdir(array_savedir)
