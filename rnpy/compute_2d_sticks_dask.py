@@ -158,7 +158,7 @@ if __name__ == '__main__':
         threads_per_worker=threads_per_worker,
         # local_directory=local_dir,
         processes=True,
-        memory_limit="8GB",
+        memory_limit="auto",
     )
     # goto http://localhost:8787 for progress
     # %%    
