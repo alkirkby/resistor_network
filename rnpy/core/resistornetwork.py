@@ -149,6 +149,10 @@ class Rock_volume():
         if type(self.ncells) in [float,int]:
             self.ncells = (np.ones(3)*self.ncells).astype(int)
             
+        for name in ['permeability_matrix','resistivity_matrix']:
+            if not np.iterable(getattr(self,name)):
+                setattr(self,name,np.array([getattr(self,name)]*3))
+            
         if type(self.cellsize) in [float,int]:
             self.cellsize = np.ones(3)*self.cellsize
         else:
@@ -437,8 +441,10 @@ class Rock_volume():
                                                np.array(self.ncells)+self.array_buffer*2,
                                                fill_array=True,**aperture_input)
                     # minimum aperture
-                    ap_min = (self.permeability_matrix*12)**0.5
-                    self.aperture_hydraulic[self.aperture_hydraulic < ap_min] = ap_min                    
+                    
+                    for i in range(3):
+                        ap_min = (self.permeability_matrix[i]*12)**0.5
+                        self.aperture_hydraulic[:,:,:,i][self.aperture_hydraulic[:,:,:,i] < ap_min] = ap_min                   
                     
                     self.fault_dict['aperture_list'] = [ap,aph,apc]
             else:
@@ -680,10 +686,12 @@ class Rock_volume():
 
         # compute the hydraulic resistivity of gouge based on electric aperture
         # since this accounts for variation in cell size along a cell
-        hydres_gouge = self.fluid_viscosity*self.cellsize[0]/\
-            (self.aperture_electric[:,:,:,:,0]*self.permeability_gouge + \
-            (self.cellsize[0] - self.aperture_electric[:,:,:,:,0])*\
-                                    self.permeability_matrix)
+        hydres_gouge = np.ones_like(self.aperture_electric[:,:,:,:,0])
+        for i in range(3):
+            hydres_gouge = self.fluid_viscosity*self.cellsize[i]/\
+                (self.aperture_electric[:,:,:,i,0]*self.permeability_gouge + \
+                (self.cellsize[i] - self.aperture_electric[:,:,:,i,0])*\
+                                        self.permeability_matrix[i])
 
         # apply the new hydraulic resistivity in regions where we have gouge
         self.hydraulic_resistivity[filt] = hydres_gouge[filt]
@@ -889,16 +897,18 @@ class Rock_volume():
                 self.resistivity_bulk, self.resistance_bulk = \
                 rnap.get_bulk_resistivity(self.current,cs,Vbase-Vsurf)
                 # limit maximum values to resistivity of matrix
-                self.resistivity_bulk[self.resistivity_bulk > self.resistivity_matrix] =\
-                    self.resistivity_matrix
+                for ii in range(3):
+                    self.resistivity_bulk[ii] = min(self.resistivity_bulk[ii],
+                                                    self.resistivity_matrix[ii])
             elif pname == 'fluid':
                 self.pressure[:,:,:,i] = Vn
                 self.flowrate = output_array*1.
                 self.permeability_bulk, self.hydraulic_resistance_bulk  = \
                 rnap.get_bulk_permeability(self.flowrate,self.cellsize,self.fluid_viscosity,Vbase-Vsurf)   
                 # limit minimum k to matrix k
-                self.permeability_bulk[self.permeability_bulk < self.permeability_matrix] =\
-                    self.permeability_matrix
+                for ii in range(3):
+                    self.permeability_bulk[ii] = max(self.permeability_bulk[ii],
+                                                     self.permeability_matrix[ii])
                 
         
 
@@ -935,13 +945,13 @@ class Rock_volume():
                         if 'current' in self.solve_properties:
                             rhoeff = self.resistivity_bulk[i]
                             self.effective_electric_aperture [i,odir] = \
-                            rnap.get_electric_aperture(width,rhoeff,rhof,rhom)
+                            rnap.get_electric_aperture(width,rhoeff,rhof,rhom[i])
 #                            rnap.get_electric_aperture(width,rhoeff,rhof)
 
                         if 'fluid' in self.solve_properties:
                             keff = self.permeability_bulk[i]
                             self.effective_hydraulic_aperture[i,odir] = \
-                            rnap.get_hydraulic_aperture(width,keff,km)
+                            rnap.get_hydraulic_aperture(width,keff,km[i])
 #                            rnap.get_hydraulic_aperture(keff)
 
         

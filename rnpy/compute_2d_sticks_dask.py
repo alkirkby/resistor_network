@@ -36,6 +36,10 @@ def parse_arguments(arguments):
                       ['direction','d','direction of flow through fractures, y (parallel to offset) or z (perpendicular)',1,str],
                       ['repeats','r','number of repeats to run',1,int],
                       ['resistivity_fluid','rf','resistivity of fluid',1,float],
+                      ['resistivity_matrix','rm','resistivity of matrix','*',float],
+                      ['permeability_matrix','km','permeability of matrix','*',float],
+                      ['lmin',None,'minimum fault length',1,float],
+                      ['lmax',None,'maximum fault length',1,float],
                       ['working_directory','wd','working directory for inputs and outputs',1,str],
                       ['n_workers','nw','number of workers to parallelise by',1,int],
                       ['threads_per_worker',None,'number of threads per worker',1,int],
@@ -66,7 +70,10 @@ def parse_arguments(arguments):
     for at in args._get_kwargs():
         if at[1] is not None:
             value = at[1]
-            input_parameters[at[0]] = value[0]
+            if len(value) == 1:
+                input_parameters[at[0]] = value[0]
+            else:
+                input_parameters[at[0]] = np.array(value)
     
     return input_parameters
 
@@ -81,7 +88,9 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
     Rv.initialise_electrical_resistance()
     
     # initialise hydraulic aperture to reflect matrix permeability
-    Rv.aperture_hydraulic[np.isfinite(Rv.aperture_hydraulic)]  = (12*Rv.permeability_matrix)**0.5
+    for i in range(3):
+        Rv.aperture_hydraulic[:,:,:,i][np.isfinite(Rv.aperture_hydraulic[:,:,:,i])]  = \
+            (12*Rv.permeability_matrix[i])**0.5
 
     # initialise Nf_update, additional faults to be updated each round
     Nf_update = np.copy(Nf)
@@ -149,7 +158,7 @@ if __name__ == '__main__':
         threads_per_worker=threads_per_worker,
         # local_directory=local_dir,
         processes=True,
-        memory_limit="auto",
+        memory_limit="8GB",
     )
     # goto http://localhost:8787 for progress
     # %%    
@@ -165,17 +174,31 @@ if __name__ == '__main__':
     cellsize = inputs['cellsize']
     direction = inputs['direction']
     
-    # some values not available from commandline
-    matrix_res = 1000
-    matrix_k = 1e-18
+    lmin, lmax = None, None
+    if 'lmin' in inputs.keys():
+        lmin = inputs['lmin']
+    if 'lmax' in inputs.keys():
+        lmax = inputs['lmax']
+    
+    matrix_res = np.array([1000]*3)
+    matrix_k = np.array([1e-18]*3)
+    
+    
+    if 'resistivity_matrix' in inputs.keys():
+        matrix_res = np.array(inputs['resistivity_matrix'])
+    if 'permeability_matrix' in inputs.keys():
+        matrix_k = np.array(inputs['permeability_matrix'])
+    print(inputs)
     
     # load fault widths from modelling
     t0a = time.time()
     print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
-    prop_suffix = 'a%.1f_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000,direction)
-    output_fn = 'FaultSticks_%s.dat'%prop_suffix
+    prop_suffix = 'a%.1f_R%1im_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,rfluid,porosity_target*100,pz,cellsize*1000,direction)
+    # prop_suffix = f'a{a:1f}_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000,direction)
+
+    output_fn = f'FaultSticks_{prop_suffix}.dat'
     
     # read fault lengths (center of bin) + pre-computed properties from json file
     lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
@@ -195,6 +218,39 @@ if __name__ == '__main__':
     # determine numbers of faults in each length bin using alpha and target porosity
     Nf, alpha, lvals_range = get_Nf2D(a,R,lvals_center_unique,fw_mean,porosity_target,alpha_start = 1.0)
     
+    
+    if lmax is None:
+        lmax, idx1 = max(lvals_range)+1, len(lvals_range)+1
+    else:
+        idx1 = np.where(lvals_center_unique <= lmax)[-1][-1] - \
+            len(lvals_center_unique) + 1
+    if lmin is None:
+        lmin, idx0 = 0, 0
+    else:
+        idx0 = np.where(lvals_center_unique > lmin)[0][0]
+    
+    filt = np.all([lvals_center > lmin, lvals_center <= lmax],axis=0)
+    
+    print("len(aph)",len(aph))
+    
+    # for arr in [aph, resistivity, fw, lvals_center]:
+    #     arr = arr[filt]
+    aph = aph[filt]
+    resistivity = resistivity[filt]
+    fw = fw[filt]
+    lvals_center = lvals_center[filt]
+    print("len(aph)",len(aph))
+    print(aph)
+        
+    Nf = Nf[idx0:idx1]
+    lvals_range = lvals_range[idx0:idx1]
+    lvals_center_unique = lvals_center_unique[idx0:idx1]
+    
+
+    print(Nf)
+    print(lvals_center_unique)
+    print(lvals_range)
+    
     t1 = time.time()
     print('get Nf, %.2fs'%(t1-t1a))
     
@@ -210,8 +266,9 @@ if __name__ == '__main__':
     with open(os.path.join(wd,output_fn),'w') as openfile:
         openfile.write('# a %.1f\n'%a)
         openfile.write('# total_size_m %.1f\n'%R)
-        openfile.write('# matrix_permeability %.1e\n'%matrix_k)
-        openfile.write('# matrix_resistivity %.1e\n'%matrix_res)
+        openfile.write('# cellsize_mm %.1f\n'%(cellsize*1000))
+        openfile.write('# matrix_permeability %.1e %.1e %.1e\n'%tuple(matrix_k))
+        openfile.write('# matrix_resistivity %.1e %.1e %.1e\n'%tuple(matrix_res))
         openfile.write('# porosity_target %.3f\n'%porosity_target)
         openfile.write('# alpha %.2f\n'%alpha)
         openfile.write('# fault_lengths_center '+' '.join([str(val) for val in lvals_center_unique])+'\n')

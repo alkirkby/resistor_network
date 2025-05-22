@@ -162,7 +162,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
     # initialise resistance to value if matrix occupying cell
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
-        resistance_array[:,:,:,i] = d[i]*r_matrix/np.prod(dp)   
+        resistance_array[:,:,:,i] = d[i]*r_matrix[i]/np.prod(dp)   
 
     for i in range(3):
         # the two directions perpendicular to direction of flow, indices and cell sizes
@@ -213,7 +213,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
         # directions along flow) and the matrix bit, but only assign if less than existing value
         if matrix_current:
             resistance_array[:,:,:,i] = np.amin([resistance_array[:,:,:,i],
-                                                 d[i]/(area_matrix/r_matrix + area_fracture/r_fluid)],
+                                                 d[i]/(area_matrix/r_matrix[i] + area_fracture/r_fluid)],
                                                  axis=0)
         else:
             # current only through fracture and not the matrix
@@ -227,7 +227,7 @@ def get_electrical_resistance(aperture_array,r_matrix,r_fluid,d,matrix_current=F
         cond = aperture_array[:,:,:,i,i] > 0
         resistance_array[:,:,:,i][cond] = \
         np.amin([r_fluid*aperture_array[:,:,:,i,i][cond]/np.prod(dp) +\
-                 r_matrix*(d[i] - aperture_array[:,:,:,i,i][cond])/np.prod(dp),
+                 r_matrix[i]*(d[i] - aperture_array[:,:,:,i,i][cond])/np.prod(dp),
                  resistance_array[:,:,:,i][cond]],axis=0)
 
         resistivity_array[:,:,:,i] = resistance_array[:,:,:,i]*np.prod(dp)/d[i]
@@ -246,7 +246,10 @@ def get_permeability(aperture_array,k_matrix,d):
     [dx,dy,dz] or float/integer if d is the same in all directions
     ===========================================================================    
     """
-    permeability_array = np.ones(np.shape(aperture_array)[:-1])*k_matrix        
+    # initialise permeability array
+    permeability_array = np.ones(np.shape(aperture_array)[:-1])*k_matrix[0]
+
+        
     if type(d) in [float,int]:
         d = [float(d)]*3
 
@@ -255,7 +258,7 @@ def get_permeability(aperture_array,k_matrix,d):
 
     for i in range(3):
         permeability_array[:,:,:,i] = (aperture_array[:,:,:,i]**3/12. + \
-                                      (ln[i]-aperture_array[:,:,:,i])*k_matrix)/ln[i]
+                                      (ln[i]-aperture_array[:,:,:,i])*k_matrix[i])/ln[i]
    
     
     return permeability_array
@@ -339,7 +342,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
     
     for i in range(3):
         dp = [d[dd] for dd in range(3) if dd != i]
-        hresistance[:,:,:,i] = d[i]*mu/(np.prod(dp)*k_matrix)
+        hresistance[:,:,:,i] = d[i]*mu/(np.prod(dp)*k_matrix[i])
     
     permeability = hresistance.copy()
     ncells = (np.array(aperture_array.shape)[:-2] - 2)[::-1]    
@@ -347,7 +350,8 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
     # array to contain "hydraulic resistivity" multiplier values (to be multiplied 
     # by dz/(dy*dx) where dz is the direction of flow)
     hydres = 12.*mu/aperture_array**2.
-    hydres[hydres > mu/k_matrix] = mu/k_matrix
+    for i in range(3):
+        hydres[:,:,:,i][hydres[:,:,:,i] > mu/k_matrix[i]] = mu/k_matrix[i]
 
         
     for i in range(3):
@@ -427,7 +431,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
         # if including fluid flow in matrix:
         if matrix_flow:
             
-            hrnew = d[i]/(area_matrix*k_matrix/mu + d0*ap1/hr1 + \
+            hrnew = d[i]/(area_matrix*k_matrix[i]/mu + d0*ap1/hr1 + \
                           d1*ap0/hr0 - ap0*ap1/np.amax([hr0,hr1],axis=0))
         # if not including fluid flow in matrix
         else:
@@ -441,7 +445,7 @@ def get_hydraulic_resistance(aperture_array,k_matrix,d,mu=1e-3,matrix_flow=True)
         cond = aperture_array[:,:,:,i,i] > 0
         hresistance[:,:,:,i][cond] = \
         np.amin([hydres[:,:,:,i,i][cond]*aperture_array[:,:,:,i,i][cond]/np.prod(dp)+\
-                 mu*(d[i] - aperture_array[:,:,:,i,i][cond])/(np.prod(dp)*k_matrix),
+                 mu*(d[i] - aperture_array[:,:,:,i,i][cond])/(np.prod(dp)*k_matrix[i]),
                  hresistance[:,:,:,i][cond]],axis=0)
         # calculate permeability
         permeability[:,:,:,i] = mu*d[i]/(hresistance[:,:,:,i]*np.prod(dp))

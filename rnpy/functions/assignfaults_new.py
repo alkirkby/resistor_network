@@ -829,26 +829,26 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width,
         # j axis (vertical faults) are associated with z connectors
         idxc[faultsj>0] = 2
         
-        # # can only initialise a fault where there isn't one already of that size or bigger
-        # i = np.zeros(Nfval,dtype=int)
-        # j = np.zeros(Nfval,dtype=int)
-        # # faults in i direction (horizontal) are y connectors opening in z direction
-        # available_ij_i = np.column_stack(np.where(Rv.aperture[:, :,1,1,2] < fault_width))
-        # # make a list of random indices to pull from available_ij_i
-        # random_indices_i = np.random.choice(np.arange(len(available_ij_i)),replace=False,size=sum(orientationi))
-        # i[orientationi==1] = available_ij_i[random_indices_i][:,0]
-        # j[orientationi==1] = available_ij_i[random_indices_i][:,1]
-
-        # # faults in j direction (horizontal) are y connectors opening in z direction
-        # available_ij_j = np.column_stack(np.where(Rv.aperture[:, :,1,2,1] < fault_width))
-        # # make a list of random indices to pull from available_ij_i
-        # random_indices_j = np.random.choice(np.arange(len(available_ij_j)),replace=False,size=sum(orientationj))
-        # j[orientationj==1] = available_ij_j[random_indices_j][:,1]
-        # i[orientationj==1] = available_ij_j[random_indices_j][:,0]
-        
-        # pick a random location for the fault centre
-        i = np.random.randint(1,ncells+2,size=Nfval)
-        j = np.random.randint(1,ncells+2,size=Nfval)
+        # can only initialise a fault where there isn't one already of that size or bigger
+        if np.any(Rv.aperture >= fault_width):
+            i = np.zeros(Nfval,dtype=int)
+            j = np.zeros(Nfval,dtype=int)
+            # faults in i direction (horizontal) are y connectors opening in z direction
+            available_ij_i = np.column_stack(np.where(Rv.aperture[:, :,1,1,2] < fault_width))
+            # make a list of random indices to pull from available_ij_i
+            random_indices_i = np.random.choice(np.arange(len(available_ij_i)),replace=False,size=sum(orientationi))
+            i[orientationi==1] = available_ij_i[random_indices_i][:,1]
+            j[orientationi==1] = available_ij_i[random_indices_i][:,0]
+            # faults in j direction (horizontal) are y connectors opening in z direction
+            available_ij_j = np.column_stack(np.where(Rv.aperture[:, :,1,2,1] < fault_width))
+            # make a list of random indices to pull from available_ij_i
+            random_indices_j = np.random.choice(np.arange(len(available_ij_j)),replace=False,size=sum(orientationj))
+            j[orientationj==1] = available_ij_j[random_indices_j][:,0]
+            i[orientationj==1] = available_ij_j[random_indices_j][:,1]
+        else:
+            # pick a random location for the fault centre
+            i = np.random.randint(1,ncells+2,size=Nfval)
+            j = np.random.randint(1,ncells+2,size=Nfval)
 
         j0 = (j - faultsj/2).astype(int)
         j1 = (j + faultsj/2).astype(int)

@@ -44,7 +44,7 @@ def solve_matrix2(R,cellsize,Vsurf=0.,Vbase=1.,Vstart=None,method='direct',
 #        print("solved matrix using direct method")
     
     elif method == 'pardiso':
-        print("using pypardiso solver")
+        # print("using pypardiso solver")
         from pypardiso import spsolve as parspsolve
         Vn = Vo.copy()
         Vn[:,1:-1] = parspsolve(A,b).reshape(ny+1,nz-1,nx+1)
