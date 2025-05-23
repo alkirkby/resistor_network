@@ -307,15 +307,17 @@ if __name__ == '__main__':
     array_savedir = os.path.join(wd,'arrays_%s'%prop_suffix)
     if not os.path.exists(array_savedir):
         os.mkdir(array_savedir)
-    np.save(os.path.join(array_savedir, 'resistivity'), Rv.resistivity)
-    np.save(os.path.join(array_savedir, 'aperture'),Rv.aperture)
-    np.save(os.path.join(array_savedir, 'hydraulic_aperture'),Rv.aperture_hydraulic)
-    np.save(os.path.join(array_savedir, 'permeability'),Rv.permeability)
+    # np.save(os.path.join(array_savedir, 'resistivity'), Rv.resistivity)
+    # np.save(os.path.join(array_savedir, 'aperture'),Rv.aperture)
+    # np.save(os.path.join(array_savedir, 'hydraulic_aperture'),Rv.aperture_hydraulic)
+    # np.save(os.path.join(array_savedir, 'permeability'),Rv.permeability)
     np.savez_compressed(os.path.join(os.path.join(array_savedir,'arrays')),
                         resistivity=Rv.resistivity,
                         aperture=Rv.aperture,
                         hydraulic_aperture=Rv.aperture_hydraulic,
-                        permeability=Rv.permeability)
+                        permeability=Rv.permeability,
+                        current=Rv.current,
+                        flowrate=Rv.flowrate)
     t6 = time.time()
     print('total time, %.1fs'%(t6-t0))
     
