@@ -294,7 +294,7 @@ if __name__ == '__main__':
     cf = np.stack([Rv.conductive_fraction for Rv in Rv_list])
     
     for Rv in Rv_list:
-        line = '%.2f %.4f' + ' %.3e'*4 +'\n'
+        line = '%.2f %.4f' + ' %.4e'*4 +'\n'
         line = line%(pz,
                      Rv.conductive_fraction,
                      Rv.permeability_bulk[1],

@@ -85,15 +85,15 @@ class testResistorNetwork2d(TestCase):
             rv = Rock_volume(aperture_type='constant',
                              fault_separation=fs,
                              ncells = [0,50,50],
-                             cellsize = [1e-6,0.00025,0.00025],
+                             cellsize = [0.02,0.00025,0.00025],
                              fault_dict = {'random_numbers_dir':os.path.join(TEST_DATA_ROOT,'random_seeds'),
                                     'correct_aperture_for_geometry':False})
             rv.solve_resistor_network2()
             rv.compute_conductive_fraction()
             
             kpar = (fs**3/12 + (rv.cellsize[0]-fs)*1e-18)/rv.cellsize[0]
-            rpar = rv.cellsize[1:]/(fs/rv.resistivity_fluid + \
-                                   (rv.cellsize[1:]-fs)/rv.resistivity_matrix[1:])
+            rpar = rv.cellsize[0]/(fs/rv.resistivity_fluid + \
+                                   (rv.cellsize[0]-fs)/rv.resistivity_matrix[1:])
             
             assert np.all(np.abs(np.log10(rv.permeability_bulk[1:]) - \
                                  np.log10(kpar)) < 1e-6)
