@@ -37,7 +37,7 @@ class testAssignHydraulicResistance(TestCase):
         # hydraulic resistance of fluid
         rhm = rv.fluid_viscosity*rv.cellsize[2]/\
             (rv.cellsize[1]*(rv.cellsize[0]-rv.aperture_hydraulic[1:-1,1:,1,2,0])*\
-             rv.permeability_matrix)
+             rv.permeability_matrix[2])
                 
         rhtest = 1./(1./rhf + 1./rhm)
         
@@ -49,7 +49,7 @@ class testAssignHydraulicResistance(TestCase):
         # hydraulic resistance of fluid
         rhm2 = rv.fluid_viscosity*rv.cellsize[1]/\
             (rv.cellsize[2]*(rv.cellsize[0]-rv.aperture_hydraulic[1:,1:-1,1,1,0])*\
-             rv.permeability_matrix)
+             rv.permeability_matrix[1])
                 
         rhtest2 = 1./(1./rhf2 + 1./rhm2)
         # rhtest2 = rv.fluid_viscosity*rv.cellsize[1]/\

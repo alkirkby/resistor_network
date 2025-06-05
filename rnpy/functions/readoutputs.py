@@ -473,6 +473,6 @@ def get_equivalent_rho(rho,width,equivalent_width, rho_matrix=1000):
     None.
 
     '''
-    pad = np.maximum(equivalent_width - width, 0.)
+    pad = equivalent_width - width
     
     return equivalent_width/(pad/rho_matrix + width/rho)

@@ -41,7 +41,7 @@ class testAssignElectricResistance(TestCase):
             (rv.cellsize[1]*rv.aperture_electric[1:-1,1:,1,2,0])
             
         # hydraulic resistance of fluid
-        rem = rv.cellsize[2]*rv.resistivity_matrix/\
+        rem = rv.cellsize[2]*rv.resistivity_matrix[2]/\
             (rv.cellsize[1]*(rv.cellsize[0] - rv.aperture_electric[1:-1,1:,1,2,0]))
                 
         retest = 1./(1./ref + 1./rem)
@@ -52,7 +52,7 @@ class testAssignElectricResistance(TestCase):
             (rv.cellsize[2]*rv.aperture_electric[1:,1:-1,1,1,0])
             
         # hydraulic resistance of fluid
-        rem2 = rv.cellsize[1]*rv.resistivity_matrix/\
+        rem2 = rv.cellsize[1]*rv.resistivity_matrix[1]/\
             (rv.cellsize[2]*(rv.cellsize[0] - rv.aperture_electric[1:,1:-1,1,1,0]))
                 
         retest2 = 1./(1./ref2 + 1./rem2)
