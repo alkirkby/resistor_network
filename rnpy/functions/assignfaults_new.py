@@ -317,7 +317,7 @@ def get_faultpair_inputs(fractal_dimension,elevation_scalefactor,
     faultpair_inputs = dict(D=fractal_dimension,
                             scalefactor=elevation_scalefactor)
     if mismatch_wavelength_cutoff is not None:
-        faultpair_inputs['fcw'] = mismatch_wavelength_cutoff
+        faultpair_inputs['lc'] = mismatch_wavelength_cutoff
     if cellsize is not None:
         faultpair_inputs['cs'] = cellsize
 

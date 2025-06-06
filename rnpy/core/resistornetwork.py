@@ -164,7 +164,6 @@ class Rock_volume():
                     self.cellsize = [np.amin(self.cellsize)]*3
 
         nx,ny,nz = self.ncells
-        
         self._verify_solve_direction()
 
         if self.build_arrays:
@@ -407,7 +406,7 @@ class Rock_volume():
                 cellsize_faultplane = self.cellsize[2]
 
             
-            
+          
 
         if self.fault_assignment == 'none':
             if self.fault_array is not None:
@@ -432,7 +431,7 @@ class Rock_volume():
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")
                 
-    
+           
             if self.build_arrays:
                     ap,aph,apc,self.aperture,self.aperture_hydraulic, \
                     self.aperture_electric,self.fault_dict['fault_surfaces'],\
@@ -447,6 +446,7 @@ class Rock_volume():
                         self.aperture_hydraulic[:,:,:,i][self.aperture_hydraulic[:,:,:,i] < ap_min] = ap_min                   
                     
                     self.fault_dict['aperture_list'] = [ap,aph,apc]
+                    
             else:
                 ap,aph,apc,self.fault_dict['fault_surfaces'],self.overlap_volume = \
                 rnaf.assign_fault_aperture(self.fault_edges,np.array(self.ncells)+self.array_buffer*2,
@@ -462,7 +462,7 @@ class Rock_volume():
                     self.aperture_hydraulic = self.aperture.copy()
                 if self.aperture_electric is None:
                     self.aperture_electric = self.aperture.copy()
-                
+                    
                 # update cellsize so it is at least as big as the largest fault aperture
                 # but only if it's a 2d network or there are only faults in one direction
                 if self.update_cellsize_tf:
@@ -582,18 +582,18 @@ class Rock_volume():
     def update_cellsize(self):
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
             for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):
-                for i in range(3):
-                    apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
-                    apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
-        
-                    for api in [apih,apie]:
-                        if len(api) > 0:
-                            apmax = np.amax(api)
-                            if self.cellsize[i] < apmax:
-                                rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
-                                # need to use ceil function so it always rounds up
-                                self.cellsize[i] = np.ceil(apmax*10.**rounding)*10.**(-rounding)
+            i = ['yz','xz','xy'].index(self.fault_assignment.split('_')[-1])
+            apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
+            apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
             
+            for api in [apih,apie]:
+                if len(api) > 0:
+                    apmax = np.amax(api)
+                    if self.cellsize[i] < apmax:
+                        rounding = -int(np.ceil(np.log10(self.cellsize[i])))+2
+                        # need to use ceil function so it always rounds up
+                        self.cellsize[i] = np.ceil(apmax*10.**rounding)*10.**(-rounding)
+    
 
     def initialise_electrical_resistance(self):
         """
