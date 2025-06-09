@@ -279,7 +279,22 @@ def resistivity_fault(resistivity_bulk, resistivity_matrix, porosity):
 
 
 def permeability_fault(permeability_bulk, permeability_matrix, porosity):
-    return (permeability_bulk - (1.-porosity)*permeability_matrix)/porosity
+    
+    kf = (permeability_bulk - (1.-porosity)*permeability_matrix)/porosity
+    filt = np.abs(permeability_bulk - permeability_matrix)/permeability_matrix < 1e-6
+    
+    if np.iterable(filt):
+        kf = np.array(kf)
+        if np.iterable(permeability_matrix):
+            for i in range(3):
+                kf[:,i][filt[:,i]] = permeability_matrix[i]
+        else:
+            kf[filt] = permeability_matrix
+    else:
+        if filt:
+            kf = permeability_matrix * 1.0
+        
+    return kf
 
 
 def hydraulic_aperture(permeability,cellsize_max,permeability_matrix = 1e-18):

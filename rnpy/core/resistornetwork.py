@@ -83,9 +83,10 @@ class Rock_volume():
                                aperture_list = None,
                                fault_surfaces = None,
                                random_numbers_dir=None,
-                               correct_aperture_for_geometry = False,
+                               correct_aperture_for_geometry = True,
                                preserve_negative_apertures = False,
-                               fault_spacing = 2)
+                               fault_spacing = 2,
+                               minimum_aperture=1e-50)
         self.fault_array = None      
         self.fault_edges = None
         self.fault_assignment = 'single_yz' # how to assign faults, 'random' or 'list', or 'single_yz'
@@ -426,7 +427,7 @@ class Rock_volume():
                         'mismatch_wavelength_cutoff','aperture_type',
                         'correct_aperture_for_geometry','aperture_list',
                         'preserve_negative_apertures','random_numbers_dir',
-                        'deform_fault_surface']:
+                        'deform_fault_surface','minimum_aperture']:
                             aperture_input[key] = self.fault_dict[key]
             if self.fault_dict['fault_surfaces'] is None:
                 print("fault surfaces none!")
@@ -487,7 +488,9 @@ class Rock_volume():
         for j in [0,1,2]:
             apvals = apvals_list[j]
             fmask = fmask_list[j]
-            ca = int(len(apvals[apvals<1e-20]))/fmask.sum()
+            # set a minimum value
+            min_ap = max(self.fault_dict['minimum_aperture']*(1+1e-6),1e-49)
+            ca = len(apvals[apvals<min_ap])/fmask.sum()
             if np.isinf(ca):
                 ca = 0.
             self.contact_area = np.append(self.contact_area,ca)
@@ -582,7 +585,10 @@ class Rock_volume():
     def update_cellsize(self):
         if ((self.fault_assignment in [pre+suf for pre in ['single_','multiple_']\
             for suf in ['xy','yz','xz']]) or (min(self.ncells)==0)):
-            i = ['yz','xz','xy'].index(self.fault_assignment.split('_')[-1])
+            if min(self.ncells) == 0:
+                i = np.where(np.array(self.ncells)==0)[0][0]
+            else:
+                i = ['yz','xz','xy'].index(self.fault_assignment.split('_')[-1])
             apih = self.aperture_hydraulic[:,:,:,:,i][np.isfinite(self.aperture_hydraulic[:,:,:,:,i])]
             apie = self.aperture_electric[:,:,:,:,i][np.isfinite(self.aperture_electric[:,:,:,:,i])]
             

@@ -14,6 +14,7 @@ if os.name == 'nt':
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignproperties import update_all_apertures
 from rnpy.functions.assignfaults_new import update_from_precalculated
+from rnpy.functions.readoutputs import permeability_fault
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
@@ -46,6 +47,7 @@ def parse_arguments(arguments):
                       ['num_fault_separation','nfs','number of fault separation '+\
                        'values, code will auto choose these values',1,float],
                       ['aperture_type',None,'type of aperture, random or constant',1,str],
+                      ['minimum_aperture',None,'minimum aperture (m) to apply on faults',1,float],
                       ['mismatch_wavelength_cutoff',None,'cutoff wavelength for '+\
                        'mismatching of opposing surfaces in faults',1,float],
                       ['matrix_flow',None,'whether or not to include fluid flow in matrix surrounding fracture',1,str],
@@ -155,7 +157,7 @@ def initialise_inputs(input_parameters):
                 'fractal_dimension','faultlength_max','faultlength_min','alpha',
                 'a','elevation_scalefactor','aperture_type','fault_edges',
                 'fault_surfaces','offset','deform_fault_surface',
-                'random_numbers_dir']:
+                'random_numbers_dir','minimum_aperture']:
 
         # check if it is an attribute in RockVol
         if hasattr(RockVol,att):
@@ -207,10 +209,12 @@ def get_start_fault_separation(RockVol, fs0=0.0, fs1=1e-3):
         fs0 -= 1e-5
     
     # get second fault separation
-    aperture = ap(h1,h2,offset,fs1, remove_negative=True)
-    while np.mean(aperture)/np.amax(aperture) < 0.9:
+    while contact_area(ap(h1,h2,offset,fs1)) > 0.1:
         fs1 += 1e-4
-        aperture = ap(h1,h2,offset,fs1, remove_negative=True)
+    # aperture = ap(h1,h2,offset,fs1, remove_negative=True)
+    # while np.mean(aperture)/np.amax(aperture) < 0.9:
+    #     fs1 += 1e-4
+    #     aperture = ap(h1,h2,offset,fs1, remove_negative=True)
         
     return np.array([fs0, 0.0, fs1])
     
@@ -239,7 +243,7 @@ def save_arrays(RockVol,property_names,suffix):
     return property_names
 
         
-def setup_run_single_model(input_parameters_new, iruntimefn):
+def setup_run_single_model(input_parameters_new, iruntimefn, min_aperture):
     
     if trace_mem:
         tracemalloc.start()
@@ -248,6 +252,21 @@ def setup_run_single_model(input_parameters_new, iruntimefn):
             
     
     RockVolI = Rock_volume(**input_parameters_new)
+    # print("max hydraulic resistivity before",np.nanmax(RockVolI.hydraulic_resistivity[:,:,1,1:]))
+    
+    # print("min_aperture",min_aperture,type(min_aperture))
+    # if min_aperture is not None:
+    #     RockVolI.aperture[:,:,:,1:,0][RockVolI.aperture[:,:,:,1:,0] < \
+    #                                       min_aperture] = min_aperture
+    #     RockVolI.aperture_hydraulic[:,:,:,1:,0][RockVolI.aperture_hydraulic[:,:,:,1:,0] < \
+    #                                       min_aperture] = min_aperture
+    #     RockVolI.initialise_permeability()
+        
+    #     RockVolI.aperture_electric[:,:,:,1:,0][RockVolI.aperture_electric[:,:,:,1:,0] < \
+    #                                       min_aperture] = min_aperture
+    #     RockVolI.initialise_electrical_resistance()    
+    #     RockVolI._get_contact_area(min_aperture=min_aperture*1.0001)
+    # print("contact area",RockVolI.contact_area)
     
     t0 = time.time()
     if trace_mem:
@@ -307,7 +326,10 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
     
     nx,ny,nz = input_parameters['ncells']
     
-    
+    if 'minimum_aperture' in input_parameters.keys():
+        min_aperture = np.copy(input_parameters['minimum_aperture'])
+    else:
+        min_aperture = None
     
     for r in repeats:
         
@@ -319,7 +341,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new['fault_assignment'] = 'list'
         
         RockVolI = Rock_volume(**input_parameters_new)
-        fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-3)
+        fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
         
         
         cfractions = np.ones(3)*np.nan
@@ -329,7 +351,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         cellsizes = np.ones((3,3))*np.nan
         
 
-        props_to_save = ['aperture','current','flowrate','fault_surfaces','fault_edges']
+        props_to_save = ['aperture','hydraulic_resistivity','current','flowrate','fault_surfaces','fault_edges']
         
         # run initial set of runs
         # 
@@ -341,17 +363,18 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
             input_parameters_new['fault_separation'] = fault_separations[i]
 
-            RockVolI = setup_run_single_model(input_parameters_new, iruntimefn)
+            RockVol = setup_run_single_model(input_parameters_new, iruntimefn,
+                                              min_aperture=min_aperture)
             
             
-            cfractions[i] = RockVolI.conductive_fraction
-            contactarea[i] = RockVolI.contact_area[0]
-            resbulk[i,0] = RockVolI.resistivity_bulk
-            kbulk[i] = RockVolI.permeability_bulk
-            cellsizes[i] = RockVolI.cellsize
+            cfractions[i] = RockVol.conductive_fraction
+            contactarea[i] = RockVol.contact_area[0]
+            resbulk[i,0] = RockVol.resistivity_bulk
+            kbulk[i] = RockVol.permeability_bulk
+            cellsizes[i] = RockVol.cellsize
             
             if r == 0:
-                props_to_save = save_arrays(RockVolI,props_to_save,'r%1i'%r)
+                props_to_save = save_arrays(RockVol,props_to_save,'r%1i'%r)
 
                 
         # run infilling runs
@@ -361,17 +384,26 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             # set x cell size to a small number if it's a 2d array
             for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
                 input_parameters_new['cellsize'][idx] = 1e-8
-                
             # compute differences between adjacent permeability points on curve
-            kjump = np.log10(kbulk[1:])-np.log10(kbulk[:-1])
-            kjump = np.amax(kjump,axis=1)
-            i = int(np.where(kjump == max(kjump))[0])
+            km = RockVol.permeability_matrix
+            kfault = permeability_fault(kbulk,km,cfractions[:,np.newaxis])
+            
+            kjump = np.log10(kfault[1:])-np.log10(kfault[:-1])
+            kjump = np.nanmax(kjump,axis=1)
+            
+            # if count <= 8:
+            #     # ensure minimum sampling at fs < 0
+            #     kjump = kjump[:count-1]
+            # print("kjump",kjump)
+            
+            i = int(np.where(kjump == np.nanmax(kjump))[0])
             
             # new fault separation to insert (halfway across max jump)
             newfs = np.mean(fault_separations[i:i+2])
             input_parameters_new['fault_separation'] = newfs
                 
-            RockVol = setup_run_single_model(input_parameters_new, iruntimefn)
+            RockVol = setup_run_single_model(input_parameters_new, iruntimefn,
+                                              min_aperture=min_aperture)
 
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
             resbulk = np.insert(resbulk,i+1,np.zeros_like(resbulk[0]),axis=0)
@@ -391,7 +423,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
             
 
         # repeat the modelling at different fluid resistivities
-        print("resistivity_values", input_parameters['resistivity_fluid'])
+        # print("resistivity_values", input_parameters['resistivity_fluid'])
         for j in range(1, len(input_parameters['resistivity_fluid'])):
             
             # insert resistivity bulk, conductive fraction & new fault separation to arrays
@@ -409,18 +441,19 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
                 input_parameters_new['solve_properties'] = 'current'
 
                 # run models
-                RockVol = setup_run_single_model(input_parameters_new,iruntimefn)
+                RockVol = setup_run_single_model(input_parameters_new,iruntimefn,
+                                                 min_aperture=min_aperture)
                 resbulk[i,j] = RockVol.resistivity_bulk
-                print('res fluid,', RockVol.resistivity_fluid, input_parameters_new['resistivity_fluid'])
-                print('res bulk', RockVol.resistivity_bulk)
-                print('cellsize', RockVol.cellsize)
+                # print('res fluid,', RockVol.resistivity_fluid, input_parameters_new['resistivity_fluid'])
+                # print('res bulk', RockVol.resistivity_bulk)
+                # print('cellsize', RockVol.cellsize)
                 
                 # print(resbulk.shape)
 
         # print(resbulk)
 
                 
-        print(input_parameters['resistivity_fluid'])
+        # print(input_parameters['resistivity_fluid'])
         outputs_dict = {'fault_separation':fault_separations,
                         'conductive_fraction':cfractions,
                         'contact_area':contactarea,
@@ -498,8 +531,8 @@ def write_outputs(input_parameters, output_array, outfilename):
                 
                 for key in input_parameters[param].keys():
                     # don't want any arrays with dim > 1 in the header
-                    print(key,input_parameters[param][key])
-                    print(np.iterable(input_parameters[param][key]))
+                    # print(key,input_parameters[param][key])
+                    # print(np.iterable(input_parameters[param][key]))
                     if not np.iterable(input_parameters[param][key]):
                         header += '# ' + key + ' ' + str(input_parameters[param][key]) + '\n'
             else:

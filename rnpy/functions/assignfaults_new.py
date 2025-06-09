@@ -382,6 +382,7 @@ def assign_fault_aperture(fault_uvw,
                           aperture_list_hydraulic = None,
                           preserve_negative_apertures = False,
                           random_numbers_dir=None,
+                          minimum_aperture=None
                           ):
     """
     take a fault array and assign aperture values. This is done by creating two
@@ -595,7 +596,9 @@ def assign_fault_aperture(fault_uvw,
                 
             # set zero values to really low value to allow averaging
             if not preserve_negative_apertures:
-                b[b <= 1e-50] = 1e-50
+                if minimum_aperture is None:
+                    minimum_aperture = 1e-50
+                b[b <= minimum_aperture] = minimum_aperture
                 
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
@@ -608,7 +611,10 @@ def assign_fault_aperture(fault_uvw,
                 else:
                     if correct_aperture_for_geometry:
                         print("correcting for geometry")
-                        bf, bc = rnfa.correct_aperture_for_geometry(h1d[offset:,offset:],b,fault_separation[i],cs)
+                        bf, bc = rnfa.correct_aperture_for_geometry(h1d[offset:,offset:],
+                                                                    b,
+                                                                    fault_separation[i],
+                                                                    cs)
                     else:
                         print("not correcting apertures for geometry")
                         # bf, bc = [np.array([b[:-1,:-1]]*3)]*2
