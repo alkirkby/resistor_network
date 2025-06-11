@@ -455,9 +455,14 @@ def read_fault_params_npy(npyfile, cellsize):
     fault_k_ap = np.load(npyfile)
     print(npyfile)
     print(fault_k_ap.dtype.names)
+    if cellsize is None:
+        resistivity = fault_k_ap['resistivity_fault']
+    else:
+        resistivity = fault_k_ap['resistivity_bulk_%s'%get_cellsize_suffix(cellsize)]
+        
     return fault_k_ap['length_m'],  fault_k_ap['mean_aperture'],\
         (12*fault_k_ap['permeability_fault'])**0.5, \
-        fault_k_ap['resistivity_bulk_%s'%get_cellsize_suffix(cellsize)]
+        resistivity
     
     
 

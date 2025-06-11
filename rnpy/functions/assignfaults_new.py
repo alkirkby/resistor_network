@@ -817,13 +817,16 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width,
 
     ncells = Rv.ncells[1]
     cellsize = Rv.cellsize[1]
-    Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize    
+    Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize
+    
 
     if Nfval > 0:
         orientationj = np.random.choice([0,1],p=[1.0 - pz, pz],size=Nfval)
         faultsj = orientationj * int(fault_length_m/cellsize)
         orientationi = (1-orientationj).astype(int)
         faultsi = orientationi * int(fault_length_m/cellsize)
+        
+
 
         # j axis (vertical faults) open in the y direction
         idxo = np.ones_like(faultsj,dtype=int)
@@ -897,11 +900,26 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width,
                           [resistivity, 'resf']]:
 
             if np.iterable(val):
+                # choose some random indices
                 # only define idxs once (use same indices for all properties)
                 if idxs is None:
                     idxs = np.random.choice(np.arange(len(val)), size=idx_j.shape)
+                
+                print(name,val.shape)
+                if len(val.shape) == 2:
+                    assign_dict[name] = np.zeros(len(idx_j))
+                    assign_dict[name][np.where(orientationi)] = val[:,0][idxs][np.where(orientationi)]
+                    assign_dict[name][np.where(orientationj)] = val[:,1][idxs][np.where(orientationj)]
                     
-                assign_dict[name] = val[idxs]
+                    # import os
+                    # savefile_res = r'C:\tmp\resistivity_val_length%.4fm.npy'%fault_length_m
+                    # savefile_idxs = r'C:\tmp\orientationj_val_length%.4fm.npy'%fault_length_m
+                    # if not os.path.exists(savefile_res):
+                    #     np.save(savefile_res,assign_dict['resf'])
+                    # if not os.path.exists(savefile_idxs):
+                    #     np.save(savefile_idxs,orientationj)                    
+                else:
+                    assign_dict[name] = val[idxs]
             else:
                 assign_dict[name] = val
 

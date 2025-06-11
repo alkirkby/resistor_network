@@ -14,7 +14,7 @@ if os.name == 'nt':
 
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignfaults_new import get_Nf2D, add_random_fault_sticks_to_arrays
-from rnpy.functions.readoutputs import read_fault_params
+from rnpy.functions.readoutputs import read_fault_params, get_equivalent_rho
 import time
 import argparse
 
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     # read fault lengths (center of bin) + pre-computed properties from json file
     lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
                                                   'fault_k_aperture_rf%s_%s.npy'%(rfluid,direction)),
-                                                           cellsize)
+                                                           None)
     if len(np.unique(lvals_center)) < len(lvals_center):
             
         lvals_center_unique = np.unique(lvals_center)
@@ -282,8 +282,10 @@ if __name__ == '__main__':
     t2 = time.time()
     print('initialise inputs, %.2fs'%(t2-t1))
     
-    
-    simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity,
+    if np.iterable(matrix_res):
+        resistivity_ij = np.column_stack([get_equivalent_rho(resistivity,fw,cellsize,rho_matrix=matrix_res[i])\
+                                          for i in [1,2]])
+    simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity_ij,
                                       **Rv_inputs) for _ in range(repeats)]
     t3 = time.time()
     Rv_list = compute(*simulations)
