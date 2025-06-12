@@ -58,6 +58,7 @@ def get_Nf2D(a, alpha, R2, lvals_range):
     Nf = []
     for i in range(len(lvals_range)-1):
         lmin,lmax = lvals_range[i:i+2]
+        Nf = np.append(Nf, int(round(alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2))).astype(int)
 
     return Nf
 
@@ -925,7 +926,6 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width,
                 if idxs is None:
                     idxs = np.random.choice(np.arange(len(val)), size=idx_j.shape)
                 
-                print(name,val.shape)
                 if len(val.shape) == 2:
                     assign_dict[name] = np.zeros(len(idx_j))
                     assign_dict[name][np.where(orientationi)] = val[:,0][idxs][np.where(orientationi)]
