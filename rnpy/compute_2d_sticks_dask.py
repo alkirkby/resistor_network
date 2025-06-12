@@ -13,8 +13,9 @@ if os.name == 'nt':
     print("appended to path")
 
 from rnpy.core.resistornetwork import Rock_volume
-from rnpy.functions.assignfaults_new import get_Nf2D, add_random_fault_sticks_to_arrays
+from rnpy.functions.assignfaults_new import get_Nf2D, get_alpha, add_random_fault_sticks_to_arrays
 from rnpy.functions.readoutputs import read_fault_params, get_equivalent_rho
+from rnpy.functions.utils import get_bin_ranges_from_centers
 import time
 import argparse
 
@@ -188,7 +189,8 @@ if __name__ == '__main__':
         matrix_res = np.array(inputs['resistivity_matrix'])
     if 'permeability_matrix' in inputs.keys():
         matrix_k = np.array(inputs['permeability_matrix'])
-    print(inputs)
+    if 'alpha' in inputs.keys():
+        alpha = inputs['alpha']
     
     # load fault widths from modelling
     t0a = time.time()
@@ -204,6 +206,7 @@ if __name__ == '__main__':
     lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
                                                   'fault_k_aperture_rf%s_%s.npy'%(rfluid,direction)),
                                                            None)
+    
     if len(np.unique(lvals_center)) < len(lvals_center):
             
         lvals_center_unique = np.unique(lvals_center)
@@ -212,11 +215,19 @@ if __name__ == '__main__':
     else:
         lvals_center_unique, fw_mean = lvals_center, fw
 
+    R2_for_alpha_calc = (10*lvals_center_unique.max())**2
+    print(R2_for_alpha_calc)
     t1a = time.time()
     print('get lvals, %.2fs'%(t1a-t0))
     
     # determine numbers of faults in each length bin using alpha and target porosity
-    Nf, alpha, lvals_range = get_Nf2D(a,R,lvals_center_unique,fw_mean,porosity_target,alpha_start = 1.0)
+    print(a,R,lvals_center_unique,fw_mean,porosity_target)
+    
+    # use big R-squared (R2) to compute alpha
+    alpha, lvals_range = get_alpha(a,R2_for_alpha_calc,lvals_center_unique,fw_mean,porosity_target,alpha_start = 0.1)
+    print("alpha",alpha)
+    Nf = get_Nf2D(a, alpha, R**2, lvals_range)
+
     
     
     if lmax is None:
@@ -231,25 +242,16 @@ if __name__ == '__main__':
     
     filt = np.all([lvals_center > lmin, lvals_center <= lmax],axis=0)
     
-    print("len(aph)",len(aph))
-    
     # for arr in [aph, resistivity, fw, lvals_center]:
     #     arr = arr[filt]
     aph = aph[filt]
     resistivity = resistivity[filt]
     fw = fw[filt]
     lvals_center = lvals_center[filt]
-    print("len(aph)",len(aph))
-    print(aph)
-        
     Nf = Nf[idx0:idx1]
     lvals_range = lvals_range[idx0:idx1]
     lvals_center_unique = lvals_center_unique[idx0:idx1]
     
-
-    print(Nf)
-    print(lvals_center_unique)
-    print(lvals_range)
     
     t1 = time.time()
     print('get Nf, %.2fs'%(t1-t1a))

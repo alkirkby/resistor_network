@@ -34,8 +34,34 @@ def get_faultlength_distribution(lvals,volume,alpha=10,a=3.5):
     
     return Nf
     
+def get_Nf2D(a, alpha, R2, lvals_range):
+    '''
+    Get Number of faults within area R within bin ranges provided by lvals_range
 
-def get_Nf2D(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
+    Parameters
+    ----------
+    a : TYPE
+        density exponent.
+    alpha : TYPE
+        density constant.
+    R2 : float
+        Area in metres squared
+    lvals_range : TYPE
+        Bin ranges of fault lengths.
+
+    Returns
+    -------
+    Number of faults in each bin range (len(lvals_range)-1).
+
+    '''
+    
+    Nf = []
+    for i in range(len(lvals_range)-1):
+        lmin,lmax = lvals_range[i:i+2]
+
+    return Nf
+
+def get_alpha(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
     '''
     
 
@@ -66,21 +92,15 @@ def get_Nf2D(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
     '''
     lvals_range = get_bin_ranges_from_centers(lvals_center)
     R2 = R**2
-    Nf = []
     alpha = alpha_start * 1.0
-    for i in range(len(lvals_range)-1):
-        lmin,lmax = lvals_range[i:i+2]
-        Nf.append(int(round(alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)))
+    Nf = get_Nf2D(a, alpha, R2, lvals_range)
         
-    while np.sum(fw * np.array(Nf) * lvals_center)/R2 < porosity_target:
-        Nf = []
-        for i in range(len(lvals_range)-1):
-            lmin,lmax = lvals_range[i:i+2]
-            Nf.append(int(round(alpha/(a-1)*lmin**(1-a)*R2 - alpha/(a-1)*lmax**(1-a)*R2)))
+    while np.sum(fw * Nf * lvals_center)/R2 < porosity_target:
+        Nf = get_Nf2D(a, alpha, R2, lvals_range)
         alpha += 0.01
         
         
-    return Nf, alpha, lvals_range
+    return alpha, lvals_range
 
 def create_random_fault(network_size,faultsizerange,plane):
     """
