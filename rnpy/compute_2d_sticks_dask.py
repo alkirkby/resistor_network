@@ -114,7 +114,7 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
             Rv, fault_lengths_assigned = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
                                            resistivity[ii],pz,fault_lengths_assigned=fault_lengths_assigned)
         Nf_update_new = ((np.array(Nf) - np.array([np.sum(fault_lengths_assigned==fault_lengths_m[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
-        np.save(r'C:\tmp\fault_lengths_assigned',fault_lengths_assigned)
+
         if np.all(np.array(Nf_update_new) == np.array(Nf_update)):
             count += 1
         else:
