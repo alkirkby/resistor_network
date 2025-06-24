@@ -199,7 +199,11 @@ if __name__ == '__main__':
     print("loading inputs, took %.2fs"%(t0a-t0))
 
     # construct output filename
-    prop_suffix = 'a%.1f_R%1im_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,rfluid,porosity_target*100,pz,cellsize*1000,direction)
+    if rfluid >= 0.1:
+        rfstr = '%.1f'%rfluid
+    else:
+        rfstr = '%.2f'%rfluid
+    prop_suffix = 'a%.1f_R%1im_rf%s_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,rfstr,porosity_target*100,pz,cellsize*1000,direction)
     # prop_suffix = f'a{a:1f}_R%1im_rm%1i_rf%0.1f_por%.1fpc_pz%.2f_cs%1imm_%s'%(a,R,matrix_res,rfluid,porosity_target*100,pz,cellsize*1000,direction)
 
     output_fn = f'FaultSticks_{prop_suffix}.dat'
