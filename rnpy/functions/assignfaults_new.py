@@ -92,12 +92,12 @@ def get_alpha(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
 
     '''
     lvals_range = get_bin_ranges_from_centers(lvals_center)
-    R2 = R**2
+
     alpha = alpha_start * 1.0
-    Nf = get_Nf2D(a, alpha, R2, lvals_range)
+    Nf = get_Nf2D(a, alpha, R, lvals_range)
         
-    while np.sum(fw * Nf * lvals_center)/R2 < porosity_target:
-        Nf = get_Nf2D(a, alpha, R2, lvals_range)
+    while np.sum(fw * Nf * lvals_center)/(R**2) < porosity_target:
+        Nf = get_Nf2D(a, alpha, R, lvals_range)
         alpha += 0.01
         
         
