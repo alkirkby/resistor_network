@@ -108,11 +108,13 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
     t0 = time.time()
     # assign faults to array:
     count1 = 0
+    fault_lengths_assigned = None
     while np.any(Nf_update) > 0:
         for ii,Nfval in enumerate(Nf_update):
-            Rv = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
-                                           resistivity[ii],pz)
-        Nf_update_new = ((np.array(Nf) - np.array([np.sum(Rv.aperture[:,:,1,1:,1:]==fault_widths[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
+            Rv, fault_lengths_assigned = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
+                                           resistivity[ii],pz,fault_lengths_assigned=fault_lengths_assigned)
+        Nf_update_new = ((np.array(Nf) - np.array([np.sum(fault_lengths_assigned==fault_lengths_m[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
+        np.save(r'C:\tmp\fault_lengths_assigned',fault_lengths_assigned)
         if np.all(np.array(Nf_update_new) == np.array(Nf_update)):
             count += 1
         else:
@@ -207,6 +209,7 @@ if __name__ == '__main__':
                                                   'fault_k_aperture_rf%s_%s.npy'%(rfluid,direction)),
                                                            None)
     
+    
     if len(np.unique(lvals_center)) < len(lvals_center):
             
         lvals_center_unique = np.unique(lvals_center)
@@ -215,8 +218,8 @@ if __name__ == '__main__':
     else:
         lvals_center_unique, fw_mean = lvals_center, fw
 
-    R2_for_alpha_calc = (10*lvals_center_unique.max())**2
-    print(R2_for_alpha_calc)
+    R_for_alpha_calc = 10*lvals_center_unique.max()
+
     t1a = time.time()
     print('get lvals, %.2fs'%(t1a-t0))
     
@@ -224,9 +227,9 @@ if __name__ == '__main__':
     print(a,R,lvals_center_unique,fw_mean,porosity_target)
     
     # use big R-squared (R2) to compute alpha
-    alpha, lvals_range = get_alpha(a,R2_for_alpha_calc,lvals_center_unique,fw_mean,porosity_target,alpha_start = 0.1)
-    print("alpha",alpha)
-    Nf = get_Nf2D(a, alpha, R**2, lvals_range)
+    alpha, lvals_range = get_alpha(a,R_for_alpha_calc,lvals_center_unique,fw_mean,porosity_target,alpha_start = 0.1)
+
+    Nf = get_Nf2D(a, alpha, R, lvals_range)
 
     
     

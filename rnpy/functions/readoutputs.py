@@ -390,7 +390,7 @@ def read_header(fn):
                     return header_names
 
 
-def load_outputs(fn,clip=0):
+def load_outputs(fn,clip=0,**genfromtxt_args):
     """
     
 
@@ -405,7 +405,7 @@ def load_outputs(fn,clip=0):
 
     """
     
-    outputs = np.genfromtxt(fn,names=read_header(fn))
+    outputs = np.genfromtxt(fn,names=read_header(fn),**genfromtxt_args)
     
     nr = len(np.unique(outputs['repeat']))
     nfs = int(len(outputs)/nr)

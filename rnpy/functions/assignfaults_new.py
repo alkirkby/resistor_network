@@ -34,7 +34,7 @@ def get_faultlength_distribution(lvals,volume,alpha=10,a=3.5):
     
     return Nf
     
-def get_Nf2D(a, alpha, R2, lvals_range):
+def get_Nf2D(a, alpha, R, lvals_range):
     '''
     Get Number of faults within area R within bin ranges provided by lvals_range
 
@@ -54,11 +54,11 @@ def get_Nf2D(a, alpha, R2, lvals_range):
     Number of faults in each bin range (len(lvals_range)-1).
 
     '''
-    
     Nf = []
     for i in range(len(lvals_range)-1):
         lmin,lmax = lvals_range[i:i+2]
-        Nf = np.append(Nf, int(round(alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2))).astype(int)
+        Nf = np.append(Nf, round(alpha/(a-1.)*lmin**(1.-a)*R**2 - alpha/(a-1.)*lmax**(1.-a)*R**2)).astype(int)
+        # Nf = np.append(Nf, alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)
 
     return Nf
 
@@ -834,11 +834,16 @@ def update_from_precalculated(rv,effective_apertures_fn,permeability_matrix=1e-1
 
 
 def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width, 
-                                      hydraulic_aperture, resistivity,pz):
+                                      hydraulic_aperture, resistivity,pz,
+                                      fault_lengths_assigned=None):
 
     ncells = Rv.ncells[1]
     cellsize = Rv.cellsize[1]
     Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize
+    
+    # array to record what fault lengths were assigned where
+    if fault_lengths_assigned is None:
+        fault_lengths_assigned = np.zeros_like(Rv.resistivity)
     
 
     if Nfval > 0:
@@ -967,10 +972,11 @@ def add_random_fault_sticks_to_arrays(Rv, Nfval, fault_length_m, fault_width,
                 Rv.aperture_hydraulic[idx_jj, idx_ii,1,idxc_i,idxo_i] = values_to_assign['aph']
                 Rv.resistance[idx_jj, idx_ii,1,idxc_i] = values_to_assign['resf']/cellsize
                 Rv.resistivity[idx_jj, idx_ii,1,idxc_i] = values_to_assign['resf']
+                fault_lengths_assigned[idx_jj, idx_ii, 1, idxc_i] = fault_length_m
                 idx_i[np.all([faultsi>0],axis=0)] += 1
                 idx_j[np.all([faultsj>0],axis=0)] += 1
                 
                 idx_i[idx_i > ncells + 1] = ncells + 1
                 idx_j[idx_j > ncells + 1] = ncells + 1
 
-    return Rv
+    return Rv, fault_lengths_assigned
