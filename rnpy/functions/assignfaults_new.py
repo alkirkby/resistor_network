@@ -615,6 +615,9 @@ def assign_fault_aperture(fault_uvw,
             else:
                 b = h1 - h2 + fault_separation[i]
                 
+            # set zero values to really low value to allow averaging
+            if not preserve_negative_apertures:
+                b[b <= 1e-50] = 1e-50
 
                 
             # centre indices of array b
@@ -635,26 +638,25 @@ def assign_fault_aperture(fault_uvw,
                     else:
                         print("not correcting apertures for geometry")
                         # bf, bc = [np.array([b[:-1,:-1]]*3)]*2
-                        bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
-                                            b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
+                        bf, bc = [np.array([np.mean([b[1:,1:],b[1:,:-1],
+                                            b[:-1,1:],b[:-1,:-1]],axis=0)]*3) for _ in range(2)]
             else:
                 print("not correcting apertures for geometry 2")
                 # bf, bc = [np.array([b[:-1,:-1]]*3)]*2
-                bf, bc = [[np.mean([b[1:,1:],b[1:,:-1],
-                                    b[:-1,1:],b[:-1,:-1]],axis=0)]*3 for _ in range(2)]
+                bf, bc = [np.array([np.mean([b[1:,1:],b[1:,:-1],
+                                    b[:-1,1:],b[:-1,:-1]],axis=0)]*3) for _ in range(2)]
             tmp_aplist = []
             # physical aperture
             bphy = [np.mean([b[1:,1:],b[1:,:-1],
                                 b[:-1,1:],b[:-1,:-1]],axis=0)]*3
 
 
-            # set zero values to really low value to allow averaging
+            # set minimum aperture
             if not preserve_negative_apertures:
-                if minimum_aperture is None:
-                    minimum_aperture = 1e-50
                 b[b <= minimum_aperture] = minimum_aperture
                 bf[bf <= minimum_aperture] = minimum_aperture
                 bc[bc <= minimum_aperture] = minimum_aperture
+                
                 for i in range(2):
                     bphy[i][bphy[i] <= minimum_aperture] = minimum_aperture                
 
