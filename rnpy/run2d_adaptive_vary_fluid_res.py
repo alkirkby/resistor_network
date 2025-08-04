@@ -186,25 +186,31 @@ def validate_offset(offset, ncells):
     else:
         return(int(offset))
 
-def ap(h1,h2,offset,fs, remove_negative=False):
+def ap(h1,h2,offset,fs, remove_negative=False, ap_min=0.):
     if offset > 0:
         aperture = h1[offset:,offset:] - h2[offset:,:-offset] + fs
     else:
         aperture = h1 - h2 + fs
         
     if remove_negative:
-        aperture[aperture < 0] = 0
-    return aperture
+        aperture[aperture < ap_min] = ap_min
+        
+    return aperture[3:-3,3:-3]
 
 def contact_area(ap, ap_min=0):
-    return (ap < ap_min).sum()/ap.size
+    return (ap < ap_min* (1. + 1e-6)).sum()/ap.size
 
 def get_fault_separation(RockVol, ca_target):
     fs0 = -np.nanmax(RockVol.aperture)
     offset = validate_offset(RockVol.fault_dict['offset'], RockVol.ncells[1])
-    min_aperture = RockVol.fault_dict['minimum_aperture'] * (1. + 1e-6)
+    print(f"offset={offset} cells")
+    
+    
+    min_aperture = RockVol.fault_dict['minimum_aperture'] 
     h1,h2 = RockVol.fault_dict['fault_surfaces'][0]
-    while contact_area(ap(h1,h2,offset,fs0),ap_min=min_aperture) > ca_target:
+    while contact_area(ap(h1,h2,offset,fs0,
+                          ap_min=min_aperture,
+                          remove_negative=True),ap_min=min_aperture) > ca_target:
         fs0 += 1e-7
         
     print(contact_area(ap(h1,h2,offset,fs0)))
@@ -355,8 +361,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         
         RockVolI = Rock_volume(**input_parameters_new)
         # fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
+        ca_list = np.arange(0.1,0.7,0.02)
         fault_separations = np.array([get_fault_separation(RockVolI,target_ca) for\
-                             target_ca in np.arange(0.1,0.7,0.02)])[::-1]
+                             target_ca in ca_list])[::-1]
         
         cfractions = np.ones(len(fault_separations))*np.nan
         contactarea = np.ones(len(fault_separations))*np.nan
@@ -379,7 +386,6 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
 
             RockVol = setup_run_single_model(input_parameters_new, iruntimefn,
                                               min_aperture=min_aperture)
-            
             
             cfractions[i] = RockVol.conductive_fraction
             contactarea[i] = RockVol.contact_area[0]
