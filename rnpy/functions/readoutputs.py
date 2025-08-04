@@ -280,10 +280,8 @@ def resistivity_fault(resistivity_bulk, resistivity_matrix, porosity):
 
 def permeability_fault(permeability_bulk, permeability_matrix, porosity):
     
-    if porosity < 1.:
-        kf = (permeability_bulk - (1.-porosity)*permeability_matrix)/porosity
-    else:
-        kf = permeability_bulk
+    kf = (permeability_bulk - (1.-porosity)*permeability_matrix)/porosity
+
     filt = np.abs(permeability_bulk - permeability_matrix)/permeability_matrix < 1e-6
     
     
