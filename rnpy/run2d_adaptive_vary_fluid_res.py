@@ -356,7 +356,7 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         RockVolI = Rock_volume(**input_parameters_new)
         # fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
         fault_separations = np.array([get_fault_separation(RockVolI,target_ca) for\
-                             target_ca in np.arange(0.1,0.7,0.02)])
+                             target_ca in np.arange(0.1,0.7,0.02)])[::-1]
         
         cfractions = np.ones(len(fault_separations))*np.nan
         contactarea = np.ones(len(fault_separations))*np.nan
