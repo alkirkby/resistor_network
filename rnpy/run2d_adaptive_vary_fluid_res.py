@@ -196,8 +196,21 @@ def ap(h1,h2,offset,fs, remove_negative=False):
         aperture[aperture < 0] = 0
     return aperture
 
-def contact_area(ap):
-    return (ap < 0).sum()/ap.size
+def contact_area(ap, ap_min=0):
+    return (ap < ap_min).sum()/ap.size
+
+def get_fault_separation(RockVol, ca_target):
+    fs0 = -np.nanmax(RockVol.aperture)
+    offset = validate_offset(RockVol.fault_dict['offset'], RockVol.ncells[1])
+    min_aperture = RockVol.fault_dict['minimum_aperture'] * (1. + 1e-6)
+    h1,h2 = RockVol.fault_dict['fault_surfaces'][0]
+    while contact_area(ap(h1,h2,offset,fs0),ap_min=min_aperture) > ca_target:
+        fs0 += 1e-7
+        
+    print(contact_area(ap(h1,h2,offset,fs0)))
+        
+    return fs0
+
 
 def get_start_fault_separation(RockVol, fs0=0.0, fs1=1e-3):
 
@@ -206,7 +219,7 @@ def get_start_fault_separation(RockVol, fs0=0.0, fs1=1e-3):
     
     # get first fault separation
     while contact_area(ap(h1,h2,offset,fs0)) < 0.6:
-        fs0 -= 1e-5
+        fs0 -= 1e-6
     
     # get second fault separation
     while contact_area(ap(h1,h2,offset,fs1)) > 0.1:
@@ -341,8 +354,9 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         input_parameters_new['fault_assignment'] = 'list'
         
         RockVolI = Rock_volume(**input_parameters_new)
-        fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
-        
+        # fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
+        fault_separations = [get_fault_separation(RockVolI,target_ca) for\
+                             target_ca in np.arange(0.1,0.7,0.02)]
         
         cfractions = np.ones(3)*np.nan
         contactarea = np.ones(3)*np.nan
