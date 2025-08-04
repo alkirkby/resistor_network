@@ -443,7 +443,8 @@ class Rock_volume():
                     # minimum aperture
                     
                     for i in range(3):
-                        ap_min = (self.permeability_matrix[i]*12)**0.5
+                        ap_min = np.max([(self.permeability_matrix[i]*12)**0.5,
+                                         (self.fault_dict['minimum_aperture'])])
                         self.aperture_hydraulic[:,:,:,i][self.aperture_hydraulic[:,:,:,i] < ap_min] = ap_min                   
                     
                     self.fault_dict['aperture_list'] = [ap,aph,apc]
