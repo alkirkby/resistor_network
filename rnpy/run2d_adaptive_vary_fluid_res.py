@@ -205,7 +205,7 @@ def get_start_fault_separation(RockVol, fs0=0.0, fs1=1e-3):
     h1,h2 = RockVol.fault_dict['fault_surfaces'][0]
     
     # get first fault separation
-    while contact_area(ap(h1,h2,offset,fs0)) < 1.0:
+    while contact_area(ap(h1,h2,offset,fs0)) < 0.6:
         fs0 -= 1e-5
     
     # get second fault separation

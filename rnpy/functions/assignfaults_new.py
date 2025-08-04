@@ -615,11 +615,7 @@ def assign_fault_aperture(fault_uvw,
             else:
                 b = h1 - h2 + fault_separation[i]
                 
-            # set zero values to really low value to allow averaging
-            if not preserve_negative_apertures:
-                if minimum_aperture is None:
-                    minimum_aperture = 1e-50
-                b[b <= minimum_aperture] = minimum_aperture
+
                 
             # centre indices of array b
             cb = (np.array(np.shape(b))*0.5).astype(int)
@@ -650,6 +646,18 @@ def assign_fault_aperture(fault_uvw,
             # physical aperture
             bphy = [np.mean([b[1:,1:],b[1:,:-1],
                                 b[:-1,1:],b[:-1,:-1]],axis=0)]*3
+
+
+            # set zero values to really low value to allow averaging
+            if not preserve_negative_apertures:
+                if minimum_aperture is None:
+                    minimum_aperture = 1e-50
+                b[b <= minimum_aperture] = minimum_aperture
+                bf[bf <= minimum_aperture] = minimum_aperture
+                bc[bc <= minimum_aperture] = minimum_aperture
+                for i in range(2):
+                    bphy[i][bphy[i] <= minimum_aperture] = minimum_aperture                
+
             # assign the corrected apertures to aperture array
 
             for ii,bb in enumerate([bphy,bf,bc]):
