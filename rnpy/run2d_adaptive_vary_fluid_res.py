@@ -355,21 +355,21 @@ def run_adaptive(repeats, input_parameters, numfs, outfilename, rank):
         
         RockVolI = Rock_volume(**input_parameters_new)
         # fault_separations = get_start_fault_separation(RockVolI, fs0=0.0, fs1=1e-4)
-        fault_separations = [get_fault_separation(RockVolI,target_ca) for\
-                             target_ca in np.arange(0.1,0.7,0.02)]
+        fault_separations = np.array([get_fault_separation(RockVolI,target_ca) for\
+                             target_ca in np.arange(0.1,0.7,0.02)])
         
-        cfractions = np.ones(3)*np.nan
-        contactarea = np.ones(3)*np.nan
-        resbulk = np.ones((3,1,3))*np.nan
-        kbulk = np.ones((3,3))*np.nan
-        cellsizes = np.ones((3,3))*np.nan
+        cfractions = np.ones(len(fault_separations))*np.nan
+        contactarea = np.ones(len(fault_separations))*np.nan
+        resbulk = np.ones((len(fault_separations),1,3))*np.nan
+        kbulk = np.ones((len(fault_separations),3))*np.nan
+        cellsizes = np.ones((len(fault_separations),3))*np.nan
         
 
         props_to_save = ['aperture','hydraulic_resistivity','current','flowrate','fault_surfaces','fault_edges']
         
         # run initial set of runs
         # 
-        for i in range(3):
+        for i in range(len(fault_separations)):
             # set x cell size to a small number if it's a 2d array
             for idx in np.where(np.array(input_parameters['ncells'])==0)[0]:
                 input_parameters_new['cellsize'][idx] = 1e-8
