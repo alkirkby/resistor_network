@@ -248,10 +248,10 @@ if __name__ == '__main__':
     
     
     if lmax is None:
-        lmax, idx1 = max(lvals_range)+1, len(lvals_range)+1
+        lmax, idx1 = np.amax(lvals_range_unique)+1, len(lvals_range_unique)+1
     else:
         idx1 = np.where(lvals_center_unique <= lmax)[-1][-1] - \
-            len(lvals_center_unique) + 1
+            len(lvals_center_unique) + 1 # relative to the end
     if lmin is None:
         lmin, idx0 = 0, 0
     else:
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     fw = fw[filt]
     lvals_center = lvals_center[filt]
     Nf = Nf[idx0:idx1]
-    lvals_range_unique = lvals_range_unique[idx0:idx1+1]
+    lvals_range_unique = lvals_range_unique[idx0:idx1]
     lvals_center_unique = lvals_center_unique[idx0:idx1]
     
     
