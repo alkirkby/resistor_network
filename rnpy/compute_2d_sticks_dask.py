@@ -266,7 +266,7 @@ if __name__ == '__main__':
     fw = fw[filt]
     lvals_center = lvals_center[filt]
     Nf = Nf[idx0:idx1]
-    lvals_range = lvals_range[idx0:idx1]
+    lvals_range_unique = lvals_range_unique[idx0:idx1+1]
     lvals_center_unique = lvals_center_unique[idx0:idx1]
     
     
