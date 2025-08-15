@@ -209,7 +209,7 @@ if __name__ == '__main__':
     output_fn = f'FaultSticks_{prop_suffix}.dat'
     
     # read fault lengths (center of bin) + pre-computed properties from json file
-    lvals_center, fw, aph, resistivity = read_fault_params(os.path.join(wd,
+    lvals_center, lvals_range, fw, aph, resistivity = read_fault_params(os.path.join(wd,
                                                   'fault_k_aperture_rf%s_%s.npy'%(rfluid,direction)),
                                                            None)
     
@@ -217,10 +217,11 @@ if __name__ == '__main__':
     if len(np.unique(lvals_center)) < len(lvals_center):
             
         lvals_center_unique = np.unique(lvals_center)
+        lvals_range_unique = np.unique(lvals_range)
         # get mean fault width by 
         fw_mean = np.array([np.mean(fw[lvals_center==ll]) for ll in lvals_center_unique])
     else:
-        lvals_center_unique, fw_mean = lvals_center, fw
+        lvals_center_unique, lvals_range_unique, fw_mean = lvals_center, lvals_range, fw
 
     R_for_alpha_calc = 10*lvals_center_unique.max()
 
@@ -231,9 +232,9 @@ if __name__ == '__main__':
     print(a,R,lvals_center_unique,fw_mean,porosity_target)
     
     # use big R-squared (R2) to compute alpha
-    alpha, lvals_range = get_alpha(a,R_for_alpha_calc,lvals_center_unique,fw_mean,porosity_target,alpha_start = 0.1)
+    alpha = get_alpha(a,R_for_alpha_calc,lvals_center_unique,lvals_range_unique,fw_mean,porosity_target,alpha_start = 0.1)
 
-    Nf = get_Nf2D(a, alpha, R, lvals_range)
+    Nf = get_Nf2D(a, alpha, R, lvals_range_unique)
 
     
     
@@ -281,7 +282,7 @@ if __name__ == '__main__':
         openfile.write('# porosity_target %.3f\n'%porosity_target)
         openfile.write('# alpha %.2f\n'%alpha)
         openfile.write('# fault_lengths_center '+' '.join([str(val) for val in lvals_center_unique])+'\n')
-        openfile.write('# fault_lengths_bin_ranges '+' '.join([str(val) for val in lvals_range])+'\n')
+        openfile.write('# fault_lengths_bin_ranges '+' '.join([str(val) for val in lvals_range_unique])+'\n')
         openfile.write('# Num_fractures_per_bin '+' '.join(['%.1i'%val for val in Nf])+'\n')
     
     

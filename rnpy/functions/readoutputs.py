@@ -8,7 +8,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.stats import sem
 import time
-from rnpy.functions.utils import roundsf
+from rnpy.functions.utils import roundsf, get_bin_ranges_from_centers
 
 
 def get_perp(plane):
@@ -443,6 +443,7 @@ def read_fault_params_json(jsonfn, cellsize):
         fault_k_ap = json.load(infile)
 
     lvals_center = np.array(list(fault_k_ap.keys())).astype(float)
+    lvals_range = get_bin_ranges_from_centers(lvals_center)
     
     fw = np.array([fault_k_ap[key]['mean_aperture'] for key in fault_k_ap.keys()])
     
@@ -462,7 +463,7 @@ def read_fault_params_npy(npyfile, cellsize):
     else:
         resistivity = fault_k_ap['resistivity_bulk_%s'%get_cellsize_suffix(cellsize)]
         
-    return fault_k_ap['length_m'],  fault_k_ap['mean_aperture'],\
+    return fault_k_ap['length_m'], fault_k_ap['length_m_bin_range'], fault_k_ap['mean_aperture'],\
         (12*fault_k_ap['permeability_fault'])**0.5, \
         resistivity
     

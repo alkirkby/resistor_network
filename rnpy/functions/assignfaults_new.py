@@ -62,7 +62,7 @@ def get_Nf2D(a, alpha, R, lvals_range):
 
     return Nf
 
-def get_alpha(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
+def get_alpha(a,R,lvals_center, lvals_range,fw,porosity_target,alpha_start=0.0):
     '''
     
 
@@ -91,7 +91,6 @@ def get_alpha(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
         DESCRIPTION.
 
     '''
-    lvals_range = get_bin_ranges_from_centers(lvals_center)
 
     alpha = alpha_start * 1.0
     Nf = get_Nf2D(a, alpha, R, lvals_range)
@@ -101,7 +100,7 @@ def get_alpha(a,R,lvals_center,fw,porosity_target,alpha_start=0.0):
         alpha += 0.01
         
         
-    return alpha, lvals_range
+    return alpha
 
 def create_random_fault(network_size,faultsizerange,plane):
     """
