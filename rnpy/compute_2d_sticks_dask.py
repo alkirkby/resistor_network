@@ -41,6 +41,7 @@ def parse_arguments(arguments):
                       ['permeability_matrix','km','permeability of matrix','*',float],
                       ['lmin',None,'minimum fault length',1,float],
                       ['lmax',None,'maximum fault length',1,float],
+                      ['maximum_y_fault_length',None,'maximum fault length for cross-faults',1,float],
                       ['working_directory','wd','working directory for inputs and outputs',1,str],
                       ['n_workers','nw','number of workers to parallelise by',1,int],
                       ['threads_per_worker',None,'number of threads per worker',1,int],
@@ -79,9 +80,9 @@ def parse_arguments(arguments):
     return input_parameters
 
 @delayed
-def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_apertures, pz, resistivity,
-                                 **kwargs):
-    
+def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_apertures, pz, resistivity, 
+                                 kwargs, max_y_fault_length=None):
+    print("setting up fault sticks")
     # initialise rock volume
     Rv = Rock_volume(**kwargs)
     Rv.aperture[np.isfinite(Rv.aperture)] = 2e-50
@@ -111,8 +112,13 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
     fault_lengths_assigned = None
     while np.any(Nf_update) > 0:
         for ii,Nfval in enumerate(Nf_update):
+            pz_input = pz
+            if max_y_fault_length is not None:
+                if fault_lengths_m[ii] > max_y_fault_length:
+                    pz_input = 1.
+            print("fault_lengths_m[ii]",fault_lengths_m[ii],pz_input,pz)
             Rv, fault_lengths_assigned = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
-                                           resistivity[ii],pz,fault_lengths_assigned=fault_lengths_assigned)
+                                           resistivity[ii],pz_input,fault_lengths_assigned=fault_lengths_assigned)
         Nf_update_new = ((np.array(Nf) - np.array([np.sum(fault_lengths_assigned==fault_lengths_m[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
 
         if np.all(np.array(Nf_update_new) == np.array(Nf_update)):
@@ -160,9 +166,11 @@ if __name__ == '__main__':
         n_workers=n_workers,
         threads_per_worker=threads_per_worker,
         # local_directory=local_dir,
-        processes=True,
+        processes=False,
+        dashboard_address=None,
         memory_limit="auto",
     )
+    print("n_workers",n_workers)
     # goto http://localhost:8787 for progress
     # %%    
 
@@ -176,6 +184,8 @@ if __name__ == '__main__':
     repeats = inputs['repeats']
     cellsize = inputs['cellsize']
     direction = inputs['direction']
+    max_y_fault_length = inputs['maximum_y_fault_length'] if \
+        'maximum_y_fault_length' in inputs.keys() else None
     
     lmin, lmax = None, None
     if 'lmin' in inputs.keys():
@@ -245,7 +255,12 @@ if __name__ == '__main__':
 
     Nf = get_Nf2D(a, alpha, R, lvals_range_unique)
 
-    
+    if max_y_fault_length is not None:
+        Nf_lw = Nf * lvals_center_unique
+        filt_ylen = lvals_center_unique >= max_y_fault_length
+        pz_short = (pz * Nf_lw.sum() - Nf_lw[filt_ylen].sum())/Nf_lw[~filt_ylen].sum()
+    else:
+        pz_short = pz
     
     if lmax is None:
         lmax, idx1 = np.amax(lvals_range_unique)+1, len(lvals_range_unique)+1
@@ -290,6 +305,8 @@ if __name__ == '__main__':
         openfile.write('# matrix_resistivity %.1e %.1e %.1e\n'%tuple(matrix_res))
         openfile.write('# porosity_target %.3f\n'%porosity_target)
         openfile.write('# alpha %.2f\n'%alpha)
+        openfile.write('# pz %.2f\n'%pz)
+        openfile.write('# pz_short %.2f\n'%pz_short)
         openfile.write('# fault_lengths_center '+' '.join([str(val) for val in lvals_center_unique])+'\n')
         openfile.write('# fault_lengths_bin_ranges '+' '.join([str(val) for val in lvals_range_unique])+'\n')
         openfile.write('# Num_fractures_per_bin '+' '.join(['%.1i'%val for val in Nf])+'\n')
@@ -304,10 +321,25 @@ if __name__ == '__main__':
     if np.iterable(matrix_res):
         resistivity_ij = np.column_stack([get_equivalent_rho(resistivity,fw,cellsize,rho_matrix=matrix_res[i])\
                                           for i in [1,2]])
-    simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, pz, resistivity_ij,
-                                      **Rv_inputs) for _ in range(repeats)]
+    print("repeats", repeats)
     t3 = time.time()
+    simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, 
+                                                pz_short, 
+                                                resistivity_ij,
+                                                Rv_inputs,
+                                                max_y_fault_length=max_y_fault_length) \
+                   for _ in range(repeats)]
+    print("len(simulations)",len(simulations))
+    
     Rv_list = compute(*simulations)
+    
+    
+    
+    # Rv_list = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, 
+    #                                             pz_short, 
+    #                                             resistivity_ij,
+    #                                             Rv_inputs,
+    #                                             max_y_fault_length=max_y_fault_length)]
     t4 = time.time()
     print('setup and solve, %.2fs'%(t4-t3))
     kbulk = np.stack([Rv.permeability_bulk for Rv in Rv_list])
