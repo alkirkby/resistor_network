@@ -116,7 +116,7 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
             if max_y_fault_length is not None:
                 if fault_lengths_m[ii] > max_y_fault_length:
                     pz_input = 1.
-            print("fault_lengths_m[ii]",fault_lengths_m[ii],pz_input,pz)
+            # print("fault_lengths_m[ii]",fault_lengths_m[ii],pz_input,pz)
             Rv, fault_lengths_assigned = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
                                            resistivity[ii],pz_input,fault_lengths_assigned=fault_lengths_assigned)
         Nf_update_new = ((np.array(Nf) - np.array([np.sum(fault_lengths_assigned==fault_lengths_m[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
@@ -256,7 +256,8 @@ if __name__ == '__main__':
     Nf = get_Nf2D(a, alpha, R, lvals_range_unique)
 
     if max_y_fault_length is not None:
-        Nf_lw = Nf * lvals_center_unique
+        Nf_precise = get_Nf2D(a, alpha, R_for_alpha_calc, lvals_range_unique)
+        Nf_lw = Nf_precise * lvals_center_unique
         filt_ylen = lvals_center_unique >= max_y_fault_length
         pz_short = (pz * Nf_lw.sum() - Nf_lw[filt_ylen].sum())/Nf_lw[~filt_ylen].sum()
     else:
