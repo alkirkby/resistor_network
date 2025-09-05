@@ -57,7 +57,9 @@ def get_Nf2D(a, alpha, R, lvals_range):
     Nf = []
     for i in range(len(lvals_range)-1):
         lmin,lmax = lvals_range[i:i+2]
-        Nf = np.append(Nf, round(alpha/(a-1.)*lmin**(1.-a)*R**2 - alpha/(a-1.)*lmax**(1.-a)*R**2)).astype(int)
+        # print("lmin,lmax",lmin,lmax)
+        # print(alpha/(a-1.)*lmin**(1.-a)*R**2, alpha/(a-1.)*lmax**(1.-a)*R**2)
+        Nf = np.append(Nf, np.around((alpha/(a-1.)*lmin**(1.-a)*R**2 - alpha/(a-1.)*lmax**(1.-a)*R**2))).astype(int)
         # Nf = np.append(Nf, alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)
 
     return Nf

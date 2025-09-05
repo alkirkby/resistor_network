@@ -166,7 +166,7 @@ if __name__ == '__main__':
         n_workers=n_workers,
         threads_per_worker=threads_per_worker,
         # local_directory=local_dir,
-        processes=False,
+        processes=True if os.name == 'nt' else False,
         dashboard_address=None,
         memory_limit="auto",
     )
