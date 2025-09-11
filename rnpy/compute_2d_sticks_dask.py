@@ -51,7 +51,7 @@ def parse_arguments(arguments):
     
     
     for i in range(len(argument_names)):
-
+        
         longname,shortname,helpmsg,nargs,vtype = argument_names[i]
         action = 'store'
         longname = '--'+longname
@@ -120,7 +120,7 @@ def setup_and_solve_fault_sticks(Nf, fault_lengths_m, fault_widths, hydraulic_ap
             Rv, fault_lengths_assigned = add_random_fault_sticks_to_arrays(Rv, Nfval, fault_lengths_m[ii], fault_widths[ii], hydraulic_apertures[ii],
                                            resistivity[ii],pz_input,fault_lengths_assigned=fault_lengths_assigned)
         Nf_update_new = ((np.array(Nf) - np.array([np.sum(fault_lengths_assigned==fault_lengths_m[i])/(fault_lengths_m[i]/Rv.cellsize[1]) for i in range(len(Nf))]))).astype(int)
-
+        
         if np.all(np.array(Nf_update_new) == np.array(Nf_update)):
             count += 1
         else:
@@ -195,7 +195,6 @@ if __name__ == '__main__':
     
     matrix_res = np.array([1000]*3)
     matrix_k = np.array([1e-18]*3)
-    
     
     if 'resistivity_matrix' in inputs.keys():
         matrix_res = np.array(inputs['resistivity_matrix'])
@@ -295,7 +294,7 @@ if __name__ == '__main__':
                      cellsize=cellsize,
                      resistivity_fluid=rfluid,
                      resistivity_matrix=matrix_res,
-                     permeability_matrix=1e-18)
+                     permeability_matrix=matrix_k)
     
     # write fixed variables to file
     with open(os.path.join(wd,output_fn),'w') as openfile:
@@ -322,7 +321,6 @@ if __name__ == '__main__':
     if np.iterable(matrix_res):
         resistivity_ij = np.column_stack([get_equivalent_rho(resistivity,fw,cellsize,rho_matrix=matrix_res[i])\
                                           for i in [1,2]])
-    print("repeats", repeats)
     t3 = time.time()
     simulations = [setup_and_solve_fault_sticks(Nf, lvals_center,fw, aph, 
                                                 pz_short, 
@@ -330,7 +328,6 @@ if __name__ == '__main__':
                                                 Rv_inputs,
                                                 max_y_fault_length=max_y_fault_length) \
                    for _ in range(repeats)]
-    print("len(simulations)",len(simulations))
     
     Rv_list = compute(*simulations)
     
