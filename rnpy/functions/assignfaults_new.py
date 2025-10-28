@@ -37,20 +37,23 @@ def get_faultlength_distribution(lvals, volume, alpha=10, a=3.5):
     return Nf
 
 
-def get_Nf2D(a, alpha, R, lvals_range):
+def get_Nf(gamma, alpha, R, lvals_range, ndim=2):
     """
     Get Number of faults within area R within bin ranges provided by lvals_range
 
     Parameters
     ----------
-    a : TYPE
+    gamma : TYPE
         density exponent.
     alpha : TYPE
         density constant.
-    R2 : float
-        Area in metres squared
+    R : float
+        Dimension in metres of the area
     lvals_range : TYPE
         Bin ranges of fault lengths.
+    ndim : integer
+        Number of dimensions, usually 2 or 3. Note. User must adjust a so
+        it is relevant to ndim
 
     Returns
     -------
@@ -60,32 +63,37 @@ def get_Nf2D(a, alpha, R, lvals_range):
     Nf = []
     for i in range(len(lvals_range) - 1):
         lmin, lmax = lvals_range[i : i + 2]
-        # print("lmin,lmax",lmin,lmax)
-        # print(alpha/(a-1.)*lmin**(1.-a)*R**2, alpha/(a-1.)*lmax**(1.-a)*R**2)
-        Nf = np.append(
-            Nf,
-            np.around(
-                (
-                    alpha / (a - 1.0) * lmin ** (1.0 - a) * R**2
-                    - alpha / (a - 1.0) * lmax ** (1.0 - a) * R**2
-                )
-            ),
-        ).astype(int)
+
+        Nf_greater_than_lmin = (
+            (alpha / (gamma - 1.0)) * lmin ** (1.0 - gamma) * R**ndim
+        )
+        Nf_greater_than_lmax = (
+            (alpha / (gamma - 1.0)) * lmax ** (1.0 - gamma) * R**ndim
+        )
+        # faults_less_lmax =
+        Nf = np.append(Nf, (Nf_greater_than_lmin - Nf_greater_than_lmax))
         # Nf = np.append(Nf, alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)
 
-    return Nf
+    return np.around(Nf).astype(np.int64)
 
 
 def get_alpha(
-    a, R, lvals_center, lvals_range, fw, porosity_target, alpha_start=0.0
+    gamma,
+    R,
+    lvals_center,
+    lvals_range,
+    fw,
+    porosity_target,
+    alpha_start=0.0,
+    ndim=2,
 ):
     """
 
 
     Parameters
     ----------
-    a : TYPE
-        DESCRIPTION.
+    gamma : TYPE
+        Density exponent.
     R : TYPE
         DESCRIPTION.
     lvals_center : TYPE
@@ -96,6 +104,9 @@ def get_alpha(
         DESCRIPTION.
     alpha_start : TYPE, optional
         DESCRIPTION. The default is 0.0.
+    ndim : integer
+        Number of dimensions, usually 2 or 3. Note. User must adjust a so
+        it is relevant to ndim
 
     Returns
     -------
@@ -109,10 +120,13 @@ def get_alpha(
     """
 
     alpha = alpha_start * 1.0
-    Nf = get_Nf2D(a, alpha, R, lvals_range)
+    Nf = get_Nf(gamma, alpha, R, lvals_range, ndim=ndim)
 
-    while np.sum(fw * Nf * lvals_center) / (R**2) < porosity_target:
-        Nf = get_Nf2D(a, alpha, R, lvals_range)
+    while (
+        np.sum(fw * Nf * lvals_center ** (ndim - 1)) / (R**ndim)
+        < porosity_target
+    ):
+        Nf = get_Nf(gamma, alpha, R, lvals_range, ndim=ndim)
         alpha += 0.01
 
     return alpha
@@ -1282,5 +1296,320 @@ def add_random_fault_sticks_to_arrays(
 
                 idx_i[idx_i > ncells + 1] = ncells + 1
                 idx_j[idx_j > ncells + 1] = ncells + 1
+
+    return Rv, fault_lengths_assigned
+
+
+def add_random_fault_planes_to_arrays(
+    Rv,
+    Nfval,
+    fault_length_m,  # primary in-plane extent (meters)
+    fault_widths,  # scalar or 1D array length Nfval (per-fault widths)
+    hydraulic_aperture_pairs,  # scalar, (Nfval,), or (Nfval,2) per plane, per direction
+    resistivity_pairs,  # scalar, (Nfval,), or (Nfval,2) per plane, per direction
+    pxyz=(
+        1 / 3,
+        1 / 3,
+        1 / 3,
+    ),  # NORMAL probabilities: (Px, Py, Pz) i.e., x, y, z
+    fault_span_m=None,  # secondary in-plane extent; None -> same as fault_length_m
+    fault_lengths_assigned=None,
+    normals=None,  # optional: 1D array length Nfval with {0,1,2} for normals (x,y,z)
+    max_tries=1000,  # attempts per plane (strict_mode=True)
+    raise_on_shortfall=False,  # if strict_mode and can't place Nfval planes, raise
+    rng=None,  # optional: numpy Generator for reproducibility
+):
+    """
+    Insert 3D fault planes into Rv connector arrays (in place), updating BOTH off-diagonal
+    pairs per plane, with per-direction properties. Spatial arrays have ghost padding.
+
+    -------------------------------------------------------------------------------
+    Inputs & layout
+    -------------------------------------------------------------------------------
+    Rv.ncells   : [Nx, Ny, Nz] (cartesian order)
+    Rv.cellsize : [dx, dy, dz] (cartesian meters)
+
+    Array spatial order (axes 0,1,2) is [z, y, x] with **ghost padding** (interior indices [1..N+1]):
+      Rv.aperture.shape            == (nz+2, ny+2, nx+2, 3, 3)
+      Rv.aperture_electric.shape   == (nz+2, ny+2, nx+2, 3, 3)
+      Rv.aperture_hydraulic.shape  == (nz+2, ny+2, nx+2, 3, 3)
+      Rv.resistivity.shape         == (nz+2, ny+2, nx+2, 3)
+      Rv.resistance.shape          == (nz+2, ny+2, nx+2, 3)
+
+    Connector/opening axes (last dims): 0=x, 1=y, 2=z; diagonal entries are unused.
+
+    -------------------------------------------------------------------------------
+    Orientation probabilities
+    -------------------------------------------------------------------------------
+    pxyz is given as NORMAL probabilities: (Px, Py, Pz) meaning normals along x, y, z.
+
+    -------------------------------------------------------------------------------
+    Plane normal → TWO off-diagonal (connector, opening) pairs (opening along normal)
+    -------------------------------------------------------------------------------
+      normal x (yz-plane): pairs [(y,x), (z,x)] → (1,0), (2,0)
+      normal y (xz-plane): pairs [(x,y), (z,y)] → (0,1), (2,1)
+      normal z (xy-plane): pairs [(x,z), (y,z)] → (0,2), (1,2)
+
+    The **two columns** of hydraulic_aperture_pairs/resistivity_pairs map to the
+    pair order above (column 0 → first pair, column 1 → second pair).
+
+    -------------------------------------------------------------------------------
+    strict_mode (optional)
+    -------------------------------------------------------------------------------
+    If strict_mode=True, the function retries random centers (up to max_tries) and
+    **pre-checks** the entire rectangle (both pairs) before writing:
+      - If require_full_rectangle=True: ALL cells in the rectangle must be updatable.
+      - Else: at least SOME cells in the rectangle must be updatable.
+    If raise_on_shortfall=True and it's impossible to place Nfval planes, raise.
+
+    Returns
+    -------------------------------------------------------------------------------
+    Rv (modified), fault_lengths_assigned (same shape as Rv.resistivity).
+    """
+
+    # --- Meta (cartesian orders for counts and sizes) ---
+    ncells = np.asarray(Rv.ncells, dtype=int)  # [Nx, Ny, Nz]
+    cellsize = np.asarray(Rv.cellsize, dtype=float)  # [dx, dy, dz]
+    assert ncells.shape == (3,), "Rv.ncells must be [Nx, Ny, Nz]"
+    assert cellsize.shape == (3,), "Rv.cellsize must be [dx, dy, dz]"
+
+    Nx, Ny, Nz = map(int, ncells)
+
+    # Array spatial order is [z, y, x] with ghost padding (+2 each)
+    arr_shape = Rv.aperture.shape[:3]
+    expected = (Nz + 2, Ny + 2, Nx + 2)
+    if arr_shape != expected:
+        raise ValueError(
+            f"Unexpected spatial shape {arr_shape}. Expected (nz+2, ny+2, nx+2)={expected}."
+        )
+
+    # Map cartesian axis -> array axis
+    # cart: 0=x, 1=y, 2=z  -> array: 2=x, 1=y, 0=z
+    CART2ARR = {0: 2, 1: 1, 2: 0}
+
+    # Interior index bounds per ARRAY axis (inclusive), because of ghost padding:
+    #   interior indices are [1 .. N+1] on each axis
+    ARR_MIN_INCL = {0: 1, 1: 1, 2: 1}  # array axes: 0=z, 1=y, 2=x
+    ARR_MAX_INCL = {0: Nz + 1, 1: Ny + 1, 2: Nx + 1}  # inclusive upper bounds
+
+    # Plane normal → (connector, opening) pairs with opening along the normal
+    PAIRS = {
+        0: [(1, 0), (2, 0)],  # normal x → opening x; connectors y, z
+        1: [(0, 1), (2, 1)],  # normal y → opening y; connectors x, z
+        2: [(0, 2), (1, 2)],  # normal z → opening z; connectors x, y
+    }
+
+    # Baseline electric aperture per connector axis (finite only)
+    for idxc in range(3):  # connector axis (x=0, y=1, z=2)
+        for idxo in range(3):  # opening axis (x=0, y=1, z=2)
+            mask = np.isfinite(Rv.aperture_electric[..., idxc, idxo])
+            Rv.aperture_electric[..., idxc, idxo][mask] = cellsize[idxc]
+
+    # Record-keeping array
+    if fault_lengths_assigned is None:
+        fault_lengths_assigned = np.zeros_like(Rv.resistivity, dtype=float)
+
+    if Nfval <= 0:
+        return Rv, fault_lengths_assigned
+
+    rng = np.random.default_rng() if rng is None else rng
+
+    # NORMAL probabilities: (Px, Py, Pz)
+    if normals is None:
+        Px, Py, Pz = pxyz
+        p_normals = np.asarray([Px, Py, Pz], dtype=float)
+        p_normals = p_normals / p_normals.sum()
+        normals = rng.choice(
+            [0, 1, 2], size=Nfval, p=p_normals
+        )  # 0=x, 1=y, 2=z normals
+    else:
+        normals = np.asarray(normals, dtype=int)
+        if normals.shape != (Nfval,) or not np.isin(normals, [0, 1, 2]).all():
+            raise ValueError(
+                "`normals` must be a 1D array of length Nfval with values in {0,1,2}."
+            )
+
+    if fault_span_m is None:
+        fault_span_m = fault_length_m
+
+    # Helpers
+    def cells_from_meters(m, cart_axis):
+        return max(1, int(round(float(m) / float(cellsize[cart_axis]))))
+
+    def per_fault_values(val, name):
+        if np.iterable(val) and not np.isscalar(val):
+            arr = np.asarray(val, dtype=float)
+            if arr.shape != (Nfval,):
+                raise ValueError(
+                    f"`{name}` must be scalar or shape (Nfval,). Got {arr.shape}."
+                )
+            return arr
+        else:
+            return np.full(Nfval, float(val), dtype=float)
+
+    def per_fault_pair_values(val, name):
+        """
+        Accept scalar, (Nfval,), or (Nfval,2); return (Nfval,2).
+        Column 0 → first pair for the normal; Column 1 → second pair.
+        """
+        if np.iterable(val) and not np.isscalar(val):
+            arr = np.asarray(val, dtype=float)
+            if arr.ndim == 1:
+                if arr.shape != (Nfval,):
+                    raise ValueError(
+                        f"`{name}` must be scalar, (Nfval,), or (Nfval,2). Got {arr.shape}."
+                    )
+                return np.column_stack([arr, arr])
+            elif arr.ndim == 2 and arr.shape == (Nfval, 2):
+                return arr
+            else:
+                raise ValueError(
+                    f"`{name}` must be scalar, (Nfval,), or (Nfval,2). Got {arr.shape}."
+                )
+        else:
+            s = float(val)
+            return np.tile([[s, s]], (Nfval, 1))
+
+    widths_per_plane = per_fault_values(fault_widths, "fault_widths")
+    span_per_plane = per_fault_values(fault_span_m, "fault_span_m")
+    aph_pairs = per_fault_pair_values(
+        hydraulic_aperture_pairs, "hydraulic_aperture_pairs"
+    )
+    res_pairs = per_fault_pair_values(resistivity_pairs, "resistivity_pairs")
+
+    # --- Center selection (array order [z,y,x], 1-based interior), prefer cells where either pair is available ---
+    cz = np.zeros(Nfval, dtype=int)
+    cy = np.zeros(Nfval, dtype=int)
+    cx = np.zeros(Nfval, dtype=int)
+
+    for p in range(Nfval):
+        n = int(normals[p])
+        width_val = float(widths_per_plane[p])
+
+        pairs = PAIRS[n]
+        apA = Rv.aperture[..., pairs[0][0], pairs[0][1]]
+        apB = Rv.aperture[..., pairs[1][0], pairs[1][1]]
+        available_zyx = np.column_stack(
+            np.where((apA < width_val) | (apB < width_val))
+        )
+
+        # Filter to interior [1 .. N+1] along each ARRAY axis
+        if available_zyx.size > 0:
+            a = available_zyx
+            mask_interior = (
+                (a[:, 0] >= ARR_MIN_INCL[0])
+                & (a[:, 0] <= ARR_MAX_INCL[0])
+                & (a[:, 1] >= ARR_MIN_INCL[1])
+                & (a[:, 1] <= ARR_MAX_INCL[1])
+                & (a[:, 2] >= ARR_MIN_INCL[2])
+                & (a[:, 2] <= ARR_MAX_INCL[2])
+            )
+            available_zyx = a[mask_interior]
+
+        if available_zyx.size == 0:
+            # fallback: random centre anywhere in interior (1-based)
+            cz[p] = rng.integers(ARR_MIN_INCL[0], ARR_MAX_INCL[0] + 1)
+            cy[p] = rng.integers(ARR_MIN_INCL[1], ARR_MAX_INCL[1] + 1)
+            cx[p] = rng.integers(ARR_MIN_INCL[2], ARR_MAX_INCL[2] + 1)
+        else:
+            ridx = rng.integers(0, len(available_zyx))
+            cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
+
+    # --- Assignment ---
+    placed = 0
+    for p in range(Nfval):
+        n = int(normals[p])  # 0=x, 1=y, 2=z
+        width_val = float(widths_per_plane[p])
+
+        # In-plane axes (cartesian ids)
+        inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
+        cartA, cartB = inplane_cart[0], inplane_cart[1]
+        arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
+
+        LA = cells_from_meters(fault_length_m, cartA)
+        LB = cells_from_meters(span_per_plane[p], cartB)
+
+        # Centre in ARRAY order (1-based interior index)
+        c_arr = [int(cz[p]), int(cy[p]), int(cx[p])]  # [z, y, x]
+
+        # Odd-size handling (random extra cell)
+        extraA = rng.integers(0, 2) if (LA % 2 == 1) else 0
+        extraB = rng.integers(0, 2) if (LB % 2 == 1) else 0
+
+        # Inclusive bounds on A/B axes (interior [1 .. N+1]) → convert to exclusive slice ends (+1)
+        A0 = max(ARR_MIN_INCL[arrA], c_arr[arrA] - LA // 2 - (extraA == 1))
+        A1_inc = min(
+            ARR_MAX_INCL[arrA], c_arr[arrA] + LA // 2 + (extraA == 0)
+        )  # inclusive
+        B0 = max(ARR_MIN_INCL[arrB], c_arr[arrB] - LB // 2 - (extraB == 1))
+        B1_inc = min(
+            ARR_MAX_INCL[arrB], c_arr[arrB] + LB // 2 + (extraB == 0)
+        )  # inclusive
+
+        # Fix the normal axis at centre; march along arrA; assign strips across arrB
+        sl = [
+            slice(c_arr[0], c_arr[0] + 1),  # z
+            slice(c_arr[1], c_arr[1] + 1),  # y
+            slice(c_arr[2], c_arr[2] + 1),
+        ]  # x
+
+        aph_vals_pair = aph_pairs[p]  # (2,)
+        res_vals_pair = res_pairs[p]  # (2,)
+        pairs = PAIRS[n]  # [(idxc, idxo), (idxc, idxo)]
+
+        # Iterate A with inclusive range; slice B to include last cell (+1 at end)
+        for posA in range(A0, A1_inc + 1):  # include A1_inc
+            sl[arrA] = slice(posA, posA + 1)
+            sl[arrB] = slice(B0, B1_inc + 1)  # include B1_inc
+
+            # Update BOTH off-diagonal pairs
+            for pair_idx, (idxc, idxo) in enumerate(pairs):
+                aph_val = float(aph_vals_pair[pair_idx])
+                res_val = float(res_vals_pair[pair_idx])
+
+                ap_region = Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo]
+                res_region = Rv.resistivity[sl[0], sl[1], sl[2], idxc]
+
+                mask = (ap_region < width_val) & np.isfinite(res_region)
+                if not np.any(mask):
+                    continue
+
+                # Apertures
+                ap_region[mask] = width_val
+                Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo] = ap_region
+
+                ae_region = Rv.aperture_electric[
+                    sl[0], sl[1], sl[2], idxc, idxo
+                ]
+                ae_region[mask] = width_val
+                Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo] = (
+                    ae_region
+                )
+
+                ah_region = Rv.aperture_hydraulic[
+                    sl[0], sl[1], sl[2], idxc, idxo
+                ]
+                ah_region[mask] = aph_val
+                Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo] = (
+                    ah_region
+                )
+
+                # Electrical properties (on connector channel)
+                res_vals_region = Rv.resistivity[sl[0], sl[1], sl[2], idxc]
+                res_vals_region[mask] = res_val
+                Rv.resistivity[sl[0], sl[1], sl[2], idxc] = res_vals_region
+
+                R_region = Rv.resistance[sl[0], sl[1], sl[2], idxc]
+                R_region[mask] = (
+                    res_val / cellsize[idxc]
+                )  # spacing along connector axis
+                Rv.resistance[sl[0], sl[1], sl[2], idxc] = R_region
+
+                # Record length for THIS connector channel
+                rec_region = fault_lengths_assigned[sl[0], sl[1], sl[2], idxc]
+                rec_region[mask] = float(fault_length_m)
+                fault_lengths_assigned[sl[0], sl[1], sl[2], idxc] = rec_region
+
+        placed += 1
 
     return Rv, fault_lengths_assigned

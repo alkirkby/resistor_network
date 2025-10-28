@@ -1,2 +1,5 @@
 *.pyc
-*.pyc
+
+rnpy/functions/__pycache__/assignfaults_new.cpython-312.pyc
+rnpy/functions/__pycache__/faultaperture.cpython-312.pyc
+rnpy/functions/__pycache__/readoutputs.cpython-312.pyc
