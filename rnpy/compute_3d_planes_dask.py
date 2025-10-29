@@ -20,79 +20,18 @@ from rnpy.functions.assignfaults_new import (
     add_random_fault_planes_to_arrays,
 )
 from rnpy.functions.readoutputs import read_fault_params
-
-
-def get_unique_properties(sort_array, property_array_list=None, compute_means=True):
-    if len(np.unique(sort_array)) < len(sort_array):
-        sort_array_unique = np.unique(sort_array)
-        # get mean of other properties by sort_array
-        if property_array_list is not None:
-            prop_arrays_sorted = []
-            for property_array in property_array_list:
-                prop_array_i_sorted = [
-                    np.array(property_array[sort_array == ll])
-                    for ll in sort_array_unique
-                ]
-
-                if compute_means:
-                    prop_array_i_sorted = np.array(
-                        [np.mean(pa) for pa in prop_array_i_sorted]
-                    )
-
-                prop_arrays_sorted.append(prop_array_i_sorted)
-
-    else:
-        sort_array_unique, property_array_list = (
-            sort_array,
-            property_array_list,
-        )
-    if property_array_list is None:
-        return sort_array_unique
-    else:
-        return sort_array_unique, prop_arrays_sorted
-
-
-def filter_by_min_max(
-    min_val,
-    max_val,
-    lvals_center_unique,
-    array_list,
-    use_indices=False,
-):
-    filtered_array_list = []
-    for arr in array_list:
-        if max_val is None:
-            max_val, idx1 = (
-                np.amax(lvals_center_unique) + 1,
-                len(lvals_center_unique) + 1,
-            )
-        else:
-            idx1 = (
-                np.where(lvals_center_unique <= max_val)[-1][-1]
-                - len(lvals_center_unique)
-                + 1
-            )  # relative to the end
-        if min_val is None:
-            min_val, idx0 = 0, 0
-        else:
-            idx0 = np.where(lvals_center_unique > min_val)[0][0]
-        if use_indices:
-            filtered_array_list.append(arr[idx0:idx1])
-        else:
-            filt = np.all([lvals_center > min_val, lvals_center <= max_val], axis=0)
-            filtered_array_list.append(arr[filt])
-
-    return filtered_array_list
+from rnpy.functions.utils import get_unique_properties, filter_by_min_max
 
 
 rfluid = 0.5
 direction = "z"
-nc = 20
+nc = 40
 fault_aspect_ratio = 0.2
 cellsize = 0.001
-R = 0.02
+R = cellsize * nc
 lmin, lmax = None, 0.03
 gamma = 4.1
+porosity_target = 0.05
 pxyz = (0.8, 0.1, 0.1)
 
 wd = r"C:\Users\alisonk.GNS\OneDrive - GNS Science\Energy_Futures_Project_2_Geophysics\Rock_property_modelling\summary_data_from_models"
@@ -122,7 +61,7 @@ alpha = get_alpha(
     lvals_center=lvals_center_unique,
     lvals_range=lvals_range_unique,
     fw=fw_mean,
-    porosity_target=0.05,
+    porosity_target=porosity_target,
     alpha_start=0.0,
     ndim=3,
 )
@@ -131,7 +70,7 @@ Nf = get_Nf(gamma, alpha, R, lvals_range_unique, ndim=3)
 aph0, aph1, resistivity0, resistivity1, fw, lvals_center = filter_by_min_max(
     lmin,
     lmax,
-    lvals_center_unique,
+    lvals_center,
     [aph0, aph1, resistivity0, resistivity1, fw, lvals_center],
     use_indices=False,
 )
@@ -186,8 +125,8 @@ res_pairs_y[swap_idxs] = res_pairs_y[swap_idxs][:, ::-1]
 # along-strike length = length, across-strike = span
 pz = pxyz[0]
 Nz = Nf[i] - Nx - Ny
-length_z = lvals_center_unique[i]
-span_z = fault_span_center[i]
+length_z = fault_span_center[i]
+span_z = lvals_center_unique[i]
 idxs = np.random.choice(len(aph0), size=Nz, replace=True)
 fwidths_z = fw[idxs]
 hyd_ap_pairs_z = np.column_stack([aph0[idxs], aph1[idxs]])
