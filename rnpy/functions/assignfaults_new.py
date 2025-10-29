@@ -64,12 +64,8 @@ def get_Nf(gamma, alpha, R, lvals_range, ndim=2):
     for i in range(len(lvals_range) - 1):
         lmin, lmax = lvals_range[i : i + 2]
 
-        Nf_greater_than_lmin = (
-            (alpha / (gamma - 1.0)) * lmin ** (1.0 - gamma) * R**ndim
-        )
-        Nf_greater_than_lmax = (
-            (alpha / (gamma - 1.0)) * lmax ** (1.0 - gamma) * R**ndim
-        )
+        Nf_greater_than_lmin = (alpha / (gamma - 1.0)) * lmin ** (1.0 - gamma) * R**ndim
+        Nf_greater_than_lmax = (alpha / (gamma - 1.0)) * lmax ** (1.0 - gamma) * R**ndim
         # faults_less_lmax =
         Nf = np.append(Nf, (Nf_greater_than_lmin - Nf_greater_than_lmax))
         # Nf = np.append(Nf, alpha/(a-1.)*lmin**(1.-a)*R2 - alpha/(a-1.)*lmax**(1.-a)*R2)
@@ -122,10 +118,7 @@ def get_alpha(
     alpha = alpha_start * 1.0
     Nf = get_Nf(gamma, alpha, R, lvals_range, ndim=ndim)
 
-    while (
-        np.sum(fw * Nf * lvals_center ** (ndim - 1)) / (R**ndim)
-        < porosity_target
-    ):
+    while np.sum(fw * Nf * lvals_center ** (ndim - 1)) / (R**ndim) < porosity_target:
         Nf = get_Nf(gamma, alpha, R, lvals_range, ndim=ndim)
         alpha += 0.01
 
@@ -206,9 +199,7 @@ def getplane(fracturecoord):
     get the plane that the fracture lies in
 
     """
-    planeind = [
-        len(np.unique(fracturecoord[:, :, i])) for i in range(3)
-    ].index(1)
+    planeind = [len(np.unique(fracturecoord[:, :, i])) for i in range(3)].index(1)
 
     return "xyz".replace("xyz"[planeind], "")
 
@@ -232,9 +223,7 @@ def checkintersection(fracturecoord, plane, elevation, return_2dcoords=False):
             return length
 
     if plane == "xy":
-        fmin, fmax = np.amin(fracturecoord[:, :, 2]), np.amax(
-            fracturecoord[:, :, 2]
-        )
+        fmin, fmax = np.amin(fracturecoord[:, :, 2]), np.amax(fracturecoord[:, :, 2])
         # i, index with along fracture information
         i = ["xz", "yz"].index(fractureplane)
         coords2d = np.array(
@@ -244,9 +233,7 @@ def checkintersection(fracturecoord, plane, elevation, return_2dcoords=False):
             ]
         )
     elif plane == "yz":
-        fmin, fmax = np.amin(fracturecoord[:, :, 0]), np.amax(
-            fracturecoord[:, :, 0]
-        )
+        fmin, fmax = np.amin(fracturecoord[:, :, 0]), np.amax(fracturecoord[:, :, 0])
         i = ["xy", "xz"].index(fractureplane) + 1
         coords2d = np.array(
             [
@@ -255,9 +242,7 @@ def checkintersection(fracturecoord, plane, elevation, return_2dcoords=False):
             ]
         )
     elif plane == "xz":
-        fmin, fmax = np.amin(fracturecoord[:, :, 1]), np.amax(
-            fracturecoord[:, :, 1]
-        )
+        fmin, fmax = np.amin(fracturecoord[:, :, 1]), np.amax(fracturecoord[:, :, 1])
         i = ["xy", "yz"].index(fractureplane) * 2
         coords2d = np.array(
             [
@@ -267,9 +252,7 @@ def checkintersection(fracturecoord, plane, elevation, return_2dcoords=False):
         )
 
     if (elevation >= fmin) and (elevation <= fmax):
-        lmin, lmax = np.amin(fracturecoord[:, :, i]), np.amax(
-            fracturecoord[:, :, i]
-        )
+        lmin, lmax = np.amin(fracturecoord[:, :, i]), np.amax(fracturecoord[:, :, i])
         length = lmax - lmin
     else:
         coords2d = np.zeros((2, 2))
@@ -280,9 +263,7 @@ def checkintersection(fracturecoord, plane, elevation, return_2dcoords=False):
         return length
 
 
-def get_fracture_coords(
-    lvals, networksize, pxyz, return_Nf=False, a=3.5, alpha=10.0
-):
+def get_fracture_coords(lvals, networksize, pxyz, return_Nf=False, a=3.5, alpha=10.0):
     """
     get the coordinates of fractures to assign to a resistivity volume
     returns an array containing fracture coordinates (shape (nf,2,2,3) where
@@ -414,10 +395,7 @@ def get_faultpair_inputs(
     mismatch_wavelength_cutoff,
     cellsize,
 ):
-
-    faultpair_inputs = dict(
-        D=fractal_dimension, scalefactor=elevation_scalefactor
-    )
+    faultpair_inputs = dict(D=fractal_dimension, scalefactor=elevation_scalefactor)
     if mismatch_wavelength_cutoff is not None:
         faultpair_inputs["lc"] = mismatch_wavelength_cutoff
     if cellsize is not None:
@@ -593,7 +571,6 @@ def assign_fault_aperture(
         # differently to if they were calculated from scratch.
         print("aperture type", aperture_type)
         if (aperture_type == "list") and (aperture_list is not None):
-
             du1, dv1, dw1 = u1 - u0, v1 - v0, w1 - w0
 
             # loop through true aperture, hydraulic aperture, electric aperture
@@ -603,9 +580,9 @@ def assign_fault_aperture(
 
                 if dperp == 0:
                     try:
-                        ap_array[
-                            iii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1 : u1 + 1
-                        ] += ap[i][
+                        ap_array[iii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1 : u1 + 1] += ap[
+                            i
+                        ][
                             : dw1 + 1, : dv1 + 1
                         ]  # np.amax([ap_array[iii,w0:w1+1,v0:v1+1,u0-1:u1+1],ap[i][:dw1+1,:dv1+1]],axis=0)
                     except:
@@ -616,14 +593,14 @@ def assign_fault_aperture(
                             - np.array([2, 1, 1])
                         )
                         #                            print dperp,u0,v0,w0,u1,v1,w1
-                        ap_array[
-                            iii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1 : u1 + 1
-                        ] += ap[i][: dw1 + 1, : dv1 + 1]
+                        ap_array[iii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1 : u1 + 1] += ap[
+                            i
+                        ][: dw1 + 1, : dv1 + 1]
                 elif dperp == 1:
                     try:
-                        ap_array[
-                            iii, w0 : w1 + 1, v0 - 1 : v0 + 1, u0 : u1 + 1
-                        ] += ap[i][
+                        ap_array[iii, w0 : w1 + 1, v0 - 1 : v0 + 1, u0 : u1 + 1] += ap[
+                            i
+                        ][
                             : dw1 + 1, :, : du1 + 1
                         ]  # np.amax([ap_array[iii,w0:w1+1,v0-1:v0+1,u0:u1+1],ap[i][:dw1+1,:,:du1+1]],axis=0)
                     except:
@@ -634,14 +611,14 @@ def assign_fault_aperture(
                             - np.array([1, 2, 1])
                         )
                         #                            print dperp,u0,v0,w0,u1,v1,w1
-                        ap_array[
-                            iii, w0 : w1 + 1, v0 - 1 : v0 + 1, u0 : u1 + 1
-                        ] += ap[i][: dw1 + 1, :, : du1 + 1]
+                        ap_array[iii, w0 : w1 + 1, v0 - 1 : v0 + 1, u0 : u1 + 1] += ap[
+                            i
+                        ][: dw1 + 1, :, : du1 + 1]
                 elif dperp == 2:
                     try:
-                        ap_array[
-                            iii, w0 - 1 : w0 + 1, v0 : v1 + 1, u0 : u1 + 1
-                        ] += ap[i][
+                        ap_array[iii, w0 - 1 : w0 + 1, v0 : v1 + 1, u0 : u1 + 1] += ap[
+                            i
+                        ][
                             :, : dv1 + 1, : du1 + 1
                         ]  # np.amax([ap_array[iii,w0-1:w0+1,v0:v1+1,u0:u1+1],ap[i][:,:dv1+1,:du1+1]],axis=0)
                     except:
@@ -652,14 +629,13 @@ def assign_fault_aperture(
                             - np.array([1, 1, 2])
                         )
                         #                            print dperp,u0,v0,w0,u1,v1,w1
-                        ap_array[
-                            iii, w0 - 1 : w0 + 1, v0 : v1 + 1, u0 : u1 + 1
-                        ] += ap[i][:, : dv1 + 1, : du1 + 1]
+                        ap_array[iii, w0 - 1 : w0 + 1, v0 : v1 + 1, u0 : u1 + 1] += ap[
+                            i
+                        ][:, : dv1 + 1, : du1 + 1]
         elif aperture_type not in ["random", "constant"]:
             aperture_type = "random"
 
         if aperture_type in ["random", "constant"]:
-
             # if offset between 0 and 1, assume it is a fraction of fault size
             if 0 < offset < 1:
                 offset = int(np.round(offset * size_noclip))
@@ -685,7 +661,6 @@ def assign_fault_aperture(
 
             build = False
             if fault_surfaces is None:
-
                 build = True
             else:
                 try:
@@ -705,7 +680,7 @@ def assign_fault_aperture(
                     print("fault surfaces wrong type")
 
             if build:
-                print("building new faults"),
+                (print("building new faults"),)
                 if aperture_type == "random":
                     h1, h2 = rnfa.build_fault_pair(
                         size, size_noclip, **faultpair_inputs
@@ -716,13 +691,10 @@ def assign_fault_aperture(
             h1d = h1.copy()
             h2d = h2.copy()
             if offset > 0:
-
                 if deform_fault_surface:
                     print("deforming fault surface")
-                    b, h1dd, h2dd, overlap_avg = (
-                        offset_faults_with_deformation(
-                            h1, h2, fault_separation[i], offset
-                        )
+                    b, h1dd, h2dd, overlap_avg = offset_faults_with_deformation(
+                        h1, h2, fault_separation[i], offset
                     )
                     h1d[offset:, offset:] = h1dd
                     h2d[offset:, :-offset] = h2dd
@@ -797,9 +769,7 @@ def assign_fault_aperture(
             tmp_aplist = []
             # physical aperture
             bphy = [
-                np.mean(
-                    [b[1:, 1:], b[1:, :-1], b[:-1, 1:], b[:-1, :-1]], axis=0
-                )
+                np.mean([b[1:, 1:], b[1:, :-1], b[:-1, 1:], b[:-1, :-1]], axis=0)
             ] * 3
             # bphy = [b[1:,1:]]*3
 
@@ -866,12 +836,8 @@ def assign_fault_aperture(
                             b1vals = b1vals[:, : v1 - v0 + 1]
                             b0vals = b0vals[:, : v1 - v0]
                         # faults perpendicular to x direction, i.e. yz plane
-                        ap_array[
-                            ii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1, 0, 0
-                        ] += b2vals
-                        ap_array[
-                            ii, w0 : w1 + 1, v0 : v1 + 1, u0, 0, 0
-                        ] += b2vals
+                        ap_array[ii, w0 : w1 + 1, v0 : v1 + 1, u0 - 1, 0, 0] += b2vals
+                        ap_array[ii, w0 : w1 + 1, v0 : v1 + 1, u0, 0, 0] += b2vals
                         # y direction opening in x direction
                         ap_array[ii, w0 : w1 + 1, v0:v1, u0, 1, 0] += b0vals
                         # z direction opening in x direction
@@ -934,12 +900,8 @@ def assign_fault_aperture(
                             b1vals = b1vals[:, : u1 - u0 + 1]
                             b0vals = b0vals[:, : u1 - u0]
                         # faults perpendicular to y direction, i.e. xz plane
-                        ap_array[
-                            ii, w0 : w1 + 1, v0 - 1, u0 : u1 + 1, 1, 1
-                        ] += b2vals
-                        ap_array[
-                            ii, w0 : w1 + 1, v0, u0 : u1 + 1, 1, 1
-                        ] += b2vals
+                        ap_array[ii, w0 : w1 + 1, v0 - 1, u0 : u1 + 1, 1, 1] += b2vals
+                        ap_array[ii, w0 : w1 + 1, v0, u0 : u1 + 1, 1, 1] += b2vals
                         # x direction opening in y direction
                         ap_array[ii, w0 : w1 + 1, v0, u0:u1, 0, 1] += b0vals
                         # z direction opening in y direction
@@ -1002,12 +964,8 @@ def assign_fault_aperture(
                             b1vals = b1vals[:, : u1 - u0 + 1]
                             b0vals = b0vals[:, : u1 - u0]
                         # faults perpendicular to z direction, i.e. xy plane
-                        ap_array[
-                            ii, w0 - 1, v0 : v1 + 1, u0 : u1 + 1, 2, 2
-                        ] += b2vals
-                        ap_array[
-                            ii, w0, v0 : v1 + 1, u0 : u1 + 1, 2, 2
-                        ] += b2vals
+                        ap_array[ii, w0 - 1, v0 : v1 + 1, u0 : u1 + 1, 2, 2] += b2vals
+                        ap_array[ii, w0, v0 : v1 + 1, u0 : u1 + 1, 2, 2] += b2vals
                         # x direction opening in z direction
                         ap_array[ii, w0, v0 : v1 + 1, u0:u1, 0, 2] += b0vals
                         # y direction opening in z direction
@@ -1026,9 +984,7 @@ def assign_fault_aperture(
             faultheights.append([h1, h2])
             # average overlap height per cell * cellsize ** 2 * number of cells
             overlap_vol.append(
-                overlap_avg
-                * cs**2
-                * np.prod(np.array(duvw)[np.array(duvw) > 0])
+                overlap_avg * cs**2 * np.prod(np.array(duvw)[np.array(duvw) > 0])
             )
             aperture_list.append(tmp_aplist[0])
             aperture_list_f.append(tmp_aplist[1])
@@ -1069,9 +1025,7 @@ def assign_fault_aperture(
         )
 
 
-def update_from_precalculated(
-    rv, effective_apertures_fn, permeability_matrix=1e-18
-):
+def update_from_precalculated(rv, effective_apertures_fn, permeability_matrix=1e-18):
     effective_apertures = np.loadtxt(effective_apertures_fn)
 
     # add extreme values so that we cover the entire interpolation range
@@ -1122,7 +1076,6 @@ def add_random_fault_sticks_to_arrays(
     pz,
     fault_lengths_assigned=None,
 ):
-
     ncells = Rv.ncells[1]
     cellsize = Rv.cellsize[1]
     Rv.aperture_electric[np.isfinite(Rv.aperture_electric)] = cellsize
@@ -1216,23 +1169,20 @@ def add_random_fault_sticks_to_arrays(
         assign_dict = {}
         idxs = None
         for val, name in [[hydraulic_aperture, "aph"], [resistivity, "resf"]]:
-
             if np.iterable(val):
                 # choose some random indices
                 # only define idxs once (use same indices for all properties)
                 if idxs is None:
-                    idxs = np.random.choice(
-                        np.arange(len(val)), size=idx_j.shape
-                    )
+                    idxs = np.random.choice(np.arange(len(val)), size=idx_j.shape)
 
                 if len(val.shape) == 2:
                     assign_dict[name] = np.zeros(len(idx_j))
-                    assign_dict[name][np.where(orientationi)] = val[:, 0][
-                        idxs
-                    ][np.where(orientationi)]
-                    assign_dict[name][np.where(orientationj)] = val[:, 1][
-                        idxs
-                    ][np.where(orientationj)]
+                    assign_dict[name][np.where(orientationi)] = val[:, 0][idxs][
+                        np.where(orientationi)
+                    ]
+                    assign_dict[name][np.where(orientationj)] = val[:, 1][idxs][
+                        np.where(orientationj)
+                    ]
 
                     # import os
                     # savefile_res = r'C:\tmp\resistivity_val_length%.4fm.npy'%fault_length_m
@@ -1256,9 +1206,7 @@ def add_random_fault_sticks_to_arrays(
                     if (
                         Rv.aperture[idx_j[k], idx_i[k], 1, idxc[k], idxo[k]]
                         < fault_width
-                        and not np.isnan(
-                            Rv.resistivity[idx_j[k], idx_i[k], 1, idxc[k]]
-                        )
+                        and not np.isnan(Rv.resistivity[idx_j[k], idx_i[k], 1, idxc[k]])
                     )
                 ]
             )
@@ -1276,21 +1224,15 @@ def add_random_fault_sticks_to_arrays(
 
                 Rv.aperture[idx_jj, idx_ii, 1, idxc_i, idxo_i] = fault_width  #
                 # print(Rv.aperture[idx_j, idx_i,1,1,idxo])
-                Rv.aperture_electric[idx_jj, idx_ii, 1, idxc_i, idxo_i] = (
-                    fault_width
-                )
+                Rv.aperture_electric[idx_jj, idx_ii, 1, idxc_i, idxo_i] = fault_width
                 Rv.aperture_hydraulic[idx_jj, idx_ii, 1, idxc_i, idxo_i] = (
                     values_to_assign["aph"]
                 )
                 Rv.resistance[idx_jj, idx_ii, 1, idxc_i] = (
                     values_to_assign["resf"] / cellsize
                 )
-                Rv.resistivity[idx_jj, idx_ii, 1, idxc_i] = values_to_assign[
-                    "resf"
-                ]
-                fault_lengths_assigned[idx_jj, idx_ii, 1, idxc_i] = (
-                    fault_length_m
-                )
+                Rv.resistivity[idx_jj, idx_ii, 1, idxc_i] = values_to_assign["resf"]
+                fault_lengths_assigned[idx_jj, idx_ii, 1, idxc_i] = fault_length_m
                 idx_i[np.all([faultsi > 0], axis=0)] += 1
                 idx_j[np.all([faultsj > 0], axis=0)] += 1
 
@@ -1486,12 +1428,21 @@ def add_random_fault_planes_to_arrays(
         n = int(normals[p])
         width_val = float(widths_per_plane[p])
 
+        # determine in-plane cartesian axes and corresponding array axes
+        inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
+        cartA, cartB = inplane_cart[0], inplane_cart[1]
+        arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
+
+        # required length in cells along each in-plane cartesian axis
+        LA = cells_from_meters(fault_length_m, cartA)
+        LB = cells_from_meters(span_per_plane[p], cartB)
+        halfA = LA // 2
+        halfB = LB // 2
+
         pairs = PAIRS[n]
         apA = Rv.aperture[..., pairs[0][0], pairs[0][1]]
         apB = Rv.aperture[..., pairs[1][0], pairs[1][1]]
-        available_zyx = np.column_stack(
-            np.where((apA < width_val) | (apB < width_val))
-        )
+        available_zyx = np.column_stack(np.where((apA < width_val) | (apB < width_val)))
 
         # Filter to interior [1 .. N+1] along each ARRAY axis
         if available_zyx.size > 0:
@@ -1504,13 +1455,40 @@ def add_random_fault_planes_to_arrays(
                 & (a[:, 2] >= ARR_MIN_INCL[2])
                 & (a[:, 2] <= ARR_MAX_INCL[2])
             )
-            available_zyx = a[mask_interior]
+            a = a[mask_interior]
+
+            # Further require enough margin so the full LA x LB rectangle fits
+            if a.size > 0:
+                mask_fit = (
+                    (a[:, arrA] >= ARR_MIN_INCL[arrA] + halfA)
+                    & (a[:, arrA] <= ARR_MAX_INCL[arrA] - halfA)
+                    & (a[:, arrB] >= ARR_MIN_INCL[arrB] + halfB)
+                    & (a[:, arrB] <= ARR_MAX_INCL[arrB] - halfB)
+                )
+                available_zyx = a[mask_fit]
+            else:
+                available_zyx = a
 
         if available_zyx.size == 0:
-            # fallback: random centre anywhere in interior (1-based)
-            cz[p] = rng.integers(ARR_MIN_INCL[0], ARR_MAX_INCL[0] + 1)
-            cy[p] = rng.integers(ARR_MIN_INCL[1], ARR_MAX_INCL[1] + 1)
-            cx[p] = rng.integers(ARR_MIN_INCL[2], ARR_MAX_INCL[2] + 1)
+            # fallback: random centre inside the SAFE interior ranges so full plane fits
+            min_vals = [ARR_MIN_INCL[0], ARR_MIN_INCL[1], ARR_MIN_INCL[2]]
+            max_vals = [ARR_MAX_INCL[0], ARR_MAX_INCL[1], ARR_MAX_INCL[2]]
+
+            # enforce margins for in-plane axes
+            min_vals[arrA] = ARR_MIN_INCL[arrA] + halfA
+            max_vals[arrA] = ARR_MAX_INCL[arrA] - halfA
+            min_vals[arrB] = ARR_MIN_INCL[arrB] + halfB
+            max_vals[arrB] = ARR_MAX_INCL[arrB] - halfB
+
+            # if margin impossible (min > max) fall back to full interior for that axis
+            for ai in range(3):
+                if min_vals[ai] > max_vals[ai]:
+                    min_vals[ai] = ARR_MIN_INCL[ai]
+                    max_vals[ai] = ARR_MAX_INCL[ai]
+
+            cz[p] = rng.integers(min_vals[0], max_vals[0] + 1)
+            cy[p] = rng.integers(min_vals[1], max_vals[1] + 1)
+            cx[p] = rng.integers(min_vals[2], max_vals[2] + 1)
         else:
             ridx = rng.integers(0, len(available_zyx))
             cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
@@ -1525,6 +1503,8 @@ def add_random_fault_planes_to_arrays(
         inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
         cartA, cartB = inplane_cart[0], inplane_cart[1]
         arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
+        print("cartA, cartB:", cartA, cartB)
+        print("arrA, arrB:", arrA, arrB)
 
         LA = cells_from_meters(fault_length_m, cartA)
         LB = cells_from_meters(span_per_plane[p], cartB)
@@ -1578,21 +1558,13 @@ def add_random_fault_planes_to_arrays(
                 ap_region[mask] = width_val
                 Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo] = ap_region
 
-                ae_region = Rv.aperture_electric[
-                    sl[0], sl[1], sl[2], idxc, idxo
-                ]
+                ae_region = Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo]
                 ae_region[mask] = width_val
-                Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo] = (
-                    ae_region
-                )
+                Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo] = ae_region
 
-                ah_region = Rv.aperture_hydraulic[
-                    sl[0], sl[1], sl[2], idxc, idxo
-                ]
+                ah_region = Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo]
                 ah_region[mask] = aph_val
-                Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo] = (
-                    ah_region
-                )
+                Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo] = ah_region
 
                 # Electrical properties (on connector channel)
                 res_vals_region = Rv.resistivity[sl[0], sl[1], sl[2], idxc]
