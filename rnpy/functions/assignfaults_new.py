@@ -1260,6 +1260,7 @@ def add_random_fault_planes_to_arrays(
     max_tries=1000,  # attempts per plane (strict_mode=True)
     raise_on_shortfall=False,  # if strict_mode and can't place Nfval planes, raise
     rng=None,  # optional: numpy Generator for reproducibility
+    full_rectangle=False,
 ):
     """
     Insert 3D fault planes into Rv connector arrays (in place), updating BOTH off-diagonal
@@ -1308,7 +1309,7 @@ def add_random_fault_planes_to_arrays(
     -------------------------------------------------------------------------------
     Rv (modified), fault_lengths_assigned (same shape as Rv.resistivity).
     """
-
+    print("starting")
     # --- Meta (cartesian orders for counts and sizes) ---
     ncells = np.asarray(Rv.ncells, dtype=int)  # [Nx, Ny, Nz]
     cellsize = np.asarray(Rv.cellsize, dtype=float)  # [dx, dy, dz]
@@ -1423,75 +1424,113 @@ def add_random_fault_planes_to_arrays(
     cz = np.zeros(Nfval, dtype=int)
     cy = np.zeros(Nfval, dtype=int)
     cx = np.zeros(Nfval, dtype=int)
+    print("initialised centers")
 
     for p in range(Nfval):
         n = int(normals[p])
         width_val = float(widths_per_plane[p])
 
-        # determine in-plane cartesian axes and corresponding array axes
-        inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
-        cartA, cartB = inplane_cart[0], inplane_cart[1]
-        arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
+        if full_rectangle:
+            # determine in-plane cartesian axes and corresponding array axes
+            inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
+            cartA, cartB = inplane_cart[0], inplane_cart[1]
+            arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
 
-        # required length in cells along each in-plane cartesian axis
-        LA = cells_from_meters(fault_length_m, cartA)
-        LB = cells_from_meters(span_per_plane[p], cartB)
-        halfA = LA // 2
-        halfB = LB // 2
+            # required length in cells along each in-plane cartesian axis
+            LA = cells_from_meters(fault_length_m, cartA)
+            LB = cells_from_meters(span_per_plane[p], cartB)
+            halfA = LA // 2
+            halfB = LB // 2
 
-        pairs = PAIRS[n]
-        apA = Rv.aperture[..., pairs[0][0], pairs[0][1]]
-        apB = Rv.aperture[..., pairs[1][0], pairs[1][1]]
-        available_zyx = np.column_stack(np.where((apA < width_val) | (apB < width_val)))
-
-        # Filter to interior [1 .. N+1] along each ARRAY axis
-        if available_zyx.size > 0:
-            a = available_zyx
-            mask_interior = (
-                (a[:, 0] >= ARR_MIN_INCL[0])
-                & (a[:, 0] <= ARR_MAX_INCL[0])
-                & (a[:, 1] >= ARR_MIN_INCL[1])
-                & (a[:, 1] <= ARR_MAX_INCL[1])
-                & (a[:, 2] >= ARR_MIN_INCL[2])
-                & (a[:, 2] <= ARR_MAX_INCL[2])
+            pairs = PAIRS[n]
+            apA = Rv.aperture[..., pairs[0][0], pairs[0][1]]
+            apB = Rv.aperture[..., pairs[1][0], pairs[1][1]]
+            available_zyx = np.column_stack(
+                np.where((apA < width_val) | (apB < width_val))
             )
-            a = a[mask_interior]
 
-            # Further require enough margin so the full LA x LB rectangle fits
-            if a.size > 0:
-                mask_fit = (
-                    (a[:, arrA] >= ARR_MIN_INCL[arrA] + halfA)
-                    & (a[:, arrA] <= ARR_MAX_INCL[arrA] - halfA)
-                    & (a[:, arrB] >= ARR_MIN_INCL[arrB] + halfB)
-                    & (a[:, arrB] <= ARR_MAX_INCL[arrB] - halfB)
+            # Filter to interior [1 .. N+1] along each ARRAY axis
+            if available_zyx.size > 0:
+                a = available_zyx
+                mask_interior = (
+                    (a[:, 0] >= ARR_MIN_INCL[0])
+                    & (a[:, 0] <= ARR_MAX_INCL[0])
+                    & (a[:, 1] >= ARR_MIN_INCL[1])
+                    & (a[:, 1] <= ARR_MAX_INCL[1])
+                    & (a[:, 2] >= ARR_MIN_INCL[2])
+                    & (a[:, 2] <= ARR_MAX_INCL[2])
                 )
-                available_zyx = a[mask_fit]
+                a = a[mask_interior]
+
+                # Further require enough margin so the full LA x LB rectangle fits
+                if a.size > 0:
+                    mask_fit = (
+                        (a[:, arrA] >= ARR_MIN_INCL[arrA] + halfA)
+                        & (a[:, arrA] <= ARR_MAX_INCL[arrA] - halfA)
+                        & (a[:, arrB] >= ARR_MIN_INCL[arrB] + halfB)
+                        & (a[:, arrB] <= ARR_MAX_INCL[arrB] - halfB)
+                    )
+                    available_zyx = a[mask_fit]
+                else:
+                    available_zyx = a
+
+            if available_zyx.size == 0:
+                # fallback: random centre inside the SAFE interior ranges so full plane fits
+                min_vals = [ARR_MIN_INCL[0], ARR_MIN_INCL[1], ARR_MIN_INCL[2]]
+                max_vals = [ARR_MAX_INCL[0], ARR_MAX_INCL[1], ARR_MAX_INCL[2]]
+
+                # enforce margins for in-plane axes
+                min_vals[arrA] = ARR_MIN_INCL[arrA] + halfA
+                max_vals[arrA] = ARR_MAX_INCL[arrA] - halfA
+                min_vals[arrB] = ARR_MIN_INCL[arrB] + halfB
+                max_vals[arrB] = ARR_MAX_INCL[arrB] - halfB
+
+                # if margin impossible (min > max) fall back to full interior for that axis
+                for ai in range(3):
+                    if min_vals[ai] > max_vals[ai]:
+                        min_vals[ai] = ARR_MIN_INCL[ai]
+                        max_vals[ai] = ARR_MAX_INCL[ai]
+
+                cz[p] = rng.integers(min_vals[0], max_vals[0] + 1)
+                cy[p] = rng.integers(min_vals[1], max_vals[1] + 1)
+                cx[p] = rng.integers(min_vals[2], max_vals[2] + 1)
             else:
-                available_zyx = a
-
-        if available_zyx.size == 0:
-            # fallback: random centre inside the SAFE interior ranges so full plane fits
-            min_vals = [ARR_MIN_INCL[0], ARR_MIN_INCL[1], ARR_MIN_INCL[2]]
-            max_vals = [ARR_MAX_INCL[0], ARR_MAX_INCL[1], ARR_MAX_INCL[2]]
-
-            # enforce margins for in-plane axes
-            min_vals[arrA] = ARR_MIN_INCL[arrA] + halfA
-            max_vals[arrA] = ARR_MAX_INCL[arrA] - halfA
-            min_vals[arrB] = ARR_MIN_INCL[arrB] + halfB
-            max_vals[arrB] = ARR_MAX_INCL[arrB] - halfB
-
-            # if margin impossible (min > max) fall back to full interior for that axis
-            for ai in range(3):
-                if min_vals[ai] > max_vals[ai]:
-                    min_vals[ai] = ARR_MIN_INCL[ai]
-                    max_vals[ai] = ARR_MAX_INCL[ai]
-
-            cz[p] = rng.integers(min_vals[0], max_vals[0] + 1)
-            cy[p] = rng.integers(min_vals[1], max_vals[1] + 1)
-            cx[p] = rng.integers(min_vals[2], max_vals[2] + 1)
+                ridx = rng.integers(0, len(available_zyx))
+                cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
         else:
-            ridx = rng.integers(0, len(available_zyx))
-            cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
+            n = int(normals[p])
+            width_val = float(widths_per_plane[p])
+
+            pairs = PAIRS[n]
+            apA = Rv.aperture[..., pairs[0][0], pairs[0][1]]
+            apB = Rv.aperture[..., pairs[1][0], pairs[1][1]]
+            available_zyx = np.column_stack(
+                np.where((apA < width_val) | (apB < width_val))
+            )
+
+            # Filter to interior [1 .. N+1] along each ARRAY axis
+            if available_zyx.size > 0:
+                a = available_zyx
+                mask_interior = (
+                    (a[:, 0] >= ARR_MIN_INCL[0])
+                    & (a[:, 0] <= ARR_MAX_INCL[0])
+                    & (a[:, 1] >= ARR_MIN_INCL[1])
+                    & (a[:, 1] <= ARR_MAX_INCL[1])
+                    & (a[:, 2] >= ARR_MIN_INCL[2])
+                    & (a[:, 2] <= ARR_MAX_INCL[2])
+                )
+                available_zyx = a[mask_interior]
+
+            if available_zyx.size == 0:
+                # fallback: random centre anywhere in interior (1-based)
+                cz[p] = rng.integers(ARR_MIN_INCL[0], ARR_MAX_INCL[0] + 1)
+                cy[p] = rng.integers(ARR_MIN_INCL[1], ARR_MAX_INCL[1] + 1)
+                cx[p] = rng.integers(ARR_MIN_INCL[2], ARR_MAX_INCL[2] + 1)
+            else:
+                ridx = rng.integers(0, len(available_zyx))
+                cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
+
+        print(f"got centers {p}")
 
     # --- Assignment ---
     placed = 0
@@ -1503,8 +1542,6 @@ def add_random_fault_planes_to_arrays(
         inplane_cart = [ax for ax in (0, 1, 2) if ax != n]
         cartA, cartB = inplane_cart[0], inplane_cart[1]
         arrA, arrB = CART2ARR[cartA], CART2ARR[cartB]
-        print("cartA, cartB:", cartA, cartB)
-        print("arrA, arrB:", arrA, arrB)
 
         LA = cells_from_meters(fault_length_m, cartA)
         LB = cells_from_meters(span_per_plane[p], cartB)
@@ -1583,5 +1620,117 @@ def add_random_fault_planes_to_arrays(
                 fault_lengths_assigned[sl[0], sl[1], sl[2], idxc] = rec_region
 
         placed += 1
+        print(f"placed {placed}")
 
     return Rv, fault_lengths_assigned
+
+
+def build_normal_faulting_update_dict(
+    Rv,
+    Nfval,
+    fault_length_m,
+    fault_span_m,
+    fw,
+    aph0,
+    aph1,
+    resistivity0,
+    resistivity1,
+    pxyz,
+    fault_lengths_assigned=None,
+):
+    """
+    Builds input dictionaries for add_random_fault_planes_to_arrays function.
+    Assumes a normal faulting regime with faults in x, y, and z directions.
+    Assigns correct orientation and dimensions of faults based on normal regime
+    (i.e. - vertical (along-strike) faults are square with length=fault_length_m,
+            with aph0 and resistivity0 vertical and aph1 and resistivity1 horizontal
+          - horizontal faults are rectangular with along-strike length=fault_length_m and
+            across-strike length=fault_span_m, with aph0 and resistivity0 across-strike and
+            aph1 and resistivity1 along-strike
+          - vertical (across-strike), with across-strike length=fault_span_m and vertical
+            extent = fault_length_m, with a aph0/ap1 and resistivity0/resistivity1
+            randomly assigned as either horizontal/vertical or vertical/horizontal
+
+
+    Args:
+        i (_type_): _description_
+        Nfval (_type_): _description_
+        fault_length_m (_type_): Maximum fault length (along-strike and vertical length)
+        fault_span_center (_type_): Minimum fault length (across-strike length)
+        fw (_type_): fault widths (1 per fault)
+        aph0 (_type_): hydraulic aperture perpendicular to slip
+        aph1 (_type_): hydraulic aperture parallel to slip
+        resistivity0 (_type_): resistivity perpendicular to slip
+        resistivity1 (_type_): resistivity parallel to slip
+        pxyz (_type_): probability of faults in x, y, z directions (should sum to 1.0)
+    """
+    fault_update_dict = {"x": {}, "y": {}, "z": {}}
+
+    # normal x-direction faults
+    # aph0 = perpendicular to slip = z direction (second axis), aph1 = parallel to slip = y direction (first axis)
+    # along-strike length = length, down-dip = length
+    px = pxyz[0]
+    Nx = int(round(Nfval * px))
+    fault_update_dict["x"]["Nfval"] = Nx
+    fault_update_dict["x"]["fault_length_m"] = fault_length_m
+    fault_update_dict["x"]["fault_span_m"] = fault_length_m
+    idxs = np.random.choice(len(aph0), size=Nx, replace=True)
+    fault_update_dict["x"]["fault_widths"] = fw[idxs]
+    fault_update_dict["x"]["hydraulic_aperture_pairs"] = np.column_stack(
+        [aph1[idxs], aph0[idxs]]
+    )
+    fault_update_dict["x"]["resistivity_pairs"] = np.column_stack(
+        [resistivity1[idxs], resistivity0[idxs]]
+    )
+    fault_update_dict["x"]["pxyz"] = (1.0, 0.0, 0.0)
+
+    # normal y-direction faults
+    # aph0 and aph1 are a mix of perp and parallel to slip
+    # across-strike length = span, down-dip = length
+    py = pxyz[1]
+    Ny = int(round(Nfval * py))
+    fault_update_dict["y"]["Nfval"] = Ny
+    fault_update_dict["y"]["fault_length_m"] = fault_span_m
+    fault_update_dict["y"]["fault_span_m"] = fault_length_m
+    idxs = np.random.choice(len(aph0), size=Ny, replace=True)
+    swap_idxs = np.random.choice(Ny, size=Ny // 2, replace=False)
+    fault_update_dict["y"]["fault_widths"] = fw[idxs]
+    fault_update_dict["y"]["hydraulic_aperture_pairs"] = np.column_stack(
+        [aph0[idxs], aph1[idxs]]
+    )
+    fault_update_dict["y"]["hydraulic_aperture_pairs"][swap_idxs] = fault_update_dict[
+        "y"
+    ]["hydraulic_aperture_pairs"][swap_idxs][:, ::-1]
+    fault_update_dict["y"]["resistivity_pairs"] = np.column_stack(
+        [resistivity1[idxs], resistivity0[idxs]]
+    )
+    fault_update_dict["y"]["resistivity_pairs"][swap_idxs] = fault_update_dict["y"][
+        "resistivity_pairs"
+    ][swap_idxs][:, ::-1]
+    fault_update_dict["y"]["pxyz"] = (0.0, 1.0, 0.0)
+
+    # normal z-direction faults
+    # aph0 = perpendicular to slip = x direction (first axis), aph1 = parallel to slip = y direction (second axis)
+    # along-strike length = length, across-strike = span
+    pz = pxyz[2]
+    Nz = int(round(Nfval * pz))
+    fault_update_dict["z"]["Nfval"] = Nz
+    fault_update_dict["z"]["fault_length_m"] = fault_length_m
+    fault_update_dict["z"]["fault_span_m"] = fault_length_m
+    idxs = np.random.choice(len(aph0), size=Nz, replace=True)
+    fault_update_dict["z"]["fault_widths"] = fw[idxs]
+    fault_update_dict["z"]["hydraulic_aperture_pairs"] = np.column_stack(
+        [aph0[idxs], aph1[idxs]]
+    )
+    fault_update_dict["z"]["resistivity_pairs"] = np.column_stack(
+        [resistivity0[idxs], resistivity1[idxs]]
+    )
+    fault_update_dict["z"]["pxyz"] = (0.0, 0.0, 1.0)
+
+    if fault_lengths_assigned is not None:
+        for direction in "xyz":
+            fault_update_dict[direction]["fault_lengths_assigned"] = (
+                fault_lengths_assigned[direction]
+            )
+
+    return fault_update_dict
