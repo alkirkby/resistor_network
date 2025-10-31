@@ -9,7 +9,8 @@ import numpy as np
 import rnpy.functions.array as rna
 import rnpy.functions.faultaperture as rnfa
 from scipy.interpolate import interp1d
-from rnpy.functions.utils import get_bin_ranges_from_centers
+from rnpy.functions.utils import clip_iterable_parameters
+import copy
 
 
 def get_faultlength_distribution(lvals, volume, alpha=10, a=3.5):
@@ -1309,7 +1310,7 @@ def add_random_fault_planes_to_arrays(
     -------------------------------------------------------------------------------
     Rv (modified), fault_lengths_assigned (same shape as Rv.resistivity).
     """
-    print("starting")
+    # print("starting")
     # --- Meta (cartesian orders for counts and sizes) ---
     ncells = np.asarray(Rv.ncells, dtype=int)  # [Nx, Ny, Nz]
     cellsize = np.asarray(Rv.cellsize, dtype=float)  # [dx, dy, dz]
@@ -1424,7 +1425,8 @@ def add_random_fault_planes_to_arrays(
     cz = np.zeros(Nfval, dtype=int)
     cy = np.zeros(Nfval, dtype=int)
     cx = np.zeros(Nfval, dtype=int)
-    print("initialised centers")
+    print("cx, cy, cz", cx, cy, cz)
+    # print("initialised centers")
 
     for p in range(Nfval):
         n = int(normals[p])
@@ -1530,7 +1532,7 @@ def add_random_fault_planes_to_arrays(
                 ridx = rng.integers(0, len(available_zyx))
                 cz[p], cy[p], cx[p] = available_zyx[ridx]  # [z, y, x]
 
-        print(f"got centers {p}")
+        # print(f"got centers {p}")
 
     # --- Assignment ---
     placed = 0
@@ -1620,7 +1622,7 @@ def add_random_fault_planes_to_arrays(
                 fault_lengths_assigned[sl[0], sl[1], sl[2], idxc] = rec_region
 
         placed += 1
-        print(f"placed {placed}")
+        # print(f"placed {placed}")
 
     return Rv, fault_lengths_assigned
 
@@ -1715,7 +1717,7 @@ def build_normal_faulting_update_dict(
     pz = pxyz[2]
     Nz = int(round(Nfval * pz))
     fault_update_dict["z"]["Nfval"] = Nz
-    fault_update_dict["z"]["fault_length_m"] = fault_length_m
+    fault_update_dict["z"]["fault_length_m"] = fault_span_m
     fault_update_dict["z"]["fault_span_m"] = fault_length_m
     idxs = np.random.choice(len(aph0), size=Nz, replace=True)
     fault_update_dict["z"]["fault_widths"] = fw[idxs]
@@ -1734,3 +1736,158 @@ def build_normal_faulting_update_dict(
             )
 
     return fault_update_dict
+
+
+def populate_rock_volume_with_all_faults(
+    Rv,
+    Nf,
+    fault_length_center,
+    fault_span_center,
+    fw,
+    aph0,
+    aph1,
+    resistivity0,
+    resistivity1,
+    pxyz,
+):
+    # make a copy of Rv to be used for additional faults
+    Rv_start = copy.deepcopy(Rv)
+
+    # for each direction: start with biggest faults and assign. Then check available cells.
+    # if not enough available cells, then reduce Nf and try again.
+    fault_lengths_assigned = {"x": None, "y": None, "z": None}
+
+    # initialise dictionary to contain additional faults
+    added_Rv = {}
+
+    # start with biggest faults
+    for i in np.arange(len(Nf))[::-1]:
+        # get inputs to add Nf[i] faults of length fault_length_center[i] to Rv
+        fault_update_dict = build_normal_faulting_update_dict(
+            Rv,
+            Nf[i],
+            fault_length_center[i],
+            fault_span_center[i],
+            fw,
+            aph0,
+            aph1,
+            resistivity0,
+            resistivity1,
+            pxyz=pxyz,
+            fault_lengths_assigned=fault_lengths_assigned,
+        )
+
+        for direction in "xyz":
+            # determine how many cells need to be assigned
+            N, span, length = [
+                fault_update_dict[direction][param]
+                for param in ["Nfval", "fault_span_m", "fault_length_m"]
+            ]
+            print("N, span, length=", N, span, length)
+            if direction == "x":
+                nc0, nc1 = (
+                    min(span / Rv.cellsize[2], Rv.ncells[2]),
+                    min(length / Rv.cellsize[1], Rv.ncells[1]),
+                )
+            elif direction == "y":
+                nc0, nc1 = (
+                    min(span / Rv.cellsize[2], Rv.ncells[2]),
+                    min(length / Rv.cellsize[0], Rv.ncells[0]),
+                )
+            elif direction == "x":
+                nc0, nc1 = (
+                    min(span / Rv.cellsize[0], Rv.ncells[0]),
+                    min(length / Rv.cellsize[1], Rv.ncells[1]),
+                )
+            cells_to_be_assigned = N * nc0 * nc1
+            # determine number of available cells for assignment
+            if fault_lengths_assigned[direction] is None:
+                nz, ny, nx = np.array(Rv.resistivity.shape)[:-1] - 2
+                n_available = nx * ny * nz
+            else:
+                n_available_array = np.sum(
+                    fault_lengths_assigned[direction][1:-1, 1:-1, 1:-1] == 0,
+                    axis=(0, 1, 2),
+                )
+                idxs = np.array(
+                    [idx for idx in [0, 1, 2] if idx != "xyz".index(direction)]
+                )
+                n_available = int(n_available_array[idxs].sum() / 2)
+            print(
+                "i",
+                i,
+                "direction",
+                direction,
+                "n_available",
+                n_available,
+                "to be assigned",
+                cells_to_be_assigned,
+            )
+            # if there are not enough spaces, need to make additional rock volumes, the resistances and
+            # permeabilities of which will be added in parallel to the Rv later.
+            if n_available < cells_to_be_assigned:
+                print(f"making updated Rv for direction {direction}, i {i}")
+                # initialise dictionary
+                if i not in added_Rv.keys():
+                    added_Rv[i] = {}
+                    if direction not in added_Rv[i].keys():
+                        added_Rv[i][direction] = []
+                # determine how many extra Rv need to be made
+                n_rounds = int(np.floor(cells_to_be_assigned / n_available))
+                print("n_rounds", n_rounds)
+                # determine how many faults in the extra Rv
+                n_per_round = np.floor(n_available / (nc0 * nc1))
+                # create the extra Rv's
+                for n in range(n_rounds):
+                    fault_update_dict_new = clip_iterable_parameters(
+                        fault_update_dict[direction],
+                        int(n * n_per_round),
+                        int((n + 1) * n_per_round),
+                    )
+
+                    # make a dummy Rv with same inputs
+                    Rv_update = copy.deepcopy(Rv_start)
+
+                    # add faults to the Rv and update permeability
+                    Rvn, _ = add_random_fault_planes_to_arrays(
+                        Rv_update, **fault_update_dict_new
+                    )
+                    Rvn.initialise_permeability()
+                    added_Rv[i][direction].append(Rvn)
+                print("Nfval", fault_update_dict[direction]["Nfval"])
+
+                # update the input dict to just contain the additional faults not added to the extra Rvs
+                fault_update_dict[direction] = clip_iterable_parameters(
+                    fault_update_dict[direction],
+                    int((n + 1) * n_per_round),
+                    fault_update_dict[direction]["Nfval"],
+                )
+                print("Nfval", fault_update_dict[direction]["Nfval"])
+
+            # add faults to the main Rv
+            Rv, fault_lengths_assigned[direction] = add_random_fault_planes_to_arrays(
+                Rv,
+                **fault_update_dict[direction],
+            )
+
+    Rv.initialise_permeability()
+
+    Rv_list = [Rv]
+    for key in added_Rv.keys():
+        for dir in added_Rv[key].keys():
+            Rv_list += added_Rv[key][dir]
+
+    # compute all the apertures and resistivities in all the rock volumes including extras
+    ap_list = np.array([Rvi.aperture for Rvi in Rv_list])
+    aph_list = np.array([Rvi.aperture_hydraulic for Rvi in Rv_list])
+    res_list = np.array([Rvi.resistivity for Rvi in Rv_list])
+
+    # add up total using in-parallel calculation for hydraulic aperture and resistivity
+    ap_total = np.nansum(ap_list, axis=0)
+    Rv.aperture = ap_total
+    Rv.aperture_hydraulic = (
+        12 * np.nansum(ap_list * aph_list**2 / 12, axis=0) / ap_total
+    ) ** 0.5
+    Rv.resistivity = len(res_list) / np.nansum(1.0 / res_list, axis=0)
+    Rv.initialise_permeability()
+    Rv.compute_conductive_fraction()

@@ -6,6 +6,7 @@ Created on Wed Nov 24 14:15:03 2021
 """
 
 import numpy as np
+import copy
 
 
 def roundsf(number, sf):
@@ -183,3 +184,14 @@ def filter_by_min_max(
             filtered_array_list.append(arr[filt])
 
     return filtered_array_list
+
+
+def clip_iterable_parameters(fault_dict, i0, i1):
+    update_dict = copy.deepcopy(fault_dict)
+    for key in update_dict.keys():
+        if key != "pxyz":
+            if type(update_dict[key]) is np.ndarray:
+                if len(update_dict[key]) == update_dict["Nfval"]:
+                    update_dict[key] = update_dict[key][i0:i1]
+    update_dict["Nfval"] = i1 - i0
+    return update_dict
