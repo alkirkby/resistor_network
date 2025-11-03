@@ -24,9 +24,9 @@ from rnpy.functions.readoutputs import read_fault_params, get_equivalent_rho
 from rnpy.functions.utils import (
     get_unique_properties,
     filter_by_min_max,
-    clip_iterable_parameters,
 )
-
+from dask.distributed import Client
+from dask import delayed, compute
 
 rfluid = 0.5
 direction = "z"
@@ -59,22 +59,36 @@ lvals_center_unique, [fw_mean] = get_unique_properties(
 )
 lvals_range_unique = get_unique_properties(lvals_range)
 # fault span (center of bin)
-fault_span_center = fault_aspect_ratio * lvals_center
+fault_span_center = fault_aspect_ratio * lvals_center_unique
+fault_span_range = fault_aspect_ratio * lvals_range_unique
+
+
+# mean fault radius given span is shorter than length
+def mean_diameter(pxyz, length, span):
+    return (
+        pxyz[0] * length**2 + pxyz[1] * length * span + pxyz[2] * length * span
+    ) ** 0.5
+
 
 R_for_alpha_calc = 10 * lvals_center_unique.max()
-
+mean_diameter_range = mean_diameter(pxyz, lvals_range_unique, fault_span_range)
+mean_diameter_center = mean_diameter(pxyz, lvals_center_unique, fault_span_center)
 
 alpha = get_alpha(
     gamma=gamma,
     R=R_for_alpha_calc,
-    lvals_center=lvals_center_unique,
-    lvals_range=lvals_range_unique,
+    lvals_center=mean_diameter_center,
+    lvals_range=mean_diameter_range,
     fw=fw_mean,
     porosity_target=porosity_target,
     alpha_start=0.0,
     ndim=3,
 )
 Nf = get_Nf(gamma, alpha, R, lvals_range_unique, ndim=3)
+
+
+NfLarge = get_Nf(gamma, alpha, R_for_alpha_calc, mean_diameter_range, ndim=3)
+porosity_theory = NfLarge * mean_diameter_center**2 * fw_mean / R_for_alpha_calc**3
 
 aph0, aph1, resistivity0, resistivity1, fw, lvals_center = filter_by_min_max(
     lmin,
@@ -113,7 +127,7 @@ for i in range(3):
     ] = (12 * Rv.permeability_matrix[i]) ** 0.5
 
 
-populate_rock_volume_with_all_faults(
+fault_lengths_assigned = populate_rock_volume_with_all_faults(
     Rv,
     Nf,
     lvals_center_unique,
@@ -125,3 +139,31 @@ populate_rock_volume_with_all_faults(
     resistivity1,
     pxyz,
 )
+
+porosity_actual = [
+    (fault_lengths_assigned["x"] == lvals_center_unique[ii]).sum()
+    * cellsize**2
+    * fw_mean[ii]
+    / (2 * R**3)
+    + (fault_lengths_assigned["y"].sum() == lvals_center_unique[ii])
+    * cellsize**2
+    * fw_mean[ii]
+    / (2 * R**3)
+    + (fault_lengths_assigned["z"].sum() == lvals_center_unique[ii])
+    * cellsize**2
+    * fw_mean[ii]
+    / (2 * R**3)
+    for ii in range(len(Nf))
+]
+
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+mask = np.any(Rv.permeability > 1.1e-18, axis=3).transpose(2, 1, 0)
+ax.view_init(elev=30, azim=-90)
+ax.voxels(mask)
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z")
+plt.show(block=False)

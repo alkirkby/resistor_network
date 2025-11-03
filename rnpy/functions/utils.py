@@ -177,7 +177,9 @@ def filter_by_min_max(
 
         if use_indices:
             idx0 = np.where(lvals_center > min_val)[0][0]
-            idx1 = np.where(lvals_center <= max_val)[-1][-1] - len(lvals_center) + 1
+            idx1 = np.where(lvals_center <= max_val)[-1][-1] + 1
+
+            print("idx0", idx0, "idx1", idx1)
             filtered_array_list.append(arr[idx0:idx1])
         else:
             filt = np.all([lvals_center > min_val, lvals_center <= max_val], axis=0)

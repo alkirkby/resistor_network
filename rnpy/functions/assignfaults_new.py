@@ -1256,7 +1256,7 @@ def add_random_fault_planes_to_arrays(
         1 / 3,
     ),  # NORMAL probabilities: (Px, Py, Pz) i.e., x, y, z
     fault_span_m=None,  # secondary in-plane extent; None -> same as fault_length_m
-    fault_lengths_assigned=None,
+    fault_numbers_assigned=None,
     normals=None,  # optional: 1D array length Nfval with {0,1,2} for normals (x,y,z)
     max_tries=1000,  # attempts per plane (strict_mode=True)
     raise_on_shortfall=False,  # if strict_mode and can't place Nfval planes, raise
@@ -1308,7 +1308,7 @@ def add_random_fault_planes_to_arrays(
 
     Returns
     -------------------------------------------------------------------------------
-    Rv (modified), fault_lengths_assigned (same shape as Rv.resistivity).
+    Rv (modified), fault_numbers_assigned (same shape as Rv.resistivity).
     """
     # print("starting")
     # --- Meta (cartesian orders for counts and sizes) ---
@@ -1343,18 +1343,12 @@ def add_random_fault_planes_to_arrays(
         2: [(0, 2), (1, 2)],  # normal z → opening z; connectors x, y
     }
 
-    # Baseline electric aperture per connector axis (finite only)
-    for idxc in range(3):  # connector axis (x=0, y=1, z=2)
-        for idxo in range(3):  # opening axis (x=0, y=1, z=2)
-            mask = np.isfinite(Rv.aperture_electric[..., idxc, idxo])
-            Rv.aperture_electric[..., idxc, idxo][mask] = cellsize[idxc]
-
     # Record-keeping array
-    if fault_lengths_assigned is None:
-        fault_lengths_assigned = np.zeros_like(Rv.resistivity, dtype=float)
+    if fault_numbers_assigned is None:
+        fault_numbers_assigned = np.zeros_like(Rv.resistivity, dtype=float)
 
     if Nfval <= 0:
-        return Rv, fault_lengths_assigned
+        return Rv, fault_numbers_assigned
 
     rng = np.random.default_rng() if rng is None else rng
 
@@ -1425,7 +1419,7 @@ def add_random_fault_planes_to_arrays(
     cz = np.zeros(Nfval, dtype=int)
     cy = np.zeros(Nfval, dtype=int)
     cx = np.zeros(Nfval, dtype=int)
-    print("cx, cy, cz", cx, cy, cz)
+
     # print("initialised centers")
 
     for p in range(Nfval):
@@ -1589,46 +1583,37 @@ def add_random_fault_planes_to_arrays(
                 ap_region = Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo]
                 res_region = Rv.resistivity[sl[0], sl[1], sl[2], idxc]
 
-                mask = (ap_region < width_val) & np.isfinite(res_region)
+                mask = np.isfinite(res_region)  # (ap_region < width_val) &
                 if not np.any(mask):
                     continue
 
                 # Apertures
-                ap_region[mask] = width_val
-                Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo] = ap_region
+                # electric apertures
+                ae_new = (
+                    width_val / res_val - width_val / Rv.resistivity_matrix[idxc]
+                ) / (1.0 / Rv.resistivity_fluid - 1.0 / Rv.resistivity_matrix[idxc])
+                Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo] += ae_new
 
-                ae_region = Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo]
-                ae_region[mask] = width_val
-                Rv.aperture_electric[sl[0], sl[1], sl[2], idxc, idxo] = ae_region
-
+                # hydraulic apertures
                 ah_region = Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo]
-                ah_region[mask] = aph_val
-                Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo] = ah_region
+                Rv.aperture_hydraulic[sl[0], sl[1], sl[2], idxc, idxo] = (
+                    (ah_region**2 * ap_region + aph_val**2 * width_val)
+                    / (width_val + ap_region)
+                ) ** 0.5
 
-                # Electrical properties (on connector channel)
-                res_vals_region = Rv.resistivity[sl[0], sl[1], sl[2], idxc]
-                res_vals_region[mask] = res_val
-                Rv.resistivity[sl[0], sl[1], sl[2], idxc] = res_vals_region
-
-                R_region = Rv.resistance[sl[0], sl[1], sl[2], idxc]
-                R_region[mask] = (
-                    res_val / cellsize[idxc]
-                )  # spacing along connector axis
-                Rv.resistance[sl[0], sl[1], sl[2], idxc] = R_region
+                # update aperture once other properties have been updated
+                Rv.aperture[sl[0], sl[1], sl[2], idxc, idxo] += width_val
 
                 # Record length for THIS connector channel
-                rec_region = fault_lengths_assigned[sl[0], sl[1], sl[2], idxc]
-                rec_region[mask] = float(fault_length_m)
-                fault_lengths_assigned[sl[0], sl[1], sl[2], idxc] = rec_region
+                fault_numbers_assigned[sl[0], sl[1], sl[2], idxc] += 1
 
         placed += 1
         # print(f"placed {placed}")
 
-    return Rv, fault_lengths_assigned
+    return Rv, fault_numbers_assigned
 
 
 def build_normal_faulting_update_dict(
-    Rv,
     Nfval,
     fault_length_m,
     fault_span_m,
@@ -1638,7 +1623,7 @@ def build_normal_faulting_update_dict(
     resistivity0,
     resistivity1,
     pxyz,
-    fault_lengths_assigned=None,
+    fault_numbers_assigned=None,
 ):
     """
     Builds input dictionaries for add_random_fault_planes_to_arrays function.
@@ -1729,10 +1714,10 @@ def build_normal_faulting_update_dict(
     )
     fault_update_dict["z"]["pxyz"] = (0.0, 0.0, 1.0)
 
-    if fault_lengths_assigned is not None:
+    if fault_numbers_assigned is not None:
         for direction in "xyz":
-            fault_update_dict[direction]["fault_lengths_assigned"] = (
-                fault_lengths_assigned[direction]
+            fault_update_dict[direction]["fault_numbers_assigned"] = (
+                fault_numbers_assigned[direction]
             )
 
     return fault_update_dict
@@ -1756,7 +1741,7 @@ def populate_rock_volume_with_all_faults(
     # for each direction: start with biggest faults and assign. Then check available cells.
     # if not enough available cells, then reduce Nf and try again.
     fault_lengths_assigned = {"x": None, "y": None, "z": None}
-
+    fault_lengths_assigned_extra = {"x": [], "y": [], "z": []}
     # initialise dictionary to contain additional faults
     added_Rv = {}
 
@@ -1764,7 +1749,6 @@ def populate_rock_volume_with_all_faults(
     for i in np.arange(len(Nf))[::-1]:
         # get inputs to add Nf[i] faults of length fault_length_center[i] to Rv
         fault_update_dict = build_normal_faulting_update_dict(
-            Rv,
             Nf[i],
             fault_length_center[i],
             fault_span_center[i],
@@ -1774,7 +1758,7 @@ def populate_rock_volume_with_all_faults(
             resistivity0,
             resistivity1,
             pxyz=pxyz,
-            fault_lengths_assigned=fault_lengths_assigned,
+            fault_numbers_assigned=fault_lengths_assigned,
         )
 
         for direction in "xyz":
@@ -1849,11 +1833,16 @@ def populate_rock_volume_with_all_faults(
                     Rv_update = copy.deepcopy(Rv_start)
 
                     # add faults to the Rv and update permeability
-                    Rvn, _ = add_random_fault_planes_to_arrays(
-                        Rv_update, **fault_update_dict_new
+                    Rvn, fault_lengths_assigned_extra_i = (
+                        add_random_fault_planes_to_arrays(
+                            Rv_update, **fault_update_dict_new
+                        )
                     )
                     Rvn.initialise_permeability()
                     added_Rv[i][direction].append(Rvn)
+                    fault_lengths_assigned_extra[direction].append(
+                        fault_lengths_assigned_extra_i
+                    )
                 print("Nfval", fault_update_dict[direction]["Nfval"])
 
                 # update the input dict to just contain the additional faults not added to the extra Rvs
@@ -1891,3 +1880,12 @@ def populate_rock_volume_with_all_faults(
     Rv.resistivity = len(res_list) / np.nansum(1.0 / res_list, axis=0)
     Rv.initialise_permeability()
     Rv.compute_conductive_fraction()
+
+    # consolidate all assigned fault lengths into a dictionary
+    for direction in "xyz":
+        fault_lengths_assigned[direction] = np.array(
+            [fault_lengths_assigned[direction]]
+            + fault_lengths_assigned_extra[direction]
+        )
+
+    return fault_lengths_assigned

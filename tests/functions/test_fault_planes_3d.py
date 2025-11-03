@@ -10,7 +10,8 @@ if os.name == "nt":
 
 from rnpy.core.resistornetwork import Rock_volume
 from rnpy.functions.assignfaults_new import (
-    populate_rock_volume_with_all_faults,
+    add_random_fault_planes_to_arrays,
+    build_normal_faulting_update_dict,
 )
 from rnpy.functions.readoutputs import get_equivalent_rho
 
@@ -34,12 +35,10 @@ resistivity1 = np.ones(100) * 3  # np.median(resistivity1)
 class testFaultPlanes3d(TestCase):
     def test_many_faults(self):
         for direction in "xz":
-            resistivity0eq = get_equivalent_rho(resistivity0, fw, cellsize)
-            resistivity1eq = get_equivalent_rho(resistivity1, fw, cellsize)
-
-            i = 0
+            ii = 0
 
             Nf = [10]
+            n_assigned = 10
             lvals_center_unique = fault_span_center = [0.05]  # fill the whole plane
 
             pxyz = np.zeros(3)  # + 1.0 / 3
@@ -56,18 +55,25 @@ class testFaultPlanes3d(TestCase):
                     np.isfinite(Rv.aperture_hydraulic[:, :, :, i])
                 ] = (12 * Rv.permeability_matrix[i]) ** 0.5
 
-            populate_rock_volume_with_all_faults(
-                Rv,
-                Nf,
-                lvals_center_unique,
-                fault_span_center,
+            fault_update_dict = build_normal_faulting_update_dict(
+                Nf[ii],
+                lvals_center_unique[ii],
+                fault_span_center[ii],
                 fw,
                 aph0,
                 aph1,
-                resistivity0eq,
-                resistivity1eq,
-                pxyz,
+                resistivity0,
+                resistivity1,
+                pxyz=pxyz,
+                fault_lengths_assigned=None,
             )
+
+            fault_lengths_assigned = {}
+            Rv, fault_lengths_assigned[direction] = add_random_fault_planes_to_arrays(
+                Rv, **fault_update_dict[direction]
+            )
+            Rv.initialise_permeability()
+            Rv.initialise_electrical_resistance()
             Rv.solve_resistor_network2()
 
             if direction == "x":
@@ -76,11 +82,9 @@ class testFaultPlanes3d(TestCase):
                     i0,
                     i1,
                 ) = 2, 1
-                n_assigned = (Rv.permeability[:, 10, :, 2] > 1e-18).sum(axis=1)[1]
             elif direction == "z":
                 # across, along-strike
                 i0, i1 = 0, 1
-                n_assigned = (Rv.permeability[:, 10, :, 1] > 1e-18).sum(axis=0)[1]
 
             # number of faults assigned (due to random process sometimes get overlap)
 
