@@ -65,7 +65,7 @@ class testFaultPlanes3d(TestCase):
                 resistivity0,
                 resistivity1,
                 pxyz=pxyz,
-                fault_lengths_assigned=None,
+                fault_numbers_assigned=None,
             )
 
             fault_lengths_assigned = {}
