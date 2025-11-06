@@ -1435,6 +1435,7 @@ def add_random_fault_planes_to_arrays(
             # required length in cells along each in-plane cartesian axis
             LA = cells_from_meters(fault_length_m, cartA)
             LB = cells_from_meters(span_per_plane[p], cartB)
+
             halfA = LA // 2
             halfB = LB // 2
 
@@ -1546,18 +1547,20 @@ def add_random_fault_planes_to_arrays(
         c_arr = [int(cz[p]), int(cy[p]), int(cx[p])]  # [z, y, x]
 
         # Odd-size handling (random extra cell)
-        extraA = rng.integers(0, 2) if (LA % 2 == 1) else 0
-        extraB = rng.integers(0, 2) if (LB % 2 == 1) else 0
+        extraA = LA % 2 == 1
+        extraB = LB % 2 == 1
+        endA = rng.choice([0, 1])
+        endB = rng.choice([0, 1])
 
         # Inclusive bounds on A/B axes (interior [1 .. N+1]) → convert to exclusive slice ends (+1)
-        A0 = max(ARR_MIN_INCL[arrA], c_arr[arrA] - LA // 2 - (extraA == 1))
+        A0 = max(ARR_MIN_INCL[arrA], c_arr[arrA] - LA // 2 - (extraA == 1) * endA)
         A1_inc = min(
-            ARR_MAX_INCL[arrA], c_arr[arrA] + LA // 2 + (extraA == 0)
-        )  # inclusive
-        B0 = max(ARR_MIN_INCL[arrB], c_arr[arrB] - LB // 2 - (extraB == 1))
+            ARR_MAX_INCL[arrA], c_arr[arrA] + LA // 2 + (extraA == 1) * (1 - endA)
+        )  # exclusive
+        B0 = max(ARR_MIN_INCL[arrB], c_arr[arrB] - LB // 2 - (extraB == 1) * endB)
         B1_inc = min(
-            ARR_MAX_INCL[arrB], c_arr[arrB] + LB // 2 + (extraB == 0)
-        )  # inclusive
+            ARR_MAX_INCL[arrB], c_arr[arrB] + LB // 2 + (extraB == 1) * (1 - endB)
+        )  # exclusive
 
         # Fix the normal axis at centre; march along arrA; assign strips across arrB
         sl = [
@@ -1571,9 +1574,9 @@ def add_random_fault_planes_to_arrays(
         pairs = PAIRS[n]  # [(idxc, idxo), (idxc, idxo)]
 
         # Iterate A with inclusive range; slice B to include last cell (+1 at end)
-        for posA in range(A0, A1_inc + 1):  # include A1_inc
+        for posA in range(A0, A1_inc):  # exclude A1_inc
             sl[arrA] = slice(posA, posA + 1)
-            sl[arrB] = slice(B0, B1_inc + 1)  # include B1_inc
+            sl[arrB] = slice(B0, B1_inc)  # exclude B1_inc
 
             # Update BOTH off-diagonal pairs
             for pair_idx, (idxc, idxo) in enumerate(pairs):

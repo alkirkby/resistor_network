@@ -42,9 +42,9 @@ if __name__ == "__main__":
     else:
         input_parameters = {}
         # set defaults
-        input_parameters["repeats"] = 4
+        input_parameters["repeats"] = 1
         input_parameters["resistivity_fluid"] = 0.5
-        nc = 24
+        nc = 20
         input_parameters["fault_aspect_ratio"] = 0.2
         input_parameters["gamma"] = 4.1
         input_parameters["target_porosity"] = 0.02
@@ -54,13 +54,13 @@ if __name__ == "__main__":
             input_parameters["cellsize_mm"],
             input_parameters["lmin"],
             input_parameters["lmax"],
-        ) = 0.002, None, 0.05
+        ) = 0.005, None, 0.05
         input_parameters["width_m"] = R = input_parameters["cellsize_mm"] * nc
         input_parameters["pxyz"] = (0.8, 0.1, 0.1)
         input_parameters["working_directory"] = (
             r"C:\Users\alisonk.GNS\OneDrive - GNS Science\Energy_Futures_Project_2_Geophysics\Rock_property_modelling\summary_data_from_models"
         )
-        input_parameters["n_workers"] = 4
+        input_parameters["n_workers"] = 1
 
     client = Client(
         n_workers=input_parameters["n_workers"],
@@ -127,6 +127,7 @@ if __name__ == "__main__":
         lvals_range_unique,
         ndim=3,
     )
+    print("Nf", Nf)
 
     NfLarge = get_Nf(
         input_parameters["gamma"],
