@@ -4,6 +4,7 @@ Created on Thu Jan 30 12:06:33 2025
 
 @author: alisonk
 """
+
 import numpy as np
 import sys
 import os
@@ -78,7 +79,6 @@ def parse_arguments(arguments):
     parser = argparse.ArgumentParser()
 
     for i in range(len(argument_names)):
-
         longname, shortname, helpmsg, nargs, vtype = argument_names[i]
         action = "store"
         longname = "--" + longname
@@ -145,10 +145,7 @@ def setup_and_solve_fault_sticks(
     # split up hydraulic_apertures, fault lengths, widths, resistivity by fault length
     if np.iterable(fault_lengths_m):
         fault_widths, hydraulic_apertures, resistivity = [
-            [
-                arr[fault_lengths_m == length]
-                for length in np.unique(fault_lengths_m)
-            ]
+            [arr[fault_lengths_m == length] for length in np.unique(fault_lengths_m)]
             for arr in [fault_widths, hydraulic_apertures, resistivity]
         ]
         fault_lengths_m = np.unique(fault_lengths_m)
@@ -176,15 +173,13 @@ def setup_and_solve_fault_sticks(
                 fault_lengths_assigned=fault_lengths_assigned,
             )
         Nf_update_new = (
-            (
-                np.array(Nf)
-                - np.array(
-                    [
-                        np.sum(fault_lengths_assigned == fault_lengths_m[i])
-                        / (fault_lengths_m[i] / Rv.cellsize[1])
-                        for i in range(len(Nf))
-                    ]
-                )
+            np.array(Nf)
+            - np.array(
+                [
+                    np.sum(fault_lengths_assigned == fault_lengths_m[i])
+                    / (fault_lengths_m[i] / Rv.cellsize[1])
+                    for i in range(len(Nf))
+                ]
             )
         ).astype(int)
 
@@ -216,7 +211,6 @@ def setup_and_solve_fault_sticks(
 
 
 if __name__ == "__main__":
-
     # %%
     t0 = time.time()
     inputs = parse_arguments(sys.argv)
@@ -284,9 +278,7 @@ if __name__ == "__main__":
     rfstr = "%.1f" % rfluid if rfluid >= 0.1 else "%.2f" % rfluid
     Rstr = "%1i" % R if R >= 1 else "%.1f" % R
     cs_str = (
-        "%1i" % (cellsize * 1000)
-        if cellsize >= 1e-3
-        else "%.1f" % (cellsize * 1000)
+        "%1i" % (cellsize * 1000) if cellsize >= 1e-3 else "%.1f" % (cellsize * 1000)
     )
 
     prop_suffix = "a%.1f_R%sm_rf%s_por%.1fpc_pz%.2f_cs%smm_%s" % (
@@ -309,7 +301,6 @@ if __name__ == "__main__":
     )
 
     if len(np.unique(lvals_center)) < len(lvals_center):
-
         lvals_center_unique = np.unique(lvals_center)
         lvals_range_unique = np.unique(lvals_range)
         # get mean fault width by
@@ -348,9 +339,7 @@ if __name__ == "__main__":
         Nf_precise = get_Nf(a, alpha, R_for_alpha_calc, lvals_range_unique)
         Nf_lw = Nf_precise * lvals_center_unique
         filt_ylen = lvals_center_unique >= max_y_fault_length
-        pz_short = (pz * Nf_lw.sum() - Nf_lw[filt_ylen].sum()) / Nf_lw[
-            ~filt_ylen
-        ].sum()
+        pz_short = (pz * Nf_lw.sum() - Nf_lw[filt_ylen].sum()) / Nf_lw[~filt_ylen].sum()
     else:
         pz_short = pz
 
@@ -361,9 +350,7 @@ if __name__ == "__main__":
         )
     else:
         idx1 = (
-            np.where(lvals_center_unique <= lmax)[-1][-1]
-            - len(lvals_center_unique)
-            + 1
+            np.where(lvals_center_unique <= lmax)[-1][-1] - len(lvals_center_unique) + 1
         )  # relative to the end
     if lmin is None:
         lmin, idx0 = 0, 0
@@ -400,12 +387,8 @@ if __name__ == "__main__":
         openfile.write("# a %.1f\n" % a)
         openfile.write("# total_size_m %.1f\n" % R)
         openfile.write("# cellsize_mm %.1f\n" % (cellsize * 1000))
-        openfile.write(
-            "# matrix_permeability %.1e %.1e %.1e\n" % tuple(matrix_k)
-        )
-        openfile.write(
-            "# matrix_resistivity %.1e %.1e %.1e\n" % tuple(matrix_res)
-        )
+        openfile.write("# matrix_permeability %.1e %.1e %.1e\n" % tuple(matrix_k))
+        openfile.write("# matrix_resistivity %.1e %.1e %.1e\n" % tuple(matrix_res))
         openfile.write("# porosity_target %.3f\n" % porosity_target)
         openfile.write("# alpha %.2f\n" % alpha)
         openfile.write("# pz %.5f\n" % pz)
@@ -421,9 +404,7 @@ if __name__ == "__main__":
             + "\n"
         )
         openfile.write(
-            "# Num_fractures_per_bin "
-            + " ".join(["%.1i" % val for val in Nf])
-            + "\n"
+            "# Num_fractures_per_bin " + " ".join(["%.1i" % val for val in Nf]) + "\n"
         )
 
     kbulk = []
@@ -435,9 +416,7 @@ if __name__ == "__main__":
     if np.iterable(matrix_res):
         resistivity_ij = np.column_stack(
             [
-                get_equivalent_rho(
-                    resistivity, fw, cellsize, rho_matrix=matrix_res[i]
-                )
+                get_equivalent_rho(resistivity, fw, cellsize, rho_matrix=matrix_res[i])
                 for i in [1, 2]
             ]
         )
