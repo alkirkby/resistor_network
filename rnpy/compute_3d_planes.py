@@ -6,10 +6,7 @@ import time
 import matplotlib.pyplot as plt
 
 import copy
-import matplotlib
 
-matplotlib.use("Qt5Agg")
-plt.ion()
 
 if os.name == "nt":
     sys.path.append(r"C:\git\resistor_network")
@@ -228,6 +225,10 @@ if __name__ == "__main__":
     assigned_dict_list = [results[i][1] for i in range(len(results))]
 
     if not is_cmdline:
+        import matplotlib
+
+        matplotlib.use("Qt5Agg")
+        plt.ion()
         Rv = Rv_list[0]
         fault_numbers_assigned_dict = assigned_dict_list[0]
         x = np.arange(
